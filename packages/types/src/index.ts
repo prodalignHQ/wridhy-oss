@@ -1,0 +1,189 @@
+import { z } from 'zod'
+
+// ─── Owner ────────────────────────────────────────────────────────────────────
+
+export const OwnerTypeSchema = z.enum(['person', 'shared', 'household'])
+export type OwnerType = z.infer<typeof OwnerTypeSchema>
+
+export const OwnerSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  type: OwnerTypeSchema,
+  color: z.string(),
+  isDefault: z.boolean(),
+  createdAt: z.date(),
+})
+export type Owner = z.infer<typeof OwnerSchema>
+
+export const CreateOwnerSchema = z.object({
+  name: z.string().min(1).max(100),
+  type: OwnerTypeSchema.default('person'),
+  color: z.string().optional(),
+})
+export type CreateOwner = z.infer<typeof CreateOwnerSchema>
+
+// ─── Account ──────────────────────────────────────────────────────────────────
+
+export const AccountTypeSchema = z.enum(['bank', 'credit_card', 'wallet', 'investment'])
+export type AccountType = z.infer<typeof AccountTypeSchema>
+
+export const AccountSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  accountName: z.string().min(1).max(100),
+  accountType: AccountTypeSchema,
+  bankName: z.string().min(1).max(100),
+  currency: z.string().default('INR'),
+  isDeleted: z.boolean(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+export type Account = z.infer<typeof AccountSchema>
+
+export const CreateAccountSchema = z.object({
+  accountName: z.string().min(1).max(100),
+  accountType: AccountTypeSchema,
+  bankName: z.string().min(1).max(100),
+  currency: z.string().default('INR'),
+})
+export type CreateAccount = z.infer<typeof CreateAccountSchema>
+
+// ─── Category ────────────────────────────────────────────────────────────────
+
+export const CategorySchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid().nullable(),
+  name: z.string().min(1).max(100),
+  icon: z.string().nullable(),
+  color: z.string(),
+  parentId: z.string().uuid().nullable(),
+  isSystem: z.boolean(),
+  createdAt: z.date(),
+})
+export type Category = z.infer<typeof CategorySchema>
+
+// ─── Categorization Rule ──────────────────────────────────────────────────────
+
+export const MatchFieldSchema = z.enum(['merchant', 'description', 'amount'])
+export type MatchField = z.infer<typeof MatchFieldSchema>
+
+export const MatchTypeSchema = z.enum(['contains', 'equals', 'regex', 'gt', 'lt'])
+export type MatchType = z.infer<typeof MatchTypeSchema>
+
+export const RuleSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid().nullable(),
+  matchField: MatchFieldSchema,
+  matchType: MatchTypeSchema,
+  matchValue: z.string(),
+  categoryId: z.string().uuid(),
+  priority: z.number().int().min(1).max(9999),
+  source: z.enum(['system', 'user']),
+  isActive: z.boolean(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+export type Rule = z.infer<typeof RuleSchema>
+
+// ─── Transaction ──────────────────────────────────────────────────────────────
+
+export const TransactionTypeSchema = z.enum(['debit', 'credit'])
+export type TransactionType = z.infer<typeof TransactionTypeSchema>
+
+export const TransactionOwnerSchema = z.object({
+  id: z.string().uuid(),
+  transactionId: z.string().uuid(),
+  ownerId: z.string().uuid(),
+  amount: z.string(), // numeric string from DB
+  percentage: z.string(), // numeric string from DB
+})
+export type TransactionOwner = z.infer<typeof TransactionOwnerSchema>
+
+export const TransactionSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  accountId: z.string().uuid(),
+  statementId: z.string().uuid().nullable(),
+  date: z.date(),
+  description: z.string(),
+  merchant: z.string().nullable(),
+  amount: z.string(), // numeric string from DB
+  type: TransactionTypeSchema,
+  categoryId: z.string().uuid().nullable(),
+  comment: z.string().nullable(),
+  dedupHash: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  // Joined fields
+  owners: z.array(TransactionOwnerSchema).optional(),
+  category: CategorySchema.nullable().optional(),
+})
+export type Transaction = z.infer<typeof TransactionSchema>
+
+// ─── Net Worth ────────────────────────────────────────────────────────────────
+
+export const AssetTypeSchema = z.enum(['bank_account', 'investment', 'real_estate', 'crypto', 'cash', 'other'])
+export type AssetType = z.infer<typeof AssetTypeSchema>
+
+export const AssetSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  type: AssetTypeSchema,
+  value: z.string(),
+  currency: z.string().default('INR'),
+  valuationDate: z.date(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+export type Asset = z.infer<typeof AssetSchema>
+
+export const LiabilityTypeSchema = z.enum(['home_loan', 'car_loan', 'credit_card', 'student_loan', 'personal_loan', 'other'])
+export type LiabilityType = z.infer<typeof LiabilityTypeSchema>
+
+export const LiabilitySchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  type: LiabilityTypeSchema,
+  outstandingAmount: z.string(),
+  interestRate: z.string().nullable(),
+  monthlyPayment: z.string().nullable(),
+  lastUpdated: z.date(),
+  createdAt: z.date(),
+})
+export type Liability = z.infer<typeof LiabilitySchema>
+
+export const NetWorthSnapshotSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  snapshotDate: z.date(),
+  totalAssets: z.string(),
+  totalLiabilities: z.string(),
+  netWorth: z.string(),
+  assetBreakdown: z.array(z.object({ name: z.string(), type: z.string(), value: z.number() })).nullable(),
+  liabilityBreakdown: z.array(z.object({ name: z.string(), type: z.string(), amount: z.number() })).nullable(),
+  notes: z.string().nullable(),
+  createdAt: z.date(),
+})
+export type NetWorthSnapshot = z.infer<typeof NetWorthSnapshotSchema>
+
+// ─── API Response Envelope ────────────────────────────────────────────────────
+
+export const ApiSuccessSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
+  z.object({
+    success: z.literal(true),
+    data: dataSchema,
+    meta: z.object({ page: z.number(), total: z.number() }).optional(),
+  })
+
+export const ApiErrorSchema = z.object({
+  success: z.literal(false),
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+  }),
+})
+
+export type ApiError = z.infer<typeof ApiErrorSchema>
