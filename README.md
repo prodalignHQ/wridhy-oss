@@ -26,7 +26,15 @@ This project is a Turborepo monorepo using `pnpm` workspaces. It is divided into
    pnpm install
    ```
 
-2. **Database Setup**
+2. **Environment Variables**
+   Set up your environment variables for the API and Database. Create a `.env` inside `apps/api/`:
+   
+   ```bash
+   DATABASE_URL=postgres://momoney:momoney_dev@localhost:5432/momoney_db
+   BETTER_AUTH_SECRET=your_super_secret_string
+   ```
+
+3. **Database Setup**
    The project uses PostgreSQL. A `docker-compose.yml` file is provided at the root:
 
    ```bash
@@ -34,16 +42,16 @@ This project is a Turborepo monorepo using `pnpm` workspaces. It is divided into
    docker-compose up -d
    ```
 
-3. **Initialize Database Schema**
-   Once the database is running, push the Drizzle ORM schema to create the initial tables:
+4. **Initialize Database Schema**
+   Once the database is running, push the Drizzle ORM schema to create the initial tables (this includes the tables required for `better-auth` as they are woven into the Drizzle schema):
 
    ```bash
-   cd packages/db
-   pnpm run db:push
-   cd ../..
+   pnpm --filter @momoney/db exec drizzle-kit push
    ```
 
-4. **Start Development Servers**
+   *(Optional) If you ever need to apply Better Auth specific migrations directly via their CLI, you can run `DATABASE_URL=... pnpm dlx @better-auth/cli migrate`*.
+
+5. **Start Development Servers**
    To start both the Next.js web application and the Hono.js API server simultaneously, run:
 
    ```bash

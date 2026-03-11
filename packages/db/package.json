@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./auth": "./src/auth.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
@@ -14,12 +15,13 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "drizzle-orm": "^0.40.0",
+    "better-auth": "^1.5.5",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
-    "drizzle-kit": "^0.30.4",
+    "drizzle-kit": "^0.31.9",
+    "drizzle-orm": "^0.45.1",
     "typescript": "^5.7.3"
   },
   "peerDependencies": {

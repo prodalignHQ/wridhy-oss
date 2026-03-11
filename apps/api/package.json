@@ -11,14 +11,20 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.5.5",
     "@hono/node-server": "^1.13.7",
+    "@hono/zod-validator": "^0.7.6",
     "@momoney/db": "workspace:*",
     "@momoney/types": "workspace:*",
     "@momoney/utils": "workspace:*",
+    "better-auth": "^1.5.5",
+    "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.45.1",
     "hono": "^4.7.4",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@better-auth/cli": "^1.4.21",
     "@types/node": "^22.13.10",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"
