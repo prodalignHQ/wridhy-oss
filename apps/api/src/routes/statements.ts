@@ -61,6 +61,7 @@ statementsRoute.post('/upload', async (c) => {
   const file = body['file']
   const bankId = String(body['bankId'] ?? '').trim()
   const accountId = String(body['accountId'] ?? '').trim()
+  const providedStatementMonth = String(body['statementMonth'] ?? '').trim()
 
   if (!file || typeof file === 'string') {
     return c.json(
@@ -155,12 +156,17 @@ statementsRoute.post('/upload', async (c) => {
     dedupHash: computeDedupHash(accountId, txn.date, txn.amount, txn.description),
   }))
 
-  // Derive statementMonth from the earliest transaction date
-  const sortedByDate = [...withHashes].sort((a, b) => a.date.getTime() - b.date.getTime())
-  const earliestDate = sortedByDate[0]?.date
-  const statementMonth = earliestDate
-    ? `${earliestDate.getFullYear()}-${String(earliestDate.getMonth() + 1).padStart(2, '0')}-01`
-    : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`
+  // Derive statementMonth from user input or from earliest transaction date
+  let statementMonth: string
+  if (providedStatementMonth) {
+    statementMonth = providedStatementMonth // Already in YYYY-MM-DD format from frontend
+  } else {
+    const sortedByDate = [...withHashes].sort((a, b) => a.date.getTime() - b.date.getTime())
+    const earliestDate = sortedByDate[0]?.date
+    statementMonth = earliestDate
+      ? `${earliestDate.getFullYear()}-${String(earliestDate.getMonth() + 1).padStart(2, '0')}-01`
+      : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`
+  }
 
   // Import within a DB transaction
   let importedCount = 0

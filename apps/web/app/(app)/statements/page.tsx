@@ -269,6 +269,7 @@ export default function StatementsPage() {
   const [totalParsed, setTotalParsed] = useState(0)
   const [isParsing, setIsParsing] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState('')
 
   // Derived bankId from selected account
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId)
@@ -306,6 +307,14 @@ export default function StatementsPage() {
           rows = parsed.map((p: any) => ({ date: p.date.toISOString(), description: p.description, amount: p.amount, type: p.type }))
         }
 
+        // Derive default month from earliest transaction
+        if (rows.length > 0) {
+          const sorted = [...rows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          const earliest = new Date(sorted[0].date)
+          const month = `${earliest.getFullYear()}-${String(earliest.getMonth() + 1).padStart(2, '0')}`
+          setSelectedMonth(month)
+        }
+
         setTotalParsed(rows.length)
         setPreviewRows(rows.slice(0, 20))
       } catch (err) {
@@ -328,12 +337,18 @@ export default function StatementsPage() {
       return
     }
 
+    if (!selectedMonth) {
+      toast.error('Please select a month to tag this statement')
+      return
+    }
+
     setIsImporting(true)
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('bankId', selectedBankId)
       formData.append('accountId', selectedAccountId)
+      formData.append('statementMonth', selectedMonth + '-01')
 
       const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
       const res = await fetch(`${baseURL}/v1/statements/upload`, {
@@ -413,6 +428,7 @@ export default function StatementsPage() {
             setSelectedFile(null)
             setPreviewRows([])
             setTotalParsed(0)
+            setSelectedMonth('')
           }}
         />
 
@@ -421,6 +437,19 @@ export default function StatementsPage() {
           <div className="flex items-center gap-2 text-sm text-zinc-400">
             <div className="w-4 h-4 border-2 border-zinc-600 border-t-indigo-500 rounded-full animate-spin" />
             Parsing statement…
+          </div>
+        )}
+
+        {/* Month selector */}
+        {totalParsed > 0 && !isParsing && (
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-zinc-400">Tag to month:</label>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
         )}
 

@@ -11,6 +11,7 @@ import {
   Landmark,
   Sliders,
   Settings,
+  Receipt,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -18,6 +19,7 @@ const financeNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/statements", label: "Statements", icon: FileText },
+  { href: "/invoices", label: "Invoices", icon: Receipt },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/networth", label: "Net Worth", icon: TrendingUp },
   { href: "/accounts", label: "Accounts", icon: Landmark },
