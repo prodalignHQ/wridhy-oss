@@ -21,6 +21,19 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     )
   }
 
+  if (!session.user.emailVerified) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'EMAIL_NOT_VERIFIED',
+          message: 'Verify your email before using the app',
+        },
+      },
+      403
+    )
+  }
+
   c.set('user', session.user)
   c.set('session', session.session)
   c.set('userId', session.user.id)

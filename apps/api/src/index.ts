@@ -28,6 +28,7 @@ app.use('*', prettyJSON())
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 app.route('/health', healthRoute)
+app.route('/api/auth', authRoute)
 app.route('/v1/auth', authRoute)
 app.route('/v1/accounts', accountsRoute)
 app.route('/v1/owners', ownersRoute)
