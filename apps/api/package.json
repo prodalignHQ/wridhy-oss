@@ -15,6 +15,7 @@
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.7.6",
     "@momoney/db": "workspace:*",
+    "@momoney/parsers": "workspace:*",
     "@momoney/types": "workspace:*",
     "@momoney/utils": "workspace:*",
     "better-auth": "^1.5.5",
