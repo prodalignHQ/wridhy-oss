@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, integer, numeric, boolean, jsonb, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, uuid, integer, numeric, boolean, jsonb, pgEnum, date } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
@@ -80,6 +80,7 @@ export const financialAccounts = pgTable('financial_accounts', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   accountName: text('account_name').notNull(),
   accountType: accountTypeEnum('account_type').notNull(),
+  bankId: text('bank_id').notNull(), // e.g. "icici_savings", "icici_credit"
   bankName: text('bank_name').notNull(),
   currency: text('currency').notNull().default('INR'),
   isDeleted: boolean('is_deleted').notNull().default(false),
@@ -138,6 +139,7 @@ export const statements = pgTable('statements', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   accountId: uuid('account_id').notNull().references(() => financialAccounts.id, { onDelete: 'cascade' }),
   bankId: text('bank_id').notNull(), // e.g. "hdfc", "icici"
+  statementMonth: date('statement_month').notNull(), // YYYY-MM-01
   parsedCount: integer('parsed_count').notNull().default(0),
   importedCount: integer('imported_count').notNull().default(0),
   duplicatesSkipped: integer('duplicates_skipped').notNull().default(0),

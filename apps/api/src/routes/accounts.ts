@@ -17,6 +17,7 @@ accountsRoute.use('*', authMiddleware)
 const insertAccountSchema = z.object({
   accountName: z.string().min(1),
   accountType: z.enum(['bank', 'credit_card', 'wallet', 'investment']),
+  bankId: z.string().min(1),
   bankName: z.string().min(1),
   currency: z.string().default('INR'),
 })

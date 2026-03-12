@@ -155,6 +155,13 @@ statementsRoute.post('/upload', async (c) => {
     dedupHash: computeDedupHash(accountId, txn.date, txn.amount, txn.description),
   }))
 
+  // Derive statementMonth from the earliest transaction date
+  const sortedByDate = [...withHashes].sort((a, b) => a.date.getTime() - b.date.getTime())
+  const earliestDate = sortedByDate[0]?.date
+  const statementMonth = earliestDate
+    ? `${earliestDate.getFullYear()}-${String(earliestDate.getMonth() + 1).padStart(2, '0')}-01`
+    : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`
+
   // Import within a DB transaction
   let importedCount = 0
   let duplicatesSkipped = 0
@@ -168,6 +175,7 @@ statementsRoute.post('/upload', async (c) => {
         userId,
         accountId,
         bankId,
+        statementMonth,
         parsedCount,
         importedCount: 0, // will update
         duplicatesSkipped: 0,
