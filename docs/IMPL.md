@@ -28,9 +28,9 @@ The repo starts from zero — Phase 0 bootstraps everything.
 |-------|------|---------------|
 | 0 | Monorepo Bootstrap | Dev environment running end-to-end |
 | 1 | Auth, Accounts & Owners | Sign up, log in, create accounts, define household members |
-| 2 | Statement Upload & Parsing | Upload CSV → see transactions with owner assignment |
+| 2 | Statement Upload, Month Tagging & Owner Assignment | Upload CSV → see transactions with owner assignment and tagged months |
 | 3 | Categorization & Rules Engine | Transactions auto-categorized |
-| 4 | Dashboard & Insights | Monthly spend charts, filterable by owner |
+| 4 | Invoices, Dashboard & Insights | Draft/generate invoices + monthly spend charts, filterable by owner |
 | 5 | Net Worth Tracker | Track assets & liabilities over time |
 | 6 | Data Portability & Storage Modes | Export/import, local SQLite mode |
 
@@ -99,7 +99,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 3. **`packages/db`**
    - Drizzle ORM configured for **PostgreSQL** (cloud) and **SQLite** (local/test)
    - Define **all** core tables upfront (see TECH_PLAN §11.1) — this prevents future migrations from being breaking:
-     `users`, `financial_accounts`, `statements`, `transactions`, `transaction_owners`, `categories`, `merchants`, `categorization_rules`, `owners`, `assets`, `liabilities`, `net_worth_snapshots`
+     `users`, `financial_accounts`, `statements`, `transactions`, `transaction_owners`, `invoices`, `invoice_statements`, `invoice_transaction_snapshots`, `categories`, `merchants`, `categorization_rules`, `owners`, `assets`, `liabilities`, `net_worth_snapshots`
    - Run `drizzle-kit generate` and `drizzle-kit push` for initial migration
    - Local dev: **Docker Compose** with a PostgreSQL container on port `5432`
 
@@ -113,7 +113,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
    - Install: `shadcn/ui`, Tailwind CSS, `zustand`, `react-hook-form`, `zod`, `date-fns`, `recharts`, `sonner`
    - Add Inter font via `next/font/google`
    - Build the full **sidebar shell** with all nav items present (pages render "Coming soon" placeholders):
-     - Dashboard, Transactions, Statements, Insights, Net Worth, Accounts, Rules, Settings
+     - Dashboard, Transactions, Statements, Invoices, Insights, Net Worth, Accounts, Rules, Settings
    - Each nav item has a relevant Lucide icon
    - Bottom of sidebar: placeholder user avatar + "Account" label
    - Build the `<StatCard>`, `<ConfirmDialog>`, `<AmountBadge>`, `<OwnerAvatars>`, `<CategoryBadge>` components now, in a `components/ui/custom/` folder, so every phase can use them consistently
@@ -213,9 +213,9 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 2 — Statement Upload, Parsing & Owner Assignment
+## Phase 2 — Statement Upload, Month Tagging & Owner Assignment
 
-> **Goal:** The core value prop. Upload a real CSV from your bank and see your transactions appear in a table. Every transaction can immediately be assigned to one or more owners and split equally between them.
+> **Goal:** The core value prop. Upload a real CSV from your bank, tag the statement to a month, and see your transactions appear in a table. Every transaction can immediately be assigned to one or more owners and split equally between them. Month tagging is the foundation for invoice creation in Phase 4.
 
 ### Backend Deliverable
 
@@ -228,12 +228,13 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
    - Each parser returns `ParsedTransaction[]` from an `ArrayBuffer`
 
 2. **Statement upload route** — `apps/api/src/routes/statements.ts`
-   - `POST /v1/statements/upload` — `multipart/form-data`: `file`, `bankId`, `accountId`
+   - `POST /v1/statements/upload` — `multipart/form-data`: `file`, `bankId`, `accountId`, `statementMonth`
    - Multer in-memory only; file buffer discarded after parse (see TECH_PLAN §7.4)
    - Dedup: `dedupHash = hash(accountId + date + amount + descriptionHash)`
    - On insert: for each new transaction, auto-create a `transaction_owners` row assigning it 100% to "Self"
+   - Persist the user-selected `statementMonth` (`YYYY-MM-01`) on every statement record
    - Returns `{ statementId, parsedCount, importedCount, duplicatesSkipped }`
-   - `GET  /v1/statements` — list import history
+   - `GET  /v1/statements` — list import history, including tagged month
    - `DELETE /v1/statements/:id` — delete statement + all its transactions + their `transaction_owners` rows
 
 3. **Transactions routes** — `apps/api/src/routes/transactions.ts`
@@ -271,9 +272,11 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
    - File upload dropzone (dashed border, `rounded-xl`, drag-and-drop + click to browse)
    - Bank selector + account selector (dropdowns)
    - After parsing: preview table of first 20 rows (Date, Description, Amount, Type)
+   - Month picker after preview: user must tag the statement to a month before import
    - Preview table shows a "Ready to import" badge count
    - "Confirm Import" button → shows loading state → success toast "Imported 124 transactions"
-   - Statement history: list of past imports (bank, account, date, transaction count, delete button)
+   - Statement history grouped by tagged month
+   - Each month group includes a "Create Invoice" CTA that deep-links to the Invoices page with that month pre-selected
 
 4. **Transactions page** — `app/(app)/transactions/page.tsx`
 
@@ -412,14 +415,33 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 4 — Dashboard & Insights
+## Phase 4 — Invoices, Dashboard & Insights
 
-> **Goal:** Turn raw transaction data into meaningful visualizations. All charts support owner filtering — users can see "just my spend" or the full household view.
+> **Goal:** Turn categorized, owner-attributed transaction data into saved monthly invoices and meaningful visualizations. Users can draft an invoice from tagged statements, generate it into a frozen snapshot with analysis, and still use the broader dashboard/insights views for trends over time.
 
 ### Backend Deliverable
 
-1. **Insights routes** — `apps/api/src/routes/insights.ts`
+1. **Invoice routes** — `apps/api/src/routes/invoices.ts`
    (See TECH_PLAN §10.10)
+   - `GET /v1/invoices` — return two buckets: `drafts[]` and `generated[]`
+   - `POST /v1/invoices` — create a draft from `{ name, invoiceMonth, statementIds[] }`
+   - `GET /v1/invoices/:id` — return invoice metadata, selected statements, transaction rows, and analysis
+   - `PATCH /v1/invoices/:id` — rename a draft and/or update selected statements
+   - `POST /v1/invoices/:id/generate` — create snapshot rows and mark the invoice as generated
+   - Validation rule: all selected statements must share the same tagged `invoiceMonth`
+   - Generation rule: snapshot current category + owner split state for every included transaction
+
+2. **`apps/api/src/services/invoices.service.ts`**
+   - `createDraft(userId, invoiceMonth, statementIds, name?)`
+   - `loadInvoice(userId, invoiceId)` — returns live rows for drafts, frozen snapshot rows for generated invoices
+   - `generateInvoice(userId, invoiceId)` — writes `invoice_transaction_snapshots`
+   - `computeInvoiceAnalysis(invoiceId)` — returns:
+     - spend by owner
+     - spend by owner within each category
+   - Invoice analysis uses **debit transactions only** and respects owner split amounts
+
+3. **Insights routes** — `apps/api/src/routes/insights.ts`
+   (See TECH_PLAN §10.11)
    - `GET /v1/insights/monthly?month=2025-03&accountIds=&ownerIds=`
      - When `ownerIds` is provided: join `transaction_owners` and sum only the share amounts for those owners
      - Returns: `{ totalSpend, totalIncome, netFlow, topCategories[], topMerchants[], uncategorizedCount }`
@@ -430,13 +452,40 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
    - `GET /v1/insights/merchants?startDate=&endDate=&ownerIds=&limit=10`
      - Top merchants by spend amount
 
-2. **`apps/api/src/services/insights.service.ts`**
+4. **`apps/api/src/services/insights.service.ts`**
    - All aggregations via SQL GROUP BY — no N+1 queries
    - Owner filtering: `JOIN transaction_owners ON transaction_owners.transaction_id = transactions.id WHERE transaction_owners.owner_id IN (?)`
 
 ### Frontend Deliverable
 
-1. **Dashboard page** — `app/(app)/dashboard/page.tsx`
+1. **Invoices page** — `app/(app)/invoices/page.tsx`
+
+   **Create Draft panel:**
+   - Month selector seeded from uploaded statement months
+   - Statement checklist for the selected month (multi-select across accounts/banks)
+   - Invoice name input
+   - "Create Draft" button
+
+   **Draft workspace:**
+   - Visible once a draft is selected or created
+   - Header row: invoice name, selected month, statement chips, "Save Draft", "Generate Invoice"
+   - Transaction table sourced from the draft's selected statements
+   - Filters: Description search, Category filter, Amount type filter (`All | Debit | Credit`)
+   - Inline category editing reuses the transaction category picker
+   - Owner assignment reuses the split-owner modal
+
+   **Invoice index rail / section:**
+   - Drafts section lists all ungenerated invoices
+   - Generated section lists all finalized invoices
+   - Clicking any item loads it into the main detail panel
+
+   **Generated invoice detail:**
+   - Read-only transaction snapshot table
+   - Analysis section with:
+     - "Who spent how much?"
+     - "Who spent how much in each category?"
+
+2. **Dashboard page** — `app/(app)/dashboard/page.tsx`
 
    **Top bar:**
    - Month selector (prev/next arrows + "March 2026" label, `rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-2`)
@@ -455,7 +504,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
    **Third row — full width:**
    - **Top merchants table** — not a chart. A simple ranked list: rank | merchant name | total spend | transaction count. Shows top 8. "View all in Insights →" link.
 
-2. **Insights page** — `app/(app)/insights/page.tsx`
+3. **Insights page** — `app/(app)/insights/page.tsx`
    - Owner filter + date range filter at the top (same pattern as Dashboard)
    
    **Section 1 — Year Overview:**
@@ -471,12 +520,16 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
    - Horizontal bar chart: top 10 merchants by spend for the selected date range
    - Each bar labeled with merchant name and total
 
-3. **Client-side insights** (session mode)
+4. **Client-side insights** (session mode)
    - `lib/adapters/session.adapter.ts` implements `getInsights()` using `Array.reduce()`
    - Owner filtering applied in-memory
 
 ### Frontend Design Notes
 
+- **Invoices page layout:** Two-pane layout on desktop — left rail for Drafts/Generated lists, right workspace for the selected invoice. On mobile, the list collapses into stacked sections above the workspace.
+- **Create Draft panel:** `bg-zinc-900 border border-zinc-800 rounded-2xl p-6`. Statement chips show bank/account names; selected chips get an `indigo-500` ring. The month selector and name input sit on the same row on desktop.
+- **Draft transaction table:** Reuse the Transactions visual language so the user is editing familiar controls. Above the table, show compact summary cards for Total Spend, Total Income, and statement count. Filter bar matches the Transactions page but is scoped to the active draft.
+- **Generated analysis section:** Two cards stacked vertically. First card is owner totals (`Owner | Spend | % of invoice spend`). Second card is a grouped table where each owner expands into their category totals. Spend numbers are debit-only and `font-mono`.
 - **Dashboard layout:** Three distinct horizontal sections with `gap-6` between them. Do not use a masonry/mosaic layout — keep it top-to-bottom, predictable.
 - **StatCard design:** `bg-zinc-900 border border-zinc-800 rounded-xl p-5`. Label in `text-xs font-medium uppercase tracking-wide text-zinc-400`. Value in `text-3xl font-bold font-mono`. Optional sub-label (e.g., "vs last month +12%") in `text-sm text-zinc-500`. Spend card: value in `rose-400`. Income card: value in `emerald-400`. Net flow: dynamic color. Uncategorized: value in `amber-400` with a warning triangle icon.
 - **Charts:** All charts via `recharts`. Custom tooltip: `bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm`. Grid lines: `stroke="#3f3f46"` (zinc-700). Axis labels `text-xs text-zinc-500`. No chart title inside the chart — use a heading above the chart component instead.
@@ -485,6 +538,11 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 - **Owner filter UI (both pages):** Render as a row of small avatar pills in `rounded-full`. Unselected: `bg-zinc-800 text-zinc-400`. Selected: `ring-2 ring-indigo-500 bg-zinc-700`. Clicking toggles selection. "All" is a separate pill that deselects all others.
 
 ### Demo Checkpoint ✅
+- Statements imported for March 2026 from 2 accounts → Statements page shows them grouped under March with a "Create Invoice" CTA
+- Invoices page → create "March Household Invoice" draft from those statements
+- Filter invoice transactions by description/category/debit-credit, update categories, reassign owners, save draft
+- Generate invoice → it moves from Drafts to Generated
+- Open generated invoice → analysis shows owner totals and owner-by-category totals
 - Import 3 months of data → dashboard shows correct spend/income/net flow
 - Owner filter: select "Priya" only → charts update to show only Priya's share
 - Uncategorized count shows a warning; clicking "Fix now" navigates to filtered transactions
@@ -499,7 +557,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ### Backend Deliverable
 
-1. **Assets & Liabilities routes** (see TECH_PLAN §10.11)
+1. **Assets & Liabilities routes** (see TECH_PLAN §10.12)
    - `GET/POST /v1/assets`, `PATCH/DELETE /v1/assets/:id`
    - `GET/POST /v1/liabilities`, `PATCH/DELETE /v1/liabilities/:id`
    - Asset types: `bank_account | investment | real_estate | crypto | cash | other`

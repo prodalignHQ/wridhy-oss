@@ -16,6 +16,7 @@ Build a privacy-first personal finance platform that enables users to:
 * Automatically categorize financial transactions
 * Analyze spending patterns
 * Assign owners to transactions
+* Generate monthly invoices from tagged statements
 * Track net worth growth over time
 * Maintain full ownership and portability of financial data
 
@@ -49,6 +50,7 @@ Primary goals:
 * Automatically categorize transactions
 * Provide clear spending insights
 * Allow ownership attribution for transactions
+* Generate saved monthly invoices with owner/category analysis
 * Track long-term financial growth
 * Allow full data portability
 * Support both privacy-focused and cloud users
@@ -107,6 +109,7 @@ Capabilities enabled:
 * Cross-device access
 * Persistent analytics
 * Long-term insights
+* Persistent invoice drafts and generated invoices
 * Automatic backups
 
 Users must explicitly approve:
@@ -123,6 +126,7 @@ Capabilities:
 * Fully offline operation
 * Statement uploads
 * Transaction categorization
+* Invoice drafting and generation
 * Analytics dashboards
 * Net worth tracking
 
@@ -208,9 +212,16 @@ Supported formats:
 Upload Flow
 
 * User uploads statement
+* User tags the statement to a month
 * System parses transactions
 * Preview shown
 * User confirms import
+
+Statement tagging requirements:
+
+* Every imported statement must be tagged to a `statement_month`
+* Multiple statements may be tagged to the same month
+* All statements tagged to a month become eligible for invoice generation for that month
 
 # 11. Transaction Parsing
 
@@ -314,6 +325,7 @@ Capabilities:
 * Bulk categorization
 * Owner assignment
 * Tagging
+* Invoice preparation filters
 
 # 17. Transaction Owners
 
@@ -360,7 +372,73 @@ Fields:
 * amount
 * percentage
 
-# 18. Monthly Spend Dashboard
+# 18. Invoice Generation & Drafts
+
+Users can create an invoice for a given month after statements are uploaded and tagged.
+
+Invoice rules:
+
+* An invoice is built from one or more statements tagged to the same month
+* Selected statements may come from different banks or accounts
+* The invoice shows all transactions from the selected statements in one workspace
+* Users can filter transactions by description, category, and debit/credit
+* Users can edit category and owner assignment before generation
+* Users can give the invoice a custom name
+
+Draft lifecycle:
+
+* Creating an invoice first creates a draft
+* Drafts appear in the Invoices tab under a Drafts section
+* Drafts can be reopened and updated until they are generated
+
+Generated invoice requirements:
+
+* Generating an invoice stores a snapshot of the invoice data
+* Generated invoices appear in the Invoices tab
+* Clicking a generated invoice opens an Analysis section
+
+Analysis requirements:
+
+1. Who spent how much?  
+   Spend is calculated from debit transactions using the assigned owner split amounts.
+2. Who spent how much in each category?  
+   Category analysis must also respect owner split amounts.
+
+Invoice Data Model
+
+Fields:
+
+* id
+* user_id
+* name
+* status (`draft` | `generated`)
+* invoice_month
+* created_at
+* updated_at
+* generated_at
+
+## Invoice Statement Mapping
+
+Fields:
+
+* invoice_id
+* statement_id
+
+## Invoice Snapshot Rows
+
+Fields:
+
+* invoice_id
+* transaction_id
+* statement_id
+* date
+* description
+* amount
+* debit_credit
+* category_id
+* owner_splits
+
+# 19. Monthly Spend Dashboard
 
 Primary metrics:
 
@@ -375,7 +453,7 @@ Visualizations:
 * Spend timeline
 * Merchant leaderboard
 
-# 19. Historical Insights
+# 20. Historical Insights
 
 Users can analyze spending across time.
 
@@ -394,7 +472,7 @@ Insights include:
 * Owner comparisons
 * Spending growth
 
-# 20. Category Analytics
+# 21. Category Analytics
 
 Detailed category view.
 
@@ -413,7 +491,7 @@ Swiggy
 
 Starbucks
 
-21. Merchant Insights
+# 22. Merchant Insights
 
 Example merchant analytics:
 
@@ -428,7 +506,7 @@ Categories:
 * Electronics
 * Groceries
 
-# 22. Net Worth Growth Tracking
+# 23. Net Worth Growth Tracking
 
 The system tracks net worth growth over time.
 
@@ -436,7 +514,7 @@ Net worth formula:
 
 Net Worth = Total Assets − Total Liabilities
 
-## 22.1 Net Worth Monthly Entry
+## 23.1 Net Worth Monthly Entry
 
 Users can manually enter values.
 
@@ -450,7 +528,7 @@ Example table:
 | Mar 2025 | ₹11,20,000 | ₹3,80,000 | ₹7,40,000 |
 ```
 
-## 22.2 Net Worth Timeline Visualization
+## 23.2 Net Worth Timeline Visualization
 
 Users can view:
 
@@ -458,7 +536,7 @@ Users can view:
 * Yearly growth
 * Long-term trends
 
-## 22.3 Net Worth Data Model
+## 23.3 Net Worth Data Model
 
 Fields:
 
@@ -471,7 +549,7 @@ Fields:
 * notes
 * created_at
 
-# 23. Optional Asset Tracking
+# 24. Optional Asset Tracking
 
 Users may track individual assets.
 
@@ -504,7 +582,7 @@ Examples:
 * cash
 * other
 
-# 24. Liability Tracking
+# 25. Liability Tracking
 
 Users may track liabilities.
 
@@ -527,7 +605,7 @@ Examples:
 * monthly_payment
 * last_updated
 
-# 25. API Design
+# 26. API Design
 
 Backend APIs support future mobile apps.
 
@@ -549,6 +627,14 @@ Backend APIs support future mobile apps.
 * PATCH /transactions/{id}
 * PATCH /transactions/{id}/category
 
+## Invoices
+
+* GET /invoices
+* POST /invoices
+* GET /invoices/{id}
+* PATCH /invoices/{id}
+* POST /invoices/{id}/generate
+
 ## Categories
 
 * GET /categories
@@ -567,7 +653,7 @@ Backend APIs support future mobile apps.
 * GET /networth/history
 * POST /networth
 
-# 26. Non-Functional Requirements
+# 27. Non-Functional Requirements
 ## Performance
 
 System must support:
@@ -590,7 +676,7 @@ Target scale:
 * 1M users
 * 10M+ transactions
 
-# 27. Privacy Principles
+# 28. Privacy Principles
 
 The system follows privacy-first design.
 
@@ -601,7 +687,7 @@ Rules:
 * users can export data anytime
 * users can delete stored data anytime
 
-# 28. Future Roadmap
+# 29. Future Roadmap
 
 Future capabilities may include:
 
@@ -614,7 +700,7 @@ Future capabilities may include:
 * investment analytics
 * mobile apps
 
-# 29. Open Questions
+# 30. Open Questions
 
 Key architectural questions remaining:
 

@@ -49,10 +49,10 @@ MoMoney is a **privacy-first personal finance platform** built on a JS-based sta
 │                    API Server (Hono.js)                      │
 │              Deployed on Node.js / Cloudflare Workers        │
 ├─────────────────────────────────────────────────────────────┤
-│  Auth  │  Statements  │  Transactions  │  Insights  │  NW   │
-└───┬────┘──────┬───────┘───────┬────────┘─────┬──────┘───┬──┘
-    │           │               │              │           │
-    ▼           ▼               ▼              ▼           ▼
+│ Auth │ Statements │ Transactions │ Invoices │ Insights │ NW │
+└──┬───┘─────┬──────┘──────┬───────┘────┬─────┘────┬──────┘──┬─┘
+   │         │             │            │          │         │
+   ▼         ▼             ▼            ▼          ▼         ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   PostgreSQL (Cloud Mode)                    │
 │            (Encrypted at column-level for sensitive data)    │
@@ -146,6 +146,7 @@ momoney/
 ```
 User uploads file → Browser parses CSV/Excel → Zustand store → 
 Rules Engine (client-side) → Categorized transactions in memory → 
+Invoice drafts/generated invoices stored in-memory → 
 Analytics computed locally → Export to SQLite/CSV/JSON
 ```
 
@@ -153,13 +154,15 @@ Analytics computed locally → Export to SQLite/CSV/JSON
 ```
 User uploads file → Browser validates + previews → 
 POST /statements/upload → Server parses → Stores encrypted in PostgreSQL → 
-GET /transactions → Frontend renders → Insights computed server-side
+GET /transactions + /invoices → Frontend renders → 
+Invoice analysis + insights computed server-side
 ```
 
 **Local SQLite Mode:**
 ```
 User uploads file → Browser parses → sql.js (OPFS) → 
-Rules Engine (client-side) → Analytics → Import/Export SQLite file
+Rules Engine (client-side) → Invoice drafts/generated invoices in SQLite → 
+Analytics → Import/Export SQLite file
 ```
 
 ---
@@ -180,6 +183,9 @@ All data access goes through an **adapter pattern**:
 interface DataAdapter {
   getTransactions(filters?: TransactionFilters): Promise<Transaction[]>
   saveTransactions(txns: Transaction[]): Promise<void>
+  getInvoices(): Promise<Invoice[]>
+  saveInvoiceDraft(input: InvoiceDraftInput): Promise<Invoice>
+  generateInvoice(invoiceId: string): Promise<Invoice>
   getNetWorth(): Promise<NetWorthEntry[]>
   // ...
 }
@@ -217,7 +223,7 @@ A key question for the SaaS model is: **can a logged-in user switch between clou
 
 > **Auth always lives in the cloud. Financial data is portable.**
 
-Even in SQLite mode, the user's account (credentials, preferences, settings) remains on your server. Only the financial records — transactions, statements, net worth entries, rules — can be held locally instead.
+Even in SQLite mode, the user's account (credentials, preferences, settings) remains on your server. Only the financial records — transactions, statements, invoices, net worth entries, rules — can be held locally instead.
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
@@ -306,6 +312,7 @@ apps/api/
 │   │   ├── accounts.ts
 │   │   ├── statements.ts
 │   │   ├── transactions.ts
+│   │   ├── invoices.ts
 │   │   ├── categories.ts
 │   │   ├── rules.ts
 │   │   ├── merchants.ts
@@ -314,6 +321,7 @@ apps/api/
 │   ├── services/
 │   │   ├── parser.service.ts
 │   │   ├── categorization.service.ts
+│   │   ├── invoices.service.ts
 │   │   ├── insights.service.ts
 │   │   └── networth.service.ts
 │   └── db/
@@ -350,6 +358,7 @@ apps/web/
 │   │   ├── dashboard/page.tsx      # Monthly spend overview
 │   │   ├── transactions/page.tsx   # Transaction table
 │   │   ├── statements/page.tsx     # Upload & manage statements
+│   │   ├── invoices/page.tsx       # Draft + generated invoices
 │   │   ├── insights/page.tsx       # Historical analytics
 │   │   ├── networth/page.tsx       # Net worth tracker
 │   │   ├── accounts/page.tsx       # Financial accounts
@@ -358,6 +367,7 @@ apps/web/
 │   └── api/                        # Next.js API routes (if needed)
 ├── components/
 │   ├── ui/                         # shadcn base components
+│   ├── invoices/
 │   ├── transactions/
 │   ├── charts/
 │   ├── networth/
@@ -451,6 +461,7 @@ Statement files are **never stored** — they are parsed in-memory and discarded
    b. SQLite:   Insert ParsedTransaction[] into sql.js (OPFS)
    c. Cloud:    POST /statements/upload (multipart) → server parses file in RAM
                → transactions inserted into PostgreSQL → file buffer discarded
+8. Tagged statements become available for monthly invoice draft creation
 ```
 
 > In **cloud mode**, the raw file is held in server RAM only for the duration of parsing (milliseconds). It is never written to disk or any object store.
@@ -463,6 +474,12 @@ Users can upload multiple statements (different banks, different months) in a se
 - `statementMonth`
 
 The transaction table deduplicates using a composite key of `(account_id, date, amount, description_hash)`.
+
+Invoices are built on top of this month tagging:
+- A draft invoice is scoped to one `statementMonth`
+- A draft may include multiple statements for that month
+- Those statements may belong to different accounts or banks
+- Generated invoices freeze a snapshot of the selected statement transactions at generation time
 
 ---
 
@@ -532,6 +549,26 @@ function categorize(txn: ParsedTransaction, rules: CategorizationRule[]): string
   return 'uncategorized'
 }
 ```
+
+### 8.5 Invoice Generation Flow
+
+Invoices are a first-class monthly workflow layered on top of statements, categories, and owner splits.
+
+**Draft model:**
+- A draft invoice is created from one or more statements that share the same `statementMonth`
+- The draft stores invoice metadata (`name`, `status`, `invoiceMonth`) and the selected `statementIds`
+- While a draft is open, category and owner edits continue to update the underlying transactions
+
+**Generation model:**
+- Generating an invoice creates an immutable snapshot of the selected transactions
+- Each snapshot row stores the transaction amount, debit/credit type, category at generation time, and owner split amounts
+- This protects generated invoices from drifting when later transaction edits happen elsewhere
+
+**Analysis model:**
+- Invoice analysis uses **debit transactions only** for spend calculations
+- "Who spent how much?" is computed by summing owner split amounts across debit rows
+- "Who spent how much in each category?" is computed by summing those same owner split amounts grouped by category
+- Credits remain visible in the invoice transaction list, but they do not contribute to spend analysis
 
 ---
 
@@ -759,7 +796,31 @@ User-defined merchant records take precedence over system records.
 | PATCH | `/v1/owners/:id` | Update owner |
 | DELETE | `/v1/owners/:id` | Delete owner |
 
-### 10.10 Insights
+### 10.10 Invoices
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/v1/invoices` | List draft and generated invoices |
+| POST | `/v1/invoices` | Create an invoice draft from tagged statements |
+| GET | `/v1/invoices/:id` | Get invoice detail, transactions, and analysis |
+| PATCH | `/v1/invoices/:id` | Rename draft or update selected statements |
+| POST | `/v1/invoices/:id/generate` | Freeze snapshot and mark invoice generated |
+
+**POST /v1/invoices body:**
+```json
+{
+  "name": "March Household Invoice",
+  "invoiceMonth": "2026-03-01",
+  "statementIds": ["stmt_1", "stmt_2", "stmt_3"]
+}
+```
+
+**Rules:**
+- All `statementIds` must belong to the same tagged `invoiceMonth`
+- A draft invoice may be reopened until generation
+- A generated invoice returns both the frozen transaction snapshot and the derived analysis blocks
+
+### 10.11 Insights
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -776,7 +837,7 @@ User-defined merchant records take precedence over system records.
 &ownerIds=own1,own2      (optional: filter by owners)
 ```
 
-### 10.11 Net Worth
+### 10.12 Net Worth
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -792,7 +853,7 @@ User-defined merchant records take precedence over system records.
 | PATCH | `/v1/liabilities/:id` | Update liability |
 | DELETE | `/v1/liabilities/:id` | Delete liability |
 
-### 10.12 Data Portability
+### 10.13 Data Portability
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -870,6 +931,49 @@ transactionOwners {
   ownerId        uuid REFERENCES owners(id)
   amount         numeric(15,2)
   percentage     numeric(5,2)
+}
+
+// invoices
+invoices {
+  id               uuid PRIMARY KEY
+  userId           uuid REFERENCES users(id)
+  name             text NOT NULL
+  status           enum('draft','generated')
+  invoiceMonth     date NOT NULL      -- YYYY-MM-01
+  statementCount   int DEFAULT 0
+  transactionCount int DEFAULT 0
+  debitTotal       numeric(15,2)
+  creditTotal      numeric(15,2)
+  generatedAt      timestamp NULLABLE
+  createdAt        timestamp DEFAULT now()
+  updatedAt        timestamp DEFAULT now()
+}
+
+// invoice_statements
+invoiceStatements {
+  id          uuid PRIMARY KEY
+  invoiceId   uuid REFERENCES invoices(id)
+  statementId uuid REFERENCES statements(id)
+  createdAt   timestamp DEFAULT now()
+}
+
+// invoice_transaction_snapshots
+invoiceTransactionSnapshots {
+  id              uuid PRIMARY KEY
+  invoiceId       uuid REFERENCES invoices(id)
+  transactionId   uuid REFERENCES transactions(id) NULLABLE
+  statementId     uuid REFERENCES statements(id) NULLABLE
+  accountName     text
+  statementMonth  date
+  transactionDate date NOT NULL
+  description     text NOT NULL
+  amount          numeric(15,2) NOT NULL
+  type            enum('debit','credit')
+  categoryId      uuid REFERENCES categories(id) NULLABLE
+  categoryName    text
+  categoryColor   text
+  ownerSplits     jsonb            -- [{ ownerId, name, color, amount, percentage }]
+  createdAt       timestamp DEFAULT now()
 }
 
 // categories
