@@ -12,8 +12,11 @@ import {
   Sliders,
   Settings,
   Receipt,
+  LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuthStore } from "@/lib/store/auth.store"
+import { Button } from "@/components/ui/button"
 
 const financeNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -60,8 +63,22 @@ function NavItem({
   )
 }
 
-export function Sidebar() {
+type SidebarProps = {
+  user: {
+    email: string
+    name: string
+  }
+}
+
+export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
+  const logout = useAuthStore((state) => state.logout)
+  const initials = user.name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || user.email[0]?.toUpperCase() || "A"
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-60 flex flex-col bg-zinc-900 border-r border-zinc-800 z-40">
@@ -110,17 +127,25 @@ export function Sidebar() {
         </div>
       </nav>
 
-      {/* User account stub */}
-      <div className="border-t border-zinc-800 px-3 py-4">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-800/60 transition-colors cursor-pointer">
+      <div className="border-t border-zinc-800 px-3 py-4 space-y-3">
+        <div className="flex items-center gap-3 px-2 py-2 rounded-lg bg-zinc-800/40">
           <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-semibold text-zinc-300">A</span>
+            <span className="text-xs font-semibold text-zinc-300">{initials}</span>
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-zinc-200 truncate">Account</p>
-            <p className="text-xs text-zinc-500 truncate">Session mode</p>
+            <p className="text-sm font-medium text-zinc-200 truncate">{user.name}</p>
+            <p className="text-xs text-zinc-500 truncate">{user.email}</p>
           </div>
         </div>
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200"
+          onClick={() => void logout()}
+        >
+          <LogOut size={16} className="text-zinc-500" />
+          Logout
+        </Button>
       </div>
     </aside>
   )
