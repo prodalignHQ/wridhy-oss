@@ -35,6 +35,9 @@ importers:
       '@momoney/parsers':
         specifier: workspace:*
         version: link:../../packages/parsers
+      '@momoney/rules-engine':
+        specifier: workspace:*
+        version: link:../../packages/rules-engine
       '@momoney/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -195,6 +198,12 @@ importers:
       '@types/papaparse':
         specifier: ^5.3.14
         version: 5.5.2
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  packages/rules-engine:
+    devDependencies:
       typescript:
         specifier: ^5.7.3
         version: 5.9.3

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Search, Download, MoreHorizontal, ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Download, MoreHorizontal, ArrowLeftRight, ChevronLeft, ChevronRight, RefreshCw, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,6 +65,7 @@ export default function TransactionsPage() {
   const [owners, setOwners] = useState<Owner[]>([])
   const [accounts, setAccounts] = useState<FinancialAccount[]>([])
   const [splitTarget, setSplitTarget] = useState<Transaction | null>(null)
+  const [reapplyLoading, setReapplyLoading] = useState(false)
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Initial data load
@@ -113,6 +114,22 @@ export default function TransactionsPage() {
     window.open(`${baseURL}/v1/transactions/export?${params.toString()}`, '_blank')
   }
 
+  const handleReapplyRules = async () => {
+    setReapplyLoading(true)
+    try {
+      const result = await apiClient.fetch<{ updatedCount: number }>('/v1/rules/reapply', {
+        method: 'POST',
+      })
+      toast.success(`Updated ${result.updatedCount} transactions`)
+      fetchTransactions()
+    } catch (err) {
+      console.error('Failed to reapply rules:', err)
+      toast.error('Failed to reapply rules')
+    } finally {
+      setReapplyLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       {/* ── Header ── */}
@@ -123,14 +140,29 @@ export default function TransactionsPage() {
             <p className="text-sm text-zinc-500 mt-0.5">{total.toLocaleString('en-IN')} total</p>
           )}
         </div>
-        <Button
-          variant="outline"
-          className="border-zinc-700 text-zinc-300 hover:text-zinc-100 gap-2 hidden sm:flex"
-          onClick={handleExport}
-        >
-          <Download size={15} />
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-zinc-700 text-zinc-300 hover:text-zinc-100 gap-2"
+            onClick={handleReapplyRules}
+            disabled={reapplyLoading}
+          >
+            {reapplyLoading ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <RefreshCw size={15} />
+            )}
+            <span className="hidden sm:inline">Re-apply Rules</span>
+          </Button>
+          <Button
+            variant="outline"
+            className="border-zinc-700 text-zinc-300 hover:text-zinc-100 gap-2"
+            onClick={handleExport}
+          >
+            <Download size={15} />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* ── Filter Bar ── */}

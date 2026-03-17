@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import { db } from '@momoney/db'
-import { statements, transactions, transactionOwners, owners, financialAccounts } from '@momoney/db'
-import { eq, and, desc } from 'drizzle-orm'
+import { statements, transactions, transactionOwners, owners, financialAccounts, categories, categorizationRules, merchants } from '@momoney/db'
+import { eq, and, desc, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { createHash } from 'crypto'
 import { getParser } from '@momoney/parsers'
+import { categorize, getDefaultMerchants } from '@momoney/rules-engine'
 import { authMiddleware } from '../middleware/auth.js'
 
 export const statementsRoute = new Hono<{
@@ -150,6 +151,25 @@ statementsRoute.post('/upload', async (c) => {
     )
   }
 
+  // Fetch categories for categorization
+  const allCategories = await db.query.categories.findMany({
+    where: or(eq(categories.userId, userId), isNull(categories.userId)),
+  })
+
+  // Fetch rules for categorization
+  const allRules = await db.query.categorizationRules.findMany({
+    where: or(eq(categorizationRules.userId, userId), isNull(categorizationRules.userId)),
+    orderBy: (table, { asc, desc }) => [desc(table.source), asc(table.priority)],
+  })
+
+  // Fetch user merchants (system merchants are built into the rules-engine)
+  const userMerchants = await db.query.merchants.findMany({
+    where: and(eq(merchants.userId, userId), eq(merchants.isSystem, false)),
+  })
+
+  // Convert DB categories to rules-engine format
+  const categoryMap = new Map(allCategories.map((cat) => [cat.id, { id: cat.id, name: cat.name, color: cat.color }]))
+
   // Compute dedup hashes for all parsed transactions
   const withHashes = parsedTxns.map((txn) => ({
     ...txn,
@@ -194,6 +214,37 @@ statementsRoute.post('/upload', async (c) => {
     for (const txnData of withHashes) {
       // Try inserting — skip on unique constraint violation (dedup)
       try {
+        // Auto-categorize the transaction
+        const categorizationResult = categorize(
+          {
+            date: txnData.date,
+            description: txnData.description,
+            amount: txnData.amount,
+            type: txnData.type,
+          },
+          allRules.map((r) => ({
+            id: r.id,
+            userId: r.userId,
+            matchField: r.matchField,
+            matchType: r.matchType,
+            matchValue: r.matchValue,
+            categoryId: r.categoryId,
+            priority: r.priority,
+            source: r.source,
+            isActive: r.isActive,
+          })),
+          Array.from(categoryMap.values()),
+          userMerchants.map((m) => ({
+            id: m.id,
+            userId: m.userId,
+            rawPatterns: m.rawPatterns,
+            normalizedName: m.normalizedName,
+            defaultCategoryId: m.defaultCategoryId,
+            isSystem: m.isSystem,
+          })),
+          getDefaultMerchants()
+        )
+
         const [inserted] = await tx
           .insert(transactions)
           .values({
@@ -202,8 +253,10 @@ statementsRoute.post('/upload', async (c) => {
             statementId: stmt!.id,
             date: txnData.date,
             description: txnData.description,
+            merchant: categorizationResult.categoryId ? txnData.description.split(' ')[0] : null,
             amount: txnData.amount.toFixed(2),
             type: txnData.type,
+            categoryId: categorizationResult.categoryId || null,
             dedupHash: txnData.dedupHash,
           })
           .onConflictDoNothing({ target: transactions.dedupHash })
