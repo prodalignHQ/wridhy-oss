@@ -324,11 +324,6 @@ export default function InvoicesPage() {
     [filteredTransactionIds, selectedTransactionIds]
   )
 
-  const selectedFilteredIds = useMemo(
-    () => filteredTransactionIds.filter((id) => selectedTransactionIds.has(id)),
-    [filteredTransactionIds, selectedTransactionIds]
-  )
-
   const allFilteredSelected =
     filteredTransactionIds.length > 0 && selectedFilteredCount === filteredTransactionIds.length
 
