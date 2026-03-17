@@ -42,7 +42,7 @@ export default function SignupPage() {
   const onSubmit = async (data: SignupValues) => {
     setLoading(true)
     try {
-      const { data: sessionData, error } = await authClient.signUp.email({
+      const { error } = await authClient.signUp.email({
         name: data.name,
         email: data.email,
         password: data.password,
@@ -53,19 +53,18 @@ export default function SignupPage() {
         return
       }
 
-      if (sessionData) {
-        if (sessionData.token) {
-          toast.success('Account created successfully!')
-          setUser(sessionData.user)
-          router.push(sessionData.user.emailVerified ? '/dashboard' : '/verify-email')
-        } else {
-          toast.success('Account created. Check your email to verify before using the app.')
-          router.push(`/login?email=${encodeURIComponent(data.email)}&verification=sent`)
-        }
-        router.refresh()
+      setUser(null)
+
+      try {
+        await authClient.signOut()
+      } catch {
+        // Better Auth may already leave the user signed out depending on config.
       }
-    } catch (err: any) {
-      toast.error(err.message || 'An error occurred during signup')
+
+      router.replace(`/signup-success?email=${encodeURIComponent(data.email)}`)
+      router.refresh()
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'An error occurred during signup')
     } finally {
       setLoading(false)
     }

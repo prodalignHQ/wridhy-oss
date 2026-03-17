@@ -12,6 +12,7 @@ import {
   Sliders,
   Settings,
   Receipt,
+  Lock,
   LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -38,27 +39,47 @@ function NavItem({
   label,
   icon: Icon,
   active,
+  disabled = false,
 }: {
   href: string
   label: string
   icon: React.ElementType
   active: boolean
+  disabled?: boolean
 }) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
-        active
-          ? "bg-zinc-800 text-white"
-          : "text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200"
-      )}
-    >
+  const classes = cn(
+    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
+    disabled
+      ? "cursor-not-allowed text-zinc-600"
+      : active
+        ? "bg-zinc-800 text-white"
+        : "text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200"
+  )
+
+  const content = (
+    <>
       <Icon
         size={16}
-        className={cn(active ? "text-indigo-400" : "text-zinc-500")}
+        className={cn(
+          disabled ? "text-zinc-600" : active ? "text-indigo-400" : "text-zinc-500"
+        )}
       />
-      {label}
+      <span>{label}</span>
+      {disabled ? <Lock size={12} className="ml-auto text-zinc-600" /> : null}
+    </>
+  )
+
+  if (disabled) {
+    return (
+      <div className={classes} aria-disabled="true">
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <Link href={href} className={classes}>
+      {content}
     </Link>
   )
 }
@@ -68,9 +89,10 @@ type SidebarProps = {
     email: string
     name: string
   }
+  emailVerified: boolean
 }
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, emailVerified }: SidebarProps) {
   const pathname = usePathname()
   const logout = useAuthStore((state) => state.logout)
   const initials = user.name
@@ -104,6 +126,7 @@ export function Sidebar({ user }: SidebarProps) {
               <NavItem
                 key={item.href}
                 {...item}
+                disabled={!emailVerified && item.href !== "/dashboard"}
                 active={pathname === item.href || pathname.startsWith(item.href + "/")}
               />
             ))}
@@ -120,6 +143,7 @@ export function Sidebar({ user }: SidebarProps) {
               <NavItem
                 key={item.href}
                 {...item}
+                disabled={!emailVerified}
                 active={pathname === item.href || pathname.startsWith(item.href + "/")}
               />
             ))}
@@ -128,6 +152,11 @@ export function Sidebar({ user }: SidebarProps) {
       </nav>
 
       <div className="border-t border-zinc-800 px-3 py-4 space-y-3">
+        {!emailVerified ? (
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
+            Verify your email to unlock the rest of the app.
+          </div>
+        ) : null}
         <div className="flex items-center gap-3 px-2 py-2 rounded-lg bg-zinc-800/40">
           <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
             <span className="text-xs font-semibold text-zinc-300">{initials}</span>

@@ -16,7 +16,24 @@ export const apiClient = {
     const result = await response.json()
 
     if (!response.ok || !result.success) {
-      throw new Error(result?.error?.message || 'API Request failed')
+      const error = new Error(result?.error?.message || 'API Request failed') as Error & {
+        code?: string
+        status?: number
+      }
+
+      error.code = result?.error?.code
+      error.status = response.status
+
+      if (
+        typeof window !== 'undefined' &&
+        response.status === 403 &&
+        error.code === 'EMAIL_NOT_VERIFIED' &&
+        window.location.pathname !== '/dashboard'
+      ) {
+        window.location.replace('/dashboard?verification=required')
+      }
+
+      throw error
     }
 
     return result.data as T

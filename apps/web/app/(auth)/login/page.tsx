@@ -63,11 +63,11 @@ function LoginForm() {
 
       if (sessionData) {
         setUser(sessionData.user)
-        router.push(sessionData.user.emailVerified ? '/dashboard' : '/verify-email')
+        router.push('/dashboard')
         router.refresh()
       }
-    } catch (err: any) {
-      toast.error(err.message || 'An error occurred during login')
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'An error occurred during login')
     } finally {
       setLoading(false)
     }
@@ -122,7 +122,7 @@ function LoginForm() {
         </CardContent>
         <CardFooter className="flex justify-center border-t border-zinc-800 pt-6">
           <p className="text-sm text-zinc-400">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium">
               Sign up
             </Link>
