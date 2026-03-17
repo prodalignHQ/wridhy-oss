@@ -20,6 +20,8 @@ build/
 
 # Database
 drizzle/
+!packages/db/drizzle/
+!packages/db/drizzle/**
 
 # OS
 .DS_Store

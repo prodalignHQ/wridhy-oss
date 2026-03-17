@@ -9,7 +9,7 @@ import {
 } from '@momoney/db'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, or, ilike, gte, lte, inArray, desc, asc, sql } from 'drizzle-orm'
+import { eq, and, or, ilike, gte, lte, inArray, desc, asc, sql, isNull } from 'drizzle-orm'
 import { authMiddleware } from '../middleware/auth.js'
 
 export const transactionsRoute = new Hono<{
@@ -106,6 +106,57 @@ const updateTxnSchema = z.object({
   categoryId: z.string().uuid().nullable().optional(),
 })
 
+const bulkUpdateTxnCategorySchema = z.object({
+  transactionIds: z.array(z.string().uuid()).min(1),
+  categoryId: z.string().uuid().nullable(),
+})
+
+transactionsRoute.patch(
+  '/bulk/category',
+  zValidator('json', bulkUpdateTxnCategorySchema),
+  async (c) => {
+    const userId = c.get('userId')
+    const { transactionIds, categoryId } = c.req.valid('json')
+    const uniqueTransactionIds = Array.from(new Set(transactionIds))
+
+    if (categoryId) {
+      const category = await db.query.categories.findFirst({
+        where: and(
+          eq(categories.id, categoryId),
+          or(eq(categories.userId, userId), isNull(categories.userId))
+        ),
+      })
+
+      if (!category) {
+        return c.json(
+          { success: false, error: { code: 'BAD_REQUEST', message: 'Category not found' } },
+          400
+        )
+      }
+    }
+
+    const updated = await db
+      .update(transactions)
+      .set({ categoryId, updatedAt: new Date() })
+      .where(and(eq(transactions.userId, userId), inArray(transactions.id, uniqueTransactionIds)))
+      .returning({ id: transactions.id })
+
+    if (updated.length === 0) {
+      return c.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'No transactions found' } },
+        404
+      )
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        updatedCount: updated.length,
+      },
+    })
+  }
+)
+
 transactionsRoute.patch('/:id', zValidator('json', updateTxnSchema), async (c) => {
   const userId = c.get('userId')
   const txnId = c.req.param('id')
@@ -124,7 +175,19 @@ transactionsRoute.patch('/:id', zValidator('json', updateTxnSchema), async (c) =
     )
   }
 
-  return c.json({ success: true, data: updated })
+  const hydrated = await db.query.transactions.findFirst({
+    where: eq(transactions.id, updated.id),
+    with: {
+      category: { columns: { id: true, name: true, color: true, icon: true } },
+      transactionOwners: {
+        with: {
+          owner: { columns: { id: true, name: true, color: true, isDefault: true } },
+        },
+      },
+    },
+  })
+
+  return c.json({ success: true, data: hydrated ?? updated })
 })
 
 // ─── PUT /v1/transactions/:id/owners ─────────────────────────────────────────

@@ -11,6 +11,7 @@ export const matchFieldEnum = pgEnum('match_field', ['merchant', 'description', 
 export const matchTypeEnum = pgEnum('match_type', ['contains', 'equals', 'regex', 'gt', 'lt'])
 export const assetTypeEnum = pgEnum('asset_type', ['bank_account', 'investment', 'real_estate', 'crypto', 'cash', 'other'])
 export const liabilityTypeEnum = pgEnum('liability_type', ['home_loan', 'car_loan', 'credit_card', 'student_loan', 'personal_loan', 'other'])
+export const invoiceStatusEnum = pgEnum('invoice_status', ['draft', 'generated'])
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
@@ -175,6 +176,48 @@ export const transactionOwners = pgTable('transaction_owners', {
   percentage: numeric('percentage', { precision: 5, scale: 2 }).notNull(), // always equal split = 100/n
 })
 
+// ─── Invoices ────────────────────────────────────────────────────────────────
+
+export const invoices = pgTable('invoices', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  invoiceMonth: date('invoice_month').notNull(), // YYYY-MM-01
+  status: invoiceStatusEnum('status').notNull().default('draft'),
+  generatedAt: timestamp('generated_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const invoiceStatements = pgTable('invoice_statements', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  invoiceId: uuid('invoice_id').notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+  statementId: uuid('statement_id').references(() => statements.id, { onDelete: 'set null' }),
+  accountId: uuid('account_id').references(() => financialAccounts.id, { onDelete: 'set null' }),
+  statementMonth: date('statement_month').notNull(),
+  accountName: text('account_name').notNull(),
+  accountType: text('account_type').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const invoiceItems = pgTable('invoice_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  invoiceId: uuid('invoice_id').notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+  transactionId: uuid('transaction_id').references(() => transactions.id, { onDelete: 'set null' }),
+  statementId: uuid('statement_id').references(() => statements.id, { onDelete: 'set null' }),
+  date: timestamp('date', { mode: 'date' }).notNull(),
+  description: text('description').notNull(),
+  amount: numeric('amount', { precision: 15, scale: 2 }).notNull(),
+  type: transactionTypeEnum('type').notNull(),
+  categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
+  categoryName: text('category_name').notNull().default('Uncategorized'),
+  categoryColor: text('category_color'),
+  owners: jsonb('owners')
+    .notNull()
+    .$type<Array<{ ownerId: string | null; name: string; color: string | null; amount: string; percentage: string }>>(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 // ─── Assets ───────────────────────────────────────────────────────────────────
 
 export const assets = pgTable('assets', {
@@ -227,6 +270,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   financialAccounts: many(financialAccounts),
   statements: many(statements),
   transactions: many(transactions),
+  invoices: many(invoices),
   categories: many(categories),
   categorizationRules: many(categorizationRules),
   merchants: many(merchants),
@@ -252,12 +296,15 @@ export const financialAccountsRelations = relations(financialAccounts, ({ one, m
   user: one(users, { fields: [financialAccounts.userId], references: [users.id] }),
   statements: many(statements),
   transactions: many(transactions),
+  invoiceStatements: many(invoiceStatements),
 }))
 
 export const statementsRelations = relations(statements, ({ one, many }) => ({
   user: one(users, { fields: [statements.userId], references: [users.id] }),
   account: one(financialAccounts, { fields: [statements.accountId], references: [financialAccounts.id] }),
   transactions: many(transactions),
+  invoiceStatements: many(invoiceStatements),
+  invoiceItems: many(invoiceItems),
 }))
 
 export const transactionsRelations = relations(transactions, ({ one, many }) => ({
@@ -266,6 +313,7 @@ export const transactionsRelations = relations(transactions, ({ one, many }) => 
   statement: one(statements, { fields: [transactions.statementId], references: [statements.id] }),
   category: one(categories, { fields: [transactions.categoryId], references: [categories.id] }),
   transactionOwners: many(transactionOwners),
+  invoiceItems: many(invoiceItems),
 }))
 
 export const transactionOwnersRelations = relations(transactionOwners, ({ one }) => ({
@@ -277,6 +325,7 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
   user: one(users, { fields: [categories.userId], references: [users.id] }),
   transactions: many(transactions),
   rules: many(categorizationRules),
+  invoiceItems: many(invoiceItems),
 }))
 
 export const categorizationRulesRelations = relations(categorizationRules, ({ one }) => ({
@@ -299,4 +348,23 @@ export const liabilitiesRelations = relations(liabilities, ({ one }) => ({
 
 export const netWorthSnapshotsRelations = relations(netWorthSnapshots, ({ one }) => ({
   user: one(users, { fields: [netWorthSnapshots.userId], references: [users.id] }),
+}))
+
+export const invoicesRelations = relations(invoices, ({ one, many }) => ({
+  user: one(users, { fields: [invoices.userId], references: [users.id] }),
+  statements: many(invoiceStatements),
+  items: many(invoiceItems),
+}))
+
+export const invoiceStatementsRelations = relations(invoiceStatements, ({ one }) => ({
+  invoice: one(invoices, { fields: [invoiceStatements.invoiceId], references: [invoices.id] }),
+  statement: one(statements, { fields: [invoiceStatements.statementId], references: [statements.id] }),
+  account: one(financialAccounts, { fields: [invoiceStatements.accountId], references: [financialAccounts.id] }),
+}))
+
+export const invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
+  invoice: one(invoices, { fields: [invoiceItems.invoiceId], references: [invoices.id] }),
+  transaction: one(transactions, { fields: [invoiceItems.transactionId], references: [transactions.id] }),
+  statement: one(statements, { fields: [invoiceItems.statementId], references: [statements.id] }),
+  category: one(categories, { fields: [invoiceItems.categoryId], references: [categories.id] }),
 }))

@@ -16,6 +16,7 @@ import { rulesRoute } from './routes/rules.js'
 import { merchantsRoute } from './routes/merchants.js'
 import { insightsRoute } from './routes/insights.js'
 import { networthRoute } from './routes/networth.js'
+import { invoicesRoute } from './routes/invoices.js'
 
 const app = new Hono()
 
@@ -39,6 +40,7 @@ app.route('/v1/rules', rulesRoute)
 app.route('/v1/merchants', merchantsRoute)
 app.route('/v1/insights', insightsRoute)
 app.route('/v1/networth', networthRoute)
+app.route('/v1/invoices', invoicesRoute)
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 

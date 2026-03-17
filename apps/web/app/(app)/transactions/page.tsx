@@ -1,16 +1,15 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { Search, SlidersHorizontal, Download, MoreHorizontal, ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Search, Download, MoreHorizontal, ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { OwnerAvatars } from '@/components/ui/custom/OwnerAvatars'
-import { CategoryBadge } from '@/components/ui/custom/CategoryBadge'
 import { SplitOwnerModal } from '@/components/transactions/split-owner-modal'
+import { CategoryPicker } from '@/components/transactions/category-picker'
 import { useTransactionsStore, type Transaction, type Owner } from '@/lib/store/transactions.store'
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -28,78 +27,6 @@ const COLOR_MAP: Record<string, string> = {
 
 const formatINR = (value: string | number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(String(value)))
-
-// ─── Category Picker ──────────────────────────────────────────────────────────
-
-interface Cat { id: string; name: string; color: string; icon: string | null; isSystem: boolean }
-
-function CategoryPicker({ txn, onUpdate }: { txn: Transaction; onUpdate: (categoryId: string | null) => Promise<void> }) {
-  const [open, setOpen] = useState(false)
-  const [categories, setCategories] = useState<Cat[]>([])
-  const [search, setSearch] = useState('')
-
-  useEffect(() => {
-    if (open && categories.length === 0) {
-      apiClient.fetch<Cat[]>('/v1/categories').then(setCategories).catch(console.error)
-    }
-  }, [open, categories.length])
-
-  const filtered = categories.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const handle = async (cat: Cat | null) => {
-    setOpen(false)
-    await onUpdate(cat?.id ?? null)
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="cursor-pointer hover:opacity-80 transition-opacity">
-        {txn.category ? (
-          <CategoryBadge name={txn.category.name} color={txn.category.color} />
-        ) : (
-          <span className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">— Uncategorized</span>
-        )}
-      </PopoverTrigger>
-      <PopoverContent className="w-64 p-2 bg-zinc-900 border-zinc-800" align="start">
-        <Input
-          placeholder="Search categories…"
-          className="mb-2 h-8 bg-zinc-800 border-zinc-700 text-sm text-zinc-200"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          autoFocus
-        />
-        <div className="max-h-56 overflow-y-auto space-y-0.5">
-          <button
-            onClick={() => handle(null)}
-            className="w-full text-left px-2 py-1.5 text-sm text-zinc-500 hover:bg-zinc-800 rounded transition-colors"
-          >
-            — Uncategorized
-          </button>
-          {filtered.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => handle(cat)}
-              className={cn(
-                'w-full text-left flex items-center gap-2 px-2 py-1.5 text-sm rounded transition-colors',
-                txn.categoryId === cat.id
-                  ? 'bg-zinc-800 text-zinc-100'
-                  : 'text-zinc-300 hover:bg-zinc-800'
-              )}
-            >
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-              {cat.name}
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <p className="text-xs text-zinc-600 px-2 py-2">No categories found</p>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
 
 // ─── Owner Filter Pill ─────────────────────────────────────────────────────────
 
@@ -145,12 +72,12 @@ export default function TransactionsPage() {
     fetchTransactions()
     apiClient.fetch<Owner[]>('/v1/owners').then(setOwners).catch(console.error)
     apiClient.fetch<FinancialAccount[]>('/v1/accounts').then(setAccounts).catch(console.error)
-  }, [])
+  }, [fetchTransactions])
 
   // Re-fetch when filters change
   useEffect(() => {
     fetchTransactions()
-  }, [filters])
+  }, [fetchTransactions, filters])
 
   const handleSearch = (value: string) => {
     if (searchRef.current) clearTimeout(searchRef.current)
@@ -185,8 +112,6 @@ export default function TransactionsPage() {
     const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
     window.open(`${baseURL}/v1/transactions/export?${params.toString()}`, '_blank')
   }
-
-  const selectedOwner = owners.find((o) => o.id === filters.ownerId)
 
   return (
     <div className="space-y-5">
@@ -296,7 +221,9 @@ export default function TransactionsPage() {
           </div>
           <p className="text-sm font-semibold text-zinc-400 mb-1">No transactions found</p>
           <p className="text-xs text-zinc-600">
-            {Object.keys(filters).some((k) => k !== 'page' && k !== 'limit' && (filters as any)[k])
+            {Object.entries(filters).some(
+              ([key, value]) => key !== 'page' && key !== 'limit' && Boolean(value)
+            )
               ? 'Try adjusting your filters'
               : 'Upload a bank statement to get started'}
           </p>
@@ -334,7 +261,8 @@ export default function TransactionsPage() {
                   </td>
                   <td className="px-4 py-2.5 hidden md:table-cell">
                     <CategoryPicker
-                      txn={txn}
+                      categoryId={txn.categoryId}
+                      category={txn.category}
                       onUpdate={(categoryId) => handleCategoryUpdate(txn.id, categoryId)}
                     />
                   </td>

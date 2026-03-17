@@ -4,13 +4,25 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { Transaction, Owner } from '@/lib/store/transactions.store'
+
+export interface SplitOwnerModalOwner {
+  id: string
+  name: string
+  color: string
+}
+
+export interface SplitOwnerModalTransaction {
+  id: string
+  description: string
+  amount: string | number
+  transactionOwners: Array<{ ownerId: string }>
+}
 
 interface SplitOwnerModalProps {
   open: boolean
   onClose: () => void
-  transaction: Transaction | null
-  owners: Owner[]
+  transaction: SplitOwnerModalTransaction | null
+  owners: SplitOwnerModalOwner[]
   onSave: (ownerIds: string[]) => Promise<void>
 }
 
@@ -25,7 +37,7 @@ const COLOR_MAP: Record<string, string> = {
   violet: 'bg-violet-500',
 }
 
-function OwnerInitialCircle({ owner }: { owner: Owner }) {
+function OwnerInitialCircle({ owner }: { owner: SplitOwnerModalOwner }) {
   const colorClass = COLOR_MAP[owner.color] ?? 'bg-zinc-500'
   const initials = owner.name
     .split(' ')

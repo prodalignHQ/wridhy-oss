@@ -1,0 +1,1 @@
+ALTER TABLE "statements" ADD COLUMN "statement_month" date NOT NULL;

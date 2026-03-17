@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { UploadCloud, Trash2, History, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
@@ -183,6 +184,13 @@ function StatementHistory({
                   <span className="font-semibold text-zinc-200">{formatMonth(month)}</span>
                 </div>
                 <div className="flex items-center gap-4">
+                  <Link
+                    href={`/invoices?month=${month}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center rounded-full border border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:border-indigo-500/50 hover:text-zinc-100"
+                  >
+                    Create invoice
+                  </Link>
                   <span className="text-sm text-zinc-500">
                     {monthStatements.length} statement{monthStatements.length !== 1 ? 's' : ''}
                   </span>
