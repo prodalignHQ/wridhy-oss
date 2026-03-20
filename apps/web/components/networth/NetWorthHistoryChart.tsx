@@ -96,7 +96,7 @@ export function NetWorthHistoryChart({ snapshots }: NetWorthHistoryChartProps) {
   }
 
   const data = snapshots.map((s) => ({
-    month: format(new Date(s.snapshotDate), 'MMM yy'),
+    dateLabel: format(new Date(s.snapshotDate), 'dd MMM'),
     Assets: parseFloat(s.totalAssets as string),
     Liabilities: parseFloat(s.totalLiabilities as string),
     'Net Worth': parseFloat(s.netWorth as string),
@@ -113,7 +113,7 @@ export function NetWorthHistoryChart({ snapshots }: NetWorthHistoryChartProps) {
         </defs>
         <CartesianGrid stroke="#3f3f46" strokeDasharray="3 3" vertical={false} />
         <XAxis
-          dataKey="month"
+          dataKey="dateLabel"
           tick={{ fill: '#71717a', fontSize: 11 }}
           axisLine={false}
           tickLine={false}

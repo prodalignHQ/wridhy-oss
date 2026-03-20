@@ -81,8 +81,8 @@ export default function NetWorthPage() {
     setSavingSnapshot(true)
     try {
       await apiClient.fetch('/v1/networth/snapshot', { method: 'POST' })
-      const monthLabel = format(new Date(), 'MMMM yyyy')
-      toast.success(`Snapshot saved for ${monthLabel}`)
+      const dateLabel = format(new Date(), 'dd MMM yyyy')
+      toast.success(`Snapshot saved for ${dateLabel}`)
       setDraft(null)
       setDraftDismissed(true)
       await fetchAll()
@@ -139,8 +139,8 @@ export default function NetWorthPage() {
         })
       }
       await apiClient.fetch('/v1/networth/snapshot', { method: 'POST' })
-      const monthLabel = format(new Date(), 'MMMM yyyy')
-      toast.success(`Snapshot saved for ${monthLabel}`)
+      const dateLabel = format(new Date(), 'dd MMM yyyy')
+      toast.success(`Snapshot saved for ${dateLabel}`)
       await fetchAll()
     } catch (e: any) {
       toast.error(e?.message ?? 'Failed to save snapshot')

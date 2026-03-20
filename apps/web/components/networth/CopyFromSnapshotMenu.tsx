@@ -80,7 +80,7 @@ export function CopyFromSnapshotMenu({ snapshots, onCopy, disabled }: CopyFromSn
           >
             <div>
               <p className="text-sm">
-                {format(new Date(snap.snapshotDate), 'MMMM yyyy')}
+                {format(new Date(snap.snapshotDate), 'dd MMM yyyy')}
               </p>
               <p className="text-xs text-zinc-500 font-mono">
                 NW: {Number(snap.netWorth) >= 0 ? '+' : ''}

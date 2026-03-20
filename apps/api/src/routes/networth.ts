@@ -124,9 +124,9 @@ networthRoute.post('/snapshot', async (c) => {
   const { totalAssets, totalLiabilities, netWorth, assets: userAssets, liabilities: userLiabilities } =
     await computeLiveNetWorth(userId)
 
-  // Snapshot date = first day of current month
+  // Snapshot date = start of current day
   const now = new Date()
-  const snapshotDate = new Date(now.getFullYear(), now.getMonth(), 1)
+  const snapshotDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
   const assetBreakdown = userAssets.map((a) => ({
     name: a.name,

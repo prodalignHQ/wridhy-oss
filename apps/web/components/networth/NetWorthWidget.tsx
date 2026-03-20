@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { format } from 'date-fns'
 import { formatINR } from '@/lib/format'
 import { useAuthStore } from '@/lib/store/auth.store'
 import { apiClient } from '@/lib/api'
@@ -11,8 +12,7 @@ import { Loader2 } from 'lucide-react'
 
 interface Snapshot {
   id: string
-  yearOffset: number
-  month: number
+  snapshotDate: string
   netWorth: string | number
   totalAssets: string | number
   totalLiabilities: string | number
@@ -77,8 +77,7 @@ export function NetWorthWidget() {
     isNeutral = delta === 0
   }
 
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  const prevMonthName = previous ? monthNames[previous.month - 1] : 'start'
+  const prevDateLabel = previous ? format(new Date(previous.snapshotDate), 'dd MMM') : 'start'
 
   return (
     <Link href="/networth" className="block focus:outline-none focus:ring-2 focus:ring-indigo-500/50 rounded-xl">
@@ -123,7 +122,7 @@ export function NetWorthWidget() {
             
             <span className="text-[11px] text-zinc-500 mt-1 h-4">
               {latest && previous && (
-                <>Change since {prevMonthName} {previous.yearOffset + 2026}</>
+                <>Change since {prevDateLabel}</>
               )}
               {latest && !previous && (
                 <>Initial snapshot</>
