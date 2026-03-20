@@ -261,9 +261,24 @@ export const netWorthSnapshots = pgTable('net_worth_snapshots', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
+// ─── Net Worth Drafts ─────────────────────────────────────────────────────────
+// One row per user — stores in-progress (unsaved snapshot) working state
+
+export const netWorthDrafts = pgTable('net_worth_drafts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  assetBreakdown: jsonb('asset_breakdown').$type<Array<{
+    id?: string; name: string; type: string; value: number; currency: string; valuationDate: string
+  }>>(),
+  liabilityBreakdown: jsonb('liability_breakdown').$type<Array<{
+    id?: string; name: string; type: string; outstandingAmount: number; interestRate?: number; monthlyPayment?: number
+  }>>(),
+  savedAt: timestamp('saved_at').defaultNow().notNull(),
+})
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   owners: many(owners),
   accounts: many(accounts),
   sessions: many(sessions),
@@ -277,6 +292,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   assets: many(assets),
   liabilities: many(liabilities),
   netWorthSnapshots: many(netWorthSnapshots),
+  netWorthDraft: one(netWorthDrafts, { fields: [users.id], references: [netWorthDrafts.userId] }),
 }))
 
 export const ownersRelations = relations(owners, ({ one, many }) => ({
@@ -348,6 +364,10 @@ export const liabilitiesRelations = relations(liabilities, ({ one }) => ({
 
 export const netWorthSnapshotsRelations = relations(netWorthSnapshots, ({ one }) => ({
   user: one(users, { fields: [netWorthSnapshots.userId], references: [users.id] }),
+}))
+
+export const netWorthDraftsRelations = relations(netWorthDrafts, ({ one }) => ({
+  user: one(users, { fields: [netWorthDrafts.userId], references: [users.id] }),
 }))
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({

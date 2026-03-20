@@ -1,6 +1,7 @@
 import { LayoutDashboard } from "lucide-react"
 import { DashboardVerificationNotice } from '@/components/auth/DashboardVerificationNotice'
 import { getServerSession } from '@/lib/auth.server'
+import { NetWorthWidget } from '@/components/networth/NetWorthWidget'
 
 export default async function DashboardPage() {
   const session = await getServerSession()
@@ -13,11 +14,18 @@ export default async function DashboardPage() {
       {session && !session.user.emailVerified ? (
         <DashboardVerificationNotice email={session.user.email} />
       ) : (
-        <ComingSoon
-          icon={<LayoutDashboard size={40} className="text-zinc-600" />}
-          title="Dashboard is coming soon"
-          subtitle="Import transactions to get started. Your monthly spending overview will appear here."
-        />
+        <>
+          <ComingSoon
+            icon={<LayoutDashboard size={40} className="text-zinc-600" />}
+            title="Dashboard is coming soon"
+            subtitle="Import transactions to get started. Your monthly spending overview will appear here."
+          />
+
+          {/* Net Worth widget — Phase 5 */}
+          <div className="max-w-sm">
+            <NetWorthWidget />
+          </div>
+        </>
       )}
     </div>
   )
