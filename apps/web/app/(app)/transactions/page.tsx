@@ -31,7 +31,7 @@ const formatINR = (value: string | number) =>
 // ─── Owner Filter Pill ─────────────────────────────────────────────────────────
 
 function OwnerFilterPill({ owner, selected, onClick }: { owner: Owner; selected: boolean; onClick: () => void }) {
-  const colorClass = COLOR_MAP[owner.color] ?? 'bg-zinc-500'
+  const colorClass = COLOR_MAP[owner.color] ?? 'bg-muted'
   const initials = owner.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (
@@ -40,8 +40,8 @@ function OwnerFilterPill({ owner, selected, onClick }: { owner: Owner; selected:
       className={cn(
         'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border',
         selected
-          ? 'border-indigo-500 bg-zinc-700 text-zinc-100 ring-2 ring-indigo-500/50'
-          : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+          ? 'border-indigo-500 bg-secondary text-foreground ring-2 ring-indigo-500/50'
+          : 'border-border bg-muted text-muted-foreground hover:text-foreground/90'
       )}
     >
       <span className={cn('w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white font-bold', colorClass)}>
@@ -135,15 +135,15 @@ export default function TransactionsPage() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-50">Transactions</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Transactions</h1>
           {total > 0 && (
-            <p className="text-sm text-zinc-500 mt-0.5">{total.toLocaleString('en-IN')} total</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{total.toLocaleString('en-IN')} total</p>
           )}
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            className="border-zinc-700 text-zinc-300 hover:text-zinc-100 gap-2"
+            className="border-border text-foreground/80 hover:text-foreground gap-2"
             onClick={handleReapplyRules}
             disabled={reapplyLoading}
           >
@@ -156,7 +156,7 @@ export default function TransactionsPage() {
           </Button>
           <Button
             variant="outline"
-            className="border-zinc-700 text-zinc-300 hover:text-zinc-100 gap-2"
+            className="border-border text-foreground/80 hover:text-foreground gap-2"
             onClick={handleExport}
           >
             <Download size={15} />
@@ -166,14 +166,14 @@ export default function TransactionsPage() {
       </div>
 
       {/* ── Filter Bar ── */}
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 space-y-3">
+      <div className="rounded-xl border border-border bg-card/60 p-3 space-y-3">
         <div className="flex flex-wrap gap-2">
           {/* Search */}
           <div className="relative flex-1 min-w-48">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search transactions…"
-              className="pl-8 bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-500"
+              className="pl-8 bg-muted border-border text-foreground/90 placeholder:text-muted-foreground"
               onChange={(e) => handleSearch(e.target.value)}
             />
           </div>
@@ -181,12 +181,12 @@ export default function TransactionsPage() {
           {/* Date range */}
           <Input
             type="date"
-            className="w-auto bg-zinc-800 border-zinc-700 text-zinc-300 text-sm"
+            className="w-auto bg-muted border-border text-foreground/80 text-sm"
             onChange={(e) => setFilters({ startDate: e.target.value || undefined, page: 1 })}
           />
           <Input
             type="date"
-            className="w-auto bg-zinc-800 border-zinc-700 text-zinc-300 text-sm"
+            className="w-auto bg-muted border-border text-foreground/80 text-sm"
             onChange={(e) => setFilters({ endDate: e.target.value || undefined, page: 1 })}
           />
 
@@ -195,17 +195,17 @@ export default function TransactionsPage() {
             value={filters.accountId ?? 'all'}
             onValueChange={(v) => setFilters({ accountId: v === 'all' || v === null ? undefined : v, page: 1 })}
           >
-            <SelectTrigger className="w-40 bg-zinc-800 border-zinc-700 text-zinc-200 text-sm">
+            <SelectTrigger className="w-40 bg-muted border-border text-foreground/90 text-sm">
               <SelectValue>
                 {filters.accountId && filters.accountId !== 'all' 
                   ? accounts.find(a => a.id === filters.accountId)?.accountName 
                   : 'All Accounts'}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent className="bg-zinc-900 border-zinc-700">
-              <SelectItem value="all" className="text-zinc-300 focus:bg-zinc-800">All Accounts</SelectItem>
+            <SelectContent className="bg-card border-border">
+              <SelectItem value="all" className="text-foreground/80 focus:bg-muted">All Accounts</SelectItem>
               {accounts.map((a) => (
-                <SelectItem key={a.id} value={a.id} className="text-zinc-200 focus:bg-zinc-800">
+                <SelectItem key={a.id} value={a.id} className="text-foreground/90 focus:bg-muted">
                   {a.accountName}
                 </SelectItem>
               ))}
@@ -216,14 +216,14 @@ export default function TransactionsPage() {
         {/* Owner filter pills */}
         {owners.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-zinc-600 uppercase tracking-wide">Owner:</span>
+            <span className="text-xs text-muted-foreground/70 uppercase tracking-wide">Owner:</span>
             <button
               onClick={() => setFilters({ ownerId: undefined, page: 1 })}
               className={cn(
                 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-all border',
                 !filters.ownerId
-                  ? 'border-indigo-500 bg-zinc-700 text-zinc-100 ring-2 ring-indigo-500/50'
-                  : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  ? 'border-indigo-500 bg-secondary text-foreground ring-2 ring-indigo-500/50'
+                  : 'border-border bg-muted text-muted-foreground hover:text-foreground/90'
               )}
             >
               All
@@ -243,16 +243,16 @@ export default function TransactionsPage() {
       {/* ── Table ── */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-3">
-          <div className="w-8 h-8 border-2 border-zinc-700 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-sm text-zinc-500">Loading transactions…</p>
+          <div className="w-8 h-8 border-2 border-border border-t-indigo-500 rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading transactions…</p>
         </div>
       ) : transactions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center mb-4">
-            <ArrowLeftRight size={26} className="text-zinc-600" />
+          <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <ArrowLeftRight size={26} className="text-muted-foreground/70" />
           </div>
-          <p className="text-sm font-semibold text-zinc-400 mb-1">No transactions found</p>
-          <p className="text-xs text-zinc-600">
+          <p className="text-sm font-semibold text-muted-foreground mb-1">No transactions found</p>
+          <p className="text-xs text-muted-foreground/70">
             {Object.entries(filters).some(
               ([key, value]) => key !== 'page' && key !== 'limit' && Boolean(value)
             )
@@ -261,34 +261,34 @@ export default function TransactionsPage() {
           </p>
         </div>
       ) : (
-        <div className="rounded-xl border border-zinc-800 overflow-hidden">
+        <div className="rounded-xl border border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-900/80">
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide text-zinc-500 font-medium">Date</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide text-zinc-500 font-medium">Description</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide text-zinc-500 font-medium hidden md:table-cell">Category</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide text-zinc-500 font-medium hidden lg:table-cell">Owners</th>
-                <th className="text-right px-4 py-3 text-xs uppercase tracking-wide text-zinc-500 font-medium">Amount</th>
+              <tr className="border-b border-border bg-card/80">
+                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide text-muted-foreground font-medium">Date</th>
+                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide text-muted-foreground font-medium">Description</th>
+                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide text-muted-foreground font-medium hidden md:table-cell">Category</th>
+                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide text-muted-foreground font-medium hidden lg:table-cell">Owners</th>
+                <th className="text-right px-4 py-3 text-xs uppercase tracking-wide text-muted-foreground font-medium">Amount</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {transactions.map((txn) => (
-                <tr key={txn.id} className="hover:bg-zinc-800/40 transition-colors h-11">
-                  <td className="px-4 py-2.5 text-zinc-500 tabular-nums whitespace-nowrap text-xs">
+                <tr key={txn.id} className="hover:bg-muted/40 transition-colors h-11">
+                  <td className="px-4 py-2.5 text-muted-foreground tabular-nums whitespace-nowrap text-xs">
                     {new Date(txn.date).toLocaleDateString('en-IN', {
                       day: '2-digit',
                       month: 'short',
                       year: '2-digit',
                     })}
                   </td>
-                  <td className="px-4 py-2.5 text-zinc-200 max-w-xs">
+                  <td className="px-4 py-2.5 text-foreground/90 max-w-xs">
                     <span className="truncate block" title={txn.description}>
                       {txn.description.length > 60 ? txn.description.slice(0, 60) + '…' : txn.description}
                     </span>
                     {txn.comment && (
-                      <span className="text-xs text-zinc-500 truncate block">{txn.comment}</span>
+                      <span className="text-xs text-muted-foreground truncate block">{txn.comment}</span>
                     )}
                   </td>
                   <td className="px-4 py-2.5 hidden md:table-cell">
@@ -319,13 +319,13 @@ export default function TransactionsPage() {
                   </td>
                   <td className="px-4 py-2.5">
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="w-7 h-7 rounded hover:bg-zinc-700 flex items-center justify-center text-zinc-500 hover:text-zinc-200 transition-colors outline-none cursor-pointer">
+                      <DropdownMenuTrigger className="w-7 h-7 rounded hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground/90 transition-colors outline-none cursor-pointer">
                         <MoreHorizontal size={15} />
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-700 w-40">
+                      <DropdownMenuContent align="end" className="bg-card border-border w-40">
                         <DropdownMenuItem
                           onClick={() => setSplitTarget(txn)}
-                          className="text-zinc-300 focus:bg-zinc-800 focus:text-zinc-100"
+                          className="text-foreground/80 focus:bg-muted focus:text-foreground"
                         >
                           Assign Owners
                         </DropdownMenuItem>
@@ -342,14 +342,14 @@ export default function TransactionsPage() {
       {/* ── Pagination ── */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-muted-foreground">
             Page {filters.page} of {totalPages} · {total.toLocaleString('en-IN')} transactions
           </p>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="border-zinc-700 text-zinc-300 h-8 px-2"
+              className="border-border text-foreground/80 h-8 px-2"
               disabled={filters.page <= 1}
               onClick={() => setFilters({ page: filters.page - 1 })}
             >
@@ -358,7 +358,7 @@ export default function TransactionsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="border-zinc-700 text-zinc-300 h-8 px-2"
+              className="border-border text-foreground/80 h-8 px-2"
               disabled={filters.page >= totalPages}
               onClick={() => setFilters({ page: filters.page + 1 })}
             >

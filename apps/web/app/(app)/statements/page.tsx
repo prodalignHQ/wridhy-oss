@@ -52,30 +52,30 @@ function PreviewTable({ rows, totalCount }: { rows: PreviewRow[]; totalCount: nu
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value)
 
   return (
-    <div className="rounded-xl border border-zinc-800 overflow-hidden">
-      <div className="px-4 py-3 bg-zinc-900/80 border-b border-zinc-800 flex items-center justify-between">
-        <span className="text-sm font-semibold text-zinc-200">Preview</span>
-        <span className="text-xs text-zinc-500">
+    <div className="rounded-xl border border-border overflow-hidden">
+      <div className="px-4 py-3 bg-card/80 border-b border-border flex items-center justify-between">
+        <span className="text-sm font-semibold text-foreground/90">Preview</span>
+        <span className="text-xs text-muted-foreground">
           Showing {rows.length} of {totalCount} transactions
         </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-800">
-              <th className="text-left px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-500 font-medium">Date</th>
-              <th className="text-left px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-500 font-medium">Description</th>
-              <th className="text-right px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-500 font-medium">Amount</th>
-              <th className="text-center px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-500 font-medium">Type</th>
+            <tr className="border-b border-border">
+              <th className="text-left px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground font-medium">Date</th>
+              <th className="text-left px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground font-medium">Description</th>
+              <th className="text-right px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground font-medium">Amount</th>
+              <th className="text-center px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground font-medium">Type</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800">
             {rows.map((row, i) => (
-              <tr key={i} className="hover:bg-zinc-800/40 transition-colors">
-                <td className="px-4 py-2.5 text-zinc-400 tabular-nums whitespace-nowrap">
+              <tr key={i} className="hover:bg-muted/40 transition-colors">
+                <td className="px-4 py-2.5 text-muted-foreground tabular-nums whitespace-nowrap">
                   {new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}
                 </td>
-                <td className="px-4 py-2.5 text-zinc-300 max-w-xs truncate">{row.description}</td>
+                <td className="px-4 py-2.5 text-foreground/80 max-w-xs truncate">{row.description}</td>
                 <td className="px-4 py-2.5 text-right font-mono tabular-nums">
                   <span className={row.type === 'debit' ? 'text-rose-400' : 'text-emerald-400'}>
                     {formatINR(row.amount)}
@@ -159,8 +159,8 @@ function StatementHistory({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <History size={16} className="text-zinc-500" />
-        <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wide">Import History</h2>
+        <History size={16} className="text-muted-foreground" />
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Import History</h2>
       </div>
 
       <div className="space-y-4">
@@ -170,28 +170,28 @@ function StatementHistory({
           const totalImported = getMonthTotal(monthStatements)
 
           return (
-            <div key={month} className="rounded-xl border border-zinc-800 overflow-hidden">
+            <div key={month} className="rounded-xl border border-border overflow-hidden">
               {/* Month Header */}
               <button
                 onClick={() => toggleMonth(month)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-zinc-900/60 hover:bg-zinc-800/50 transition-colors"
+                className="w-full flex items-center justify-between px-4 py-3 bg-card/60 hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <ChevronRight
                     size={16}
-                    className={`text-zinc-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                    className={`text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                   />
-                  <span className="font-semibold text-zinc-200">{formatMonth(month)}</span>
+                  <span className="font-semibold text-foreground/90">{formatMonth(month)}</span>
                 </div>
                 <div className="flex items-center gap-4">
                   <Link
                     href={`/invoices?month=${month}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center rounded-full border border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:border-indigo-500/50 hover:text-zinc-100"
+                    className="inline-flex items-center rounded-full border border-border px-2.5 py-1 text-xs font-medium text-foreground/80 hover:border-indigo-500/50 hover:text-foreground"
                   >
                     Create invoice
                   </Link>
-                  <span className="text-sm text-zinc-500">
+                  <span className="text-sm text-muted-foreground">
                     {monthStatements.length} statement{monthStatements.length !== 1 ? 's' : ''}
                   </span>
                   <span className="text-sm font-mono text-emerald-400">
@@ -204,25 +204,25 @@ function StatementHistory({
               {isExpanded && (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-800 bg-zinc-900/30">
-                      <th className="text-left px-4 py-2 text-xs uppercase tracking-wide text-zinc-500 font-medium">Account</th>
-                      <th className="text-left px-4 py-2 text-xs uppercase tracking-wide text-zinc-500 font-medium">Bank</th>
-                      <th className="text-right px-4 py-2 text-xs uppercase tracking-wide text-zinc-500 font-medium">Imported</th>
-                      <th className="text-right px-4 py-2 text-xs uppercase tracking-wide text-zinc-500 font-medium">Skipped</th>
-                      <th className="text-left px-4 py-2 text-xs uppercase tracking-wide text-zinc-500 font-medium">Imported On</th>
+                    <tr className="border-b border-border bg-card/30">
+                      <th className="text-left px-4 py-2 text-xs uppercase tracking-wide text-muted-foreground font-medium">Account</th>
+                      <th className="text-left px-4 py-2 text-xs uppercase tracking-wide text-muted-foreground font-medium">Bank</th>
+                      <th className="text-right px-4 py-2 text-xs uppercase tracking-wide text-muted-foreground font-medium">Imported</th>
+                      <th className="text-right px-4 py-2 text-xs uppercase tracking-wide text-muted-foreground font-medium">Skipped</th>
+                      <th className="text-left px-4 py-2 text-xs uppercase tracking-wide text-muted-foreground font-medium">Imported On</th>
                       <th className="px-4 py-2" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800">
                     {monthStatements.map((s) => (
-                      <tr key={s.id} className="hover:bg-zinc-800/30 transition-colors">
-                        <td className="px-4 py-3 text-zinc-200 font-medium">{s.account.accountName}</td>
-                        <td className="px-4 py-3 text-zinc-400">
+                      <tr key={s.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 text-foreground/90 font-medium">{s.account.accountName}</td>
+                        <td className="px-4 py-3 text-muted-foreground">
                           {BANKS.find((b) => b.id === s.bankId)?.label ?? s.bankId}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-emerald-400">{s.importedCount}</td>
-                        <td className="px-4 py-3 text-right font-mono text-zinc-500">{s.duplicatesSkipped}</td>
-                        <td className="px-4 py-3 text-zinc-500">
+                        <td className="px-4 py-3 text-right font-mono text-muted-foreground">{s.duplicatesSkipped}</td>
+                        <td className="px-4 py-3 text-muted-foreground">
                           {new Date(s.importedAt).toLocaleDateString('en-IN', {
                             day: '2-digit',
                             month: 'short',
@@ -235,7 +235,7 @@ function StatementHistory({
                               e.stopPropagation()
                               setDeleteTarget(s.id)
                             }}
-                            className="w-7 h-7 rounded hover:bg-rose-500/20 flex items-center justify-center text-zinc-600 hover:text-rose-400 transition-colors"
+                            className="w-7 h-7 rounded hover:bg-rose-500/20 flex items-center justify-center text-muted-foreground/70 hover:text-rose-400 transition-colors"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -403,25 +403,25 @@ export default function StatementsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-50">Statements</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Upload bank statements to import transactions</p>
+          <h1 className="text-2xl font-semibold text-foreground">Statements</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Upload bank statements to import transactions</p>
         </div>
       </div>
 
       {/* Upload section */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-5">
-        <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wide">Import Statement</h2>
+      <div className="rounded-2xl border border-border bg-card/50 p-6 space-y-5">
+        <h2 className="text-sm font-semibold text-foreground/80 uppercase tracking-wide">Import Statement</h2>
 
         {/* Account selector */}
         <Select value={selectedAccountId} onValueChange={(v) => setSelectedAccountId(v || '')}>
-          <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-200 w-full sm:w-[300px]" disabled={accounts.length === 0}>
+          <SelectTrigger className="bg-muted border-border text-foreground/90 w-full sm:w-[300px]" disabled={accounts.length === 0}>
             <SelectValue>
               {selectedAccountId ? accounts.find(a => a.id === selectedAccountId)?.accountName + ' — ' + accounts.find(a => a.id === selectedAccountId)?.bankName : (accounts.length === 0 ? 'No accounts yet' : 'Select account')}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-zinc-700">
+          <SelectContent className="bg-card border-border">
             {accounts.map((a) => (
-              <SelectItem key={a.id} value={a.id} className="text-zinc-200 focus:bg-zinc-800">
+              <SelectItem key={a.id} value={a.id} className="text-foreground/90 focus:bg-muted">
                 {a.accountName} — {a.bankName}
               </SelectItem>
             ))}
@@ -442,8 +442,8 @@ export default function StatementsPage() {
 
         {/* Parsing indicator */}
         {isParsing && (
-          <div className="flex items-center gap-2 text-sm text-zinc-400">
-            <div className="w-4 h-4 border-2 border-zinc-600 border-t-indigo-500 rounded-full animate-spin" />
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="w-4 h-4 border-2 border-border border-t-indigo-500 rounded-full animate-spin" />
             Parsing statement…
           </div>
         )}
@@ -451,12 +451,12 @@ export default function StatementsPage() {
         {/* Month selector */}
         {totalParsed > 0 && !isParsing && (
           <div className="flex items-center gap-3">
-            <label className="text-sm text-zinc-400">Tag to month:</label>
+            <label className="text-sm text-muted-foreground">Tag to month:</label>
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground/90 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
         )}
@@ -473,7 +473,7 @@ export default function StatementsPage() {
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">
                 {totalParsed} transactions ready
               </span>
-              <span className="text-zinc-600">from {selectedFile?.name}</span>
+              <span className="text-muted-foreground/70">from {selectedFile?.name}</span>
             </div>
             <Button
               onClick={handleImport}
@@ -493,11 +493,11 @@ export default function StatementsPage() {
       {/* Empty history */}
       {statements.length === 0 && !isImporting && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center mb-4">
-            <History size={26} className="text-zinc-600" />
+          <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <History size={26} className="text-muted-foreground/70" />
           </div>
-          <p className="text-sm font-semibold text-zinc-400 mb-1">No imports yet</p>
-          <p className="text-xs text-zinc-600">Your statement import history will appear here</p>
+          <p className="text-sm font-semibold text-muted-foreground mb-1">No imports yet</p>
+          <p className="text-xs text-muted-foreground/70">Your statement import history will appear here</p>
         </div>
       )}
     </div>

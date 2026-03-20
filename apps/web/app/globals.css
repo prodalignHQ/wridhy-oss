@@ -44,39 +44,39 @@
   --radius-xl: calc(var(--radius) * 1.4);
 }
 
-/* ─── MoMoney Dark Theme (always dark) ───────────────────────────────────── */
+/* ─── MoMoney Theme Tokens ───────────────────────────────────────────────── */
 
 :root {
   /* Core backgrounds */
-  --background: #09090b;       /* zinc-950 */
-  --foreground: #fafafa;       /* zinc-50 */
+  --background: #fafafc;
+  --foreground: #18181b;
 
   /* Cards & surfaces */
-  --card: #18181b;             /* zinc-900 */
-  --card-foreground: #fafafa;
-  --popover: #18181b;
-  --popover-foreground: #fafafa;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
 
   /* Primary = indigo-500 */
   --primary: #6366f1;
   --primary-foreground: #ffffff;
 
-  /* Secondary = zinc-800 */
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
+  /* Secondary surfaces */
+  --secondary: #eef2ff;
+  --secondary-foreground: #312e81;
 
   /* Muted */
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;  /* zinc-400 */
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
 
-  /* Accent = zinc-800 hover */
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
+  /* Accent / hover */
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
 
   /* Borders & inputs */
-  --border: #27272a;            /* zinc-800 */
-  --input: #27272a;
-  --ring: #6366f1;              /* indigo-500 */
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #6366f1;
 
   /* Destructive = rose */
   --destructive: #f43f5e;
@@ -91,14 +91,36 @@
   --radius: 0.5rem;
 
   /* Sidebar */
-  --sidebar: #18181b;
-  --sidebar-foreground: #fafafa;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #18181b;
   --sidebar-primary: #6366f1;
   --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f4f4f5;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #e4e4e7;
+  --sidebar-ring: #6366f1;
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --border: #27272a;
+  --input: #27272a;
+  --sidebar: #18181b;
+  --sidebar-foreground: #fafafa;
   --sidebar-accent: #27272a;
   --sidebar-accent-foreground: #fafafa;
   --sidebar-border: #27272a;
-  --sidebar-ring: #6366f1;
 }
 
 @layer base {
@@ -111,12 +133,12 @@
   }
   html {
     @apply font-sans;
-    color-scheme: dark;
+    color-scheme: light;
   }
 }
 
 /* ─── MoMoney Utilities ───────────────────────────────────────────────────── */
 
 .label-sm {
-  @apply text-xs font-medium uppercase tracking-wide text-zinc-400;
+  @apply text-xs font-medium uppercase tracking-wide text-muted-foreground;
 }

@@ -22,11 +22,11 @@ export function AssetLayout({ assets, onAdd, onDelete }: AssetLayoutProps) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-zinc-800 bg-zinc-900/50">
-          <h2 className="text-lg font-semibold text-zinc-100 flex items-center justify-between">
+      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-border bg-card/50">
+          <h2 className="text-lg font-semibold text-foreground flex items-center justify-between">
             Assets Breakdown
-            <span className="text-sm font-normal text-zinc-400">Total: {assets.length} items</span>
+            <span className="text-sm font-normal text-muted-foreground">Total: {assets.length} items</span>
           </h2>
         </div>
 

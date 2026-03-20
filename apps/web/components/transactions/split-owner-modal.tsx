@@ -38,7 +38,7 @@ const COLOR_MAP: Record<string, string> = {
 }
 
 function OwnerInitialCircle({ owner }: { owner: SplitOwnerModalOwner }) {
-  const colorClass = COLOR_MAP[owner.color] ?? 'bg-zinc-500'
+  const colorClass = COLOR_MAP[owner.color] ?? 'bg-muted'
   const initials = owner.name
     .split(' ')
     .map((w) => w[0])
@@ -112,12 +112,12 @@ export function SplitOwnerModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 max-w-md">
+      <DialogContent className="bg-card border-border max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-zinc-100">Assign Owners</DialogTitle>
+          <DialogTitle className="text-foreground">Assign Owners</DialogTitle>
           {transaction && (
-            <p className="text-sm text-zinc-400 mt-1">
-              <span className="font-mono font-semibold text-zinc-200">
+            <p className="text-sm text-muted-foreground mt-1">
+              <span className="font-mono font-semibold text-foreground/90">
                 {formatINR(txnAmount)}
               </span>
               {' · '}
@@ -141,8 +141,8 @@ export function SplitOwnerModal({
                 className={cn(
                   'w-full flex items-center gap-3 px-4 h-12 rounded-lg border transition-all text-left',
                   isSelected
-                    ? 'bg-indigo-950 border-indigo-700 text-zinc-100'
-                    : 'bg-zinc-800/50 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600'
+                    ? 'bg-indigo-950 border-indigo-700 text-foreground'
+                    : 'bg-muted/50 border-border text-foreground/80 hover:bg-muted hover:border-border'
                 )}
               >
                 <OwnerInitialCircle owner={owner} />
@@ -151,7 +151,7 @@ export function SplitOwnerModal({
                 <div
                   className={cn(
                     'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
-                    isSelected ? 'bg-indigo-500 border-indigo-500' : 'border-zinc-600'
+                    isSelected ? 'bg-indigo-500 border-indigo-500' : 'border-border'
                   )}
                 >
                   {isSelected && (
@@ -173,13 +173,13 @@ export function SplitOwnerModal({
 
         {/* Equal split summary */}
         {n > 1 && (
-          <div className="rounded-lg bg-zinc-800/60 border border-zinc-700 px-4 py-3 text-sm font-semibold text-emerald-400">
+          <div className="rounded-lg bg-muted/60 border border-border px-4 py-3 text-sm font-semibold text-emerald-400">
             Split equally — {formatINR(shareAmount)} each ({n} owners)
           </div>
         )}
 
         <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={onClose} className="text-zinc-400">
+          <Button variant="ghost" onClick={onClose} className="text-muted-foreground">
             Cancel
           </Button>
           <Button

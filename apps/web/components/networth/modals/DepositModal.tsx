@@ -113,17 +113,17 @@ export function DepositModal({ open, onClose, onSave, asset }: DepositModalProps
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="accountNumber">Account Number <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+              <Label htmlFor="accountNumber">Account Number <span className="text-muted-foreground font-normal">(Optional)</span></Label>
               <Input id="accountNumber" placeholder="e.g. 50100XXXX" {...register('accountNumber')} />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="interestRate">Interest Rate (%) <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+              <Label htmlFor="interestRate">Interest Rate (%) <span className="text-muted-foreground font-normal">(Optional)</span></Label>
               <Input id="interestRate" type="number" step="0.01" placeholder="7.10" {...register('interestRate', { valueAsNumber: true })} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-zinc-800">
+          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
             <div className="space-y-2">
               <Label htmlFor="investedAmount">Invested Amount (₹)</Label>
               <Input id="investedAmount" type="number" step="0.01" placeholder="0.00" {...register('investedAmount', { valueAsNumber: true })} />
@@ -139,18 +139,18 @@ export function DepositModal({ open, onClose, onSave, asset }: DepositModalProps
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="maturityDate">Maturity Date <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+              <Label htmlFor="maturityDate">Maturity Date <span className="text-muted-foreground font-normal">(Optional)</span></Label>
               <Input id="maturityDate" type="date" {...register('maturityDate')} />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="maturityAmount">Maturity Amount (₹) <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+              <Label htmlFor="maturityAmount">Maturity Amount (₹) <span className="text-muted-foreground font-normal">(Optional)</span></Label>
               <Input id="maturityAmount" type="number" step="0.01" placeholder="0.00" {...register('maturityAmount', { valueAsNumber: true })} />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="comments">Comments <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+            <Label htmlFor="comments">Comments <span className="text-muted-foreground font-normal">(Optional)</span></Label>
             <Input id="comments" placeholder="e.g. Locked in for 5 years" {...register('comments')} />
           </div>
         </form>

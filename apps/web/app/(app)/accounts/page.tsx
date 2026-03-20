@@ -135,19 +135,19 @@ export default function AccountsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-50">Accounts</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Accounts</h1>
         <Button onClick={() => setIsAddOpen(true)} className="bg-indigo-500 hover:bg-indigo-600">
           <Plus className="mr-2 h-4 w-4" /> Add Account
         </Button>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12 text-zinc-500">Loading accounts...</div>
+        <div className="flex justify-center py-12 text-muted-foreground">Loading accounts...</div>
       ) : accounts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-zinc-800 rounded-xl">
-          <Landmark size={48} className="text-zinc-600 mb-4" />
-          <h2 className="text-lg font-semibold text-zinc-300 mb-2">No accounts yet</h2>
-          <p className="text-sm text-zinc-500 max-w-sm mb-6">
+        <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-border rounded-xl">
+          <Landmark size={48} className="text-muted-foreground/70 mb-4" />
+          <h2 className="text-lg font-semibold text-foreground/80 mb-2">No accounts yet</h2>
+          <p className="text-sm text-muted-foreground max-w-sm mb-6">
             Add your first bank account, credit card, or wallet to start managing your transactions.
           </p>
           <Button onClick={() => setIsAddOpen(true)} variant="outline">
@@ -157,33 +157,33 @@ export default function AccountsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {accounts.map((account) => (
-            <Card key={account.id} className="bg-zinc-900 border-zinc-800 rounded-xl p-5 relative group">
+            <Card key={account.id} className="bg-card border-border rounded-xl p-5 relative group">
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-semibold uppercase shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-semibold uppercase shrink-0">
                     {account.bankName.substring(0, 2)}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-zinc-50 truncate max-w-[150px]" title={account.accountName}>
+                    <h3 className="font-semibold text-foreground truncate max-w-[150px]" title={account.accountName}>
                       {account.accountName}
                     </h3>
-                    <p className="text-sm text-zinc-500">{account.bankName}</p>
+                    <p className="text-sm text-muted-foreground">{account.bankName}</p>
                   </div>
                 </div>
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-8 w-8 text-zinc-500 hover:text-rose-400 hover:bg-rose-950/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-8 w-8 text-muted-foreground hover:text-rose-400 hover:bg-rose-950/20 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => setAccountToDelete(account.id)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
               <div className="mt-5 flex items-center justify-between">
-                <Badge variant="secondary" className="bg-zinc-800 text-zinc-300 font-medium">
+                <Badge variant="secondary" className="bg-muted text-foreground/80 font-medium">
                   {formatType(account.accountType)}
                 </Badge>
-                <div className="text-sm font-mono text-zinc-400 font-medium">
+                <div className="text-sm font-mono text-muted-foreground font-medium">
                   {account.currency}
                 </div>
               </div>
@@ -194,10 +194,10 @@ export default function AccountsPage() {
 
       {/* Add Account Modal */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-zinc-900 border-zinc-800">
+        <DialogContent className="sm:max-w-[425px] bg-card border-border">
           <DialogHeader>
             <DialogTitle>Add Account</DialogTitle>
-            <DialogDescription className="text-zinc-400">
+            <DialogDescription className="text-muted-foreground">
               Create a new financial account.
             </DialogDescription>
           </DialogHeader>
@@ -213,12 +213,12 @@ export default function AccountsPage() {
                   if (bank) setValue('bankName', bank.label.replace(' — ', ' ') as any)
                 }}
               >
-                <SelectTrigger className="bg-zinc-950 border-zinc-700 focus:ring-indigo-500">
+                <SelectTrigger className="bg-background border-border focus:ring-indigo-500">
                   <SelectValue>
                     {BANKS.find(b => b.id === watchedBankId)?.label || 'Select bank and account type'}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-50">
+                <SelectContent className="bg-card border-border text-foreground">
                   {BANKS.map((b) => (
                     <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>
                   ))}
@@ -228,7 +228,7 @@ export default function AccountsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="accountName">Account Name</Label>
-              <Input id="accountName" placeholder="e.g. Savings - 1234" className="bg-zinc-950 border-zinc-700 focus-visible:ring-indigo-500" {...register('accountName')} />
+              <Input id="accountName" placeholder="e.g. Savings - 1234" className="bg-background border-border focus-visible:ring-indigo-500" {...register('accountName')} />
               {errors.accountName && <p className="text-rose-400 text-xs">{errors.accountName.message}</p>}
             </div>
             <div className="space-y-2">
@@ -237,7 +237,7 @@ export default function AccountsPage() {
                 value={watchedAccountType} 
                 onValueChange={(val) => setValue('accountType', val as any)}
               >
-                <SelectTrigger className="bg-zinc-950 border-zinc-700 focus:ring-indigo-500">
+                <SelectTrigger className="bg-background border-border focus:ring-indigo-500">
                   <SelectValue>
                     {watchedAccountType === 'bank' && 'Bank Account'}
                     {watchedAccountType === 'credit_card' && 'Credit Card'}
@@ -245,7 +245,7 @@ export default function AccountsPage() {
                     {watchedAccountType === 'investment' && 'Investment'}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-50">
+                <SelectContent className="bg-card border-border text-foreground">
                   <SelectItem value="bank">Bank Account</SelectItem>
                   <SelectItem value="credit_card">Credit Card</SelectItem>
                   <SelectItem value="wallet">Digital Wallet</SelectItem>
@@ -255,7 +255,7 @@ export default function AccountsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="currency">Currency</Label>
-              <Input id="currency" defaultValue="INR" className="bg-zinc-950 border-zinc-700 focus-visible:ring-indigo-500 font-mono" {...register('currency')} />
+              <Input id="currency" defaultValue="INR" className="bg-background border-border focus-visible:ring-indigo-500 font-mono" {...register('currency')} />
             </div>
             <DialogFooter className="pt-4">
               <Button type="button" variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
@@ -267,15 +267,15 @@ export default function AccountsPage() {
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!accountToDelete} onOpenChange={() => setAccountToDelete(null)}>
-        <AlertDialogContent className="bg-zinc-900 border-zinc-800">
+        <AlertDialogContent className="bg-card border-border">
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-400">
+            <AlertDialogDescription className="text-muted-foreground">
               This will permanently delete this account. Related transactions will be orphaned.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700 hover:text-white border-zinc-700">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-muted text-foreground hover:bg-secondary hover:text-white border-border">Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={onDeleteConfirm} className="bg-rose-500 hover:bg-rose-600 text-white">
               Delete
             </AlertDialogAction>

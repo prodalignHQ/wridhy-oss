@@ -42,13 +42,13 @@ function formatLakhs(value: number): string {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm shadow-xl">
-      <p className="text-zinc-400 text-xs mb-1.5">{label}</p>
+    <div className="bg-muted border border-border rounded-lg px-3 py-2 text-sm shadow-xl">
+      <p className="text-muted-foreground text-xs mb-1.5">{label}</p>
       {payload.map((entry: any) => (
         <div key={entry.name} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: entry.color }} />
-          <span className="text-zinc-300 capitalize">{entry.name}:</span>
-          <span className="font-mono font-semibold text-zinc-100">
+          <span className="text-foreground/80 capitalize">{entry.name}:</span>
+          <span className="font-mono font-semibold text-foreground">
             {formatLakhs(entry.value)}
           </span>
         </div>
@@ -86,8 +86,8 @@ export function NetWorthHistoryChart({ snapshots }: NetWorthHistoryChartProps) {
           />
         </svg>
         <div>
-          <p className="text-zinc-400 font-medium">Not enough data to show a trend</p>
-          <p className="text-zinc-600 text-sm mt-1">
+          <p className="text-muted-foreground font-medium">Not enough data to show a trend</p>
+          <p className="text-muted-foreground/70 text-sm mt-1">
             Save at least 2 snapshots to see your net worth over time
           </p>
         </div>
@@ -129,7 +129,7 @@ export function NetWorthHistoryChart({ snapshots }: NetWorthHistoryChartProps) {
         <Legend
           iconSize={8}
           iconType="circle"
-          formatter={(val) => <span className="text-xs text-zinc-400">{val}</span>}
+          formatter={(val) => <span className="text-xs text-muted-foreground">{val}</span>}
         />
         <Area
           type="monotone"

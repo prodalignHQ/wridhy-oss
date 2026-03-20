@@ -108,15 +108,15 @@ export function StockModal({ open, onClose, onSave, asset }: StockModalProps) {
           </div>
 
           <div className="pt-2">
-            <div className="bg-zinc-900/50 rounded-lg p-3 text-sm grid grid-cols-2 gap-2 border border-zinc-800">
+            <div className="bg-card/50 rounded-lg p-3 text-sm grid grid-cols-2 gap-2 border border-border">
               <div className="flex flex-col">
-                <span className="text-zinc-500 text-xs">Auto-Computed Invested</span>
-                <span className="font-mono text-zinc-300">
+                <span className="text-muted-foreground text-xs">Auto-Computed Invested</span>
+                <span className="font-mono text-foreground/80">
                   ₹{((qty || 0) * (avg || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="flex flex-col text-right">
-                <span className="text-zinc-500 text-xs">Auto-Computed Present Value</span>
+                <span className="text-muted-foreground text-xs">Auto-Computed Present Value</span>
                 <span className="font-mono text-emerald-400">
                   ₹{((qty || 0) * (ltpVal || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </span>

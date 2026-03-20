@@ -104,7 +104,7 @@ export function GenericAssetModal({ open, onClose, onSave, asset }: GenericAsset
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="comments">Comments <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+            <Label htmlFor="comments">Comments <span className="text-muted-foreground font-normal">(Optional)</span></Label>
             <Input id="comments" placeholder="e.g. Ancestral Property" {...register('comments')} />
           </div>
         </form>

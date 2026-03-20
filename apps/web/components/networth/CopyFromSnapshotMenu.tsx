@@ -42,7 +42,7 @@ export function CopyFromSnapshotMenu({ snapshots, onCopy, disabled }: CopyFromSn
       variant="outline"
       size="sm"
       disabled={disabled || snapshots.length === 0}
-      className="border-zinc-700 text-zinc-400 hover:text-zinc-50 hover:border-zinc-600 gap-1.5"
+      className="border-border text-muted-foreground hover:text-foreground hover:border-border gap-1.5"
     >
       <CalendarClock size={14} />
       Copy from previous
@@ -55,7 +55,7 @@ export function CopyFromSnapshotMenu({ snapshots, onCopy, disabled }: CopyFromSn
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger render={trigger} />
-          <TooltipContent className="bg-zinc-800 border-zinc-700 text-zinc-300 text-xs">
+          <TooltipContent className="bg-muted border-border text-foreground/80 text-xs">
             Save your first snapshot to enable this
           </TooltipContent>
         </Tooltip>
@@ -68,21 +68,21 @@ export function CopyFromSnapshotMenu({ snapshots, onCopy, disabled }: CopyFromSn
       <DropdownMenuTrigger render={trigger} />
       <DropdownMenuContent
         align="end"
-        className="bg-zinc-900 border-zinc-800 text-zinc-200 min-w-[220px]"
+        className="bg-card border-border text-foreground/90 min-w-[220px]"
       >
-        <p className="text-xs text-zinc-500 px-3 py-1.5">Load values from a past snapshot</p>
+        <p className="text-xs text-muted-foreground px-3 py-1.5">Load values from a past snapshot</p>
         {[...snapshots].reverse().map((snap) => (
           <DropdownMenuItem
             key={snap.id}
             onClick={() => handleCopy(snap.id)}
             disabled={loading === snap.id}
-            className="flex items-center justify-between cursor-pointer focus:bg-zinc-800"
+            className="flex items-center justify-between cursor-pointer focus:bg-muted"
           >
             <div>
               <p className="text-sm">
                 {format(new Date(snap.snapshotDate), 'dd MMM yyyy')}
               </p>
-              <p className="text-xs text-zinc-500 font-mono">
+              <p className="text-xs text-muted-foreground font-mono">
                 NW: {Number(snap.netWorth) >= 0 ? '+' : ''}
                 {parseFloat(snap.netWorth as string).toLocaleString('en-IN', {
                   style: 'currency',

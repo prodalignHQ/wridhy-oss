@@ -66,20 +66,20 @@ export function DashboardVerificationNotice({ email }: DashboardVerificationNoti
   return (
     <Card className="border-amber-500/20 bg-amber-500/5 py-0 shadow-[0_0_0_1px_rgba(245,158,11,0.08)]">
       <CardHeader className="border-b border-amber-500/10 py-6">
-        <CardTitle className="flex items-center gap-3 text-xl text-zinc-50">
+        <CardTitle className="flex items-center gap-3 text-xl text-foreground">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/15 text-amber-300">
             <ShieldAlert className="h-5 w-5" />
           </div>
           Verify your email to unlock MoMoney
         </CardTitle>
-        <CardDescription className="max-w-2xl text-sm leading-6 text-zinc-300">
+        <CardDescription className="max-w-2xl text-sm leading-6 text-foreground/80">
           You&apos;re signed in, but every feature stays locked until your email address is verified. Logout still works
           from the sidebar if you want to switch accounts.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 py-6">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 text-sm leading-6 text-zinc-300">
-          A verification email was sent to <span className="font-semibold text-zinc-50">{email}</span>. Once you verify
+        <div className="rounded-2xl border border-border bg-background/70 p-4 text-sm leading-6 text-foreground/80">
+          A verification email was sent to <span className="font-semibold text-foreground">{email}</span>. Once you verify
           it, refresh your status below and the rest of the app will unlock.
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -95,7 +95,7 @@ export function DashboardVerificationNotice({ email }: DashboardVerificationNoti
           <Button
             type="button"
             variant="outline"
-            className="border-zinc-700 bg-transparent text-zinc-100 hover:bg-zinc-800"
+            className="border-border bg-transparent text-foreground hover:bg-muted"
             disabled={resending}
             onClick={resendVerificationEmail}
           >

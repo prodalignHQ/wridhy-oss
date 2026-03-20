@@ -21,7 +21,7 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
 
   if (liabilities.length === 0) {
     return (
-      <div className="text-center py-6 text-zinc-500 text-sm border border-dashed border-zinc-800 rounded-lg">
+      <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
         <p>No liabilities added.</p>
         <button
           onClick={() => setIsAdding(true)}
@@ -43,7 +43,7 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between px-3 py-2 mt-2">
-        <div className="text-xs uppercase font-semibold text-zinc-500 tracking-widest">
+        <div className="text-xs uppercase font-semibold text-muted-foreground tracking-widest">
           Liabilities
         </div>
         <button
@@ -55,7 +55,7 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
         </button>
       </div>
 
-      <div className="grid grid-cols-[1.5fr_1fr_120px_120px_80px] gap-3 px-3 pb-2 text-xs uppercase tracking-wide text-zinc-500 font-semibold border-b border-zinc-800/50">
+      <div className="grid grid-cols-[1.5fr_1fr_120px_120px_80px] gap-3 px-3 pb-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold border-b border-border/50">
         <span>Name & Type</span>
         <span>Details</span>
         <span className="text-right">Monthly Payment</span>
@@ -66,18 +66,18 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
       {liabilities.map((liability) => (
         <div
           key={liability.id}
-          className="grid grid-cols-[1.5fr_1fr_120px_120px_80px] gap-3 items-center px-3 py-2.5 rounded-lg hover:bg-zinc-800/50 transition-colors group border-b border-zinc-800/30 last:border-0"
+          className="grid grid-cols-[1.5fr_1fr_120px_120px_80px] gap-3 items-center px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors group border-b border-border/30 last:border-0"
         >
           <div className="flex flex-col">
-            <span className="text-sm text-zinc-200">{liability.name}</span>
-            <span className="text-[10px] text-zinc-500 capitalize">{liability.type.replace('_', ' ')}</span>
+            <span className="text-sm text-foreground/90">{liability.name}</span>
+            <span className="text-[10px] text-muted-foreground capitalize">{liability.type.replace('_', ' ')}</span>
           </div>
 
-          <span className="text-xs text-zinc-400">
-            {liability.interestRate ? `${liability.interestRate}% APR` : <span className="text-zinc-600 italic">No rate</span>}
+          <span className="text-xs text-muted-foreground">
+            {liability.interestRate ? `${liability.interestRate}% APR` : <span className="text-muted-foreground/70 italic">No rate</span>}
           </span>
 
-          <span className="text-right font-mono text-sm text-zinc-400">
+          <span className="text-right font-mono text-sm text-muted-foreground">
             {liability.monthlyPayment ? formatINR(parseFloat(liability.monthlyPayment as any)) : '—'}
           </span>
           <span className="text-right font-mono text-sm text-rose-400">
@@ -87,13 +87,13 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
           <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
             <button
               onClick={() => setEditLiability(liability)}
-              className="p-1 text-zinc-500 hover:text-zinc-200 rounded"
+              className="p-1 text-muted-foreground hover:text-foreground/90 rounded"
             >
               <Pencil size={13} />
             </button>
             <button
               onClick={() => setDeleteId(liability.id)}
-              className="p-1 text-zinc-500 hover:text-rose-400 rounded"
+              className="p-1 text-muted-foreground hover:text-rose-400 rounded"
             >
               <Trash2 size={13} />
             </button>
@@ -102,8 +102,8 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
       ))}
 
       {liabilities.length > 0 && (
-        <div className="grid grid-cols-[1.5fr_1fr_120px_120px_80px] gap-3 px-3 py-3 bg-zinc-900/50 rounded-b-lg border-t border-zinc-800 mt-1">
-          <span className="text-xs text-zinc-400 font-semibold">
+        <div className="grid grid-cols-[1.5fr_1fr_120px_120px_80px] gap-3 px-3 py-3 bg-card/50 rounded-b-lg border-t border-border mt-1">
+          <span className="text-xs text-muted-foreground font-semibold">
             Total Liabilities
           </span>
           <span />

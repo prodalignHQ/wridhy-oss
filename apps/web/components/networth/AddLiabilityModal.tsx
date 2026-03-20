@@ -109,12 +109,12 @@ export function AddLiabilityModal({ open, onClose, onSave, liability }: AddLiabi
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="interestRate">Interest Rate (APR) <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+              <Label htmlFor="interestRate">Interest Rate (APR) <span className="text-muted-foreground font-normal">(Optional)</span></Label>
               <Input id="interestRate" type="number" step="0.01" placeholder="0.00" {...register('interestRate', { valueAsNumber: true })} />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="monthlyPayment">Monthly EMI/Payment <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+              <Label htmlFor="monthlyPayment">Monthly EMI/Payment <span className="text-muted-foreground font-normal">(Optional)</span></Label>
               <Input id="monthlyPayment" type="number" step="0.01" placeholder="0.00" {...register('monthlyPayment', { valueAsNumber: true })} />
             </div>
           </div>

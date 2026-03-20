@@ -71,11 +71,11 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
-      <Card className="w-full max-w-sm bg-zinc-900 border-zinc-800 rounded-2xl p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-sm bg-card border-border rounded-2xl p-4">
         <CardHeader className="text-center pb-6">
           <CardTitle className="text-2xl font-semibold mb-1">Create an account</CardTitle>
-          <CardDescription className="text-zinc-400">Join MoMoney to manage your finances</CardDescription>
+          <CardDescription className="text-muted-foreground">Join MoMoney to manage your finances</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -84,7 +84,7 @@ export default function SignupPage() {
               <Input
                 id="name"
                 placeholder="John Doe"
-                className="bg-zinc-950 border-zinc-700 focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-indigo-500"
                 {...register('name')}
               />
               {errors.name && <p className="text-rose-400 text-xs mt-1">{errors.name.message}</p>}
@@ -95,7 +95,7 @@ export default function SignupPage() {
                 id="email"
                 type="email"
                 placeholder="m@example.com"
-                className="bg-zinc-950 border-zinc-700 focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-indigo-500"
                 {...register('email')}
               />
               {errors.email && <p className="text-rose-400 text-xs mt-1">{errors.email.message}</p>}
@@ -105,7 +105,7 @@ export default function SignupPage() {
               <Input
                 id="password"
                 type="password"
-                className="bg-zinc-950 border-zinc-700 focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-indigo-500"
                 {...register('password')}
               />
               {errors.password && <p className="text-rose-400 text-xs mt-1">{errors.password.message}</p>}
@@ -115,7 +115,7 @@ export default function SignupPage() {
               <Input
                 id="confirmPassword"
                 type="password"
-                className="bg-zinc-950 border-zinc-700 focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-indigo-500"
                 {...register('confirmPassword')}
               />
               {errors.confirmPassword && (
@@ -131,8 +131,8 @@ export default function SignupPage() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex justify-center border-t border-zinc-800 pt-6">
-          <p className="text-sm text-zinc-400">
+        <CardFooter className="flex justify-center border-t border-border pt-6">
+          <p className="text-sm text-muted-foreground">
             Already have an account?{' '}
             <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">
               Sign in

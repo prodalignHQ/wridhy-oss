@@ -74,7 +74,7 @@ export function SavingsModal({ open, onClose, onSave, asset }: SavingsModalProps
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="accountNumber">Account Number <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+            <Label htmlFor="accountNumber">Account Number <span className="text-muted-foreground font-normal">(Optional)</span></Label>
             <Input id="accountNumber" placeholder="e.g. 50100XXXX" {...register('accountNumber')} />
           </div>
 

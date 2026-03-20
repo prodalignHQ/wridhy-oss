@@ -133,8 +133,8 @@ export default function OwnersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-zinc-50">Household Members</h2>
-          <p className="text-sm text-zinc-400 mt-1">Manage people and shared accounts to split transactions with.</p>
+          <h2 className="text-xl font-semibold text-foreground">Household Members</h2>
+          <p className="text-sm text-muted-foreground mt-1">Manage people and shared accounts to split transactions with.</p>
         </div>
         <Button onClick={() => setIsAddOpen(true)} className="bg-indigo-500 hover:bg-indigo-600">
           <Plus className="mr-2 h-4 w-4" /> Add Person
@@ -142,40 +142,40 @@ export default function OwnersPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12 text-zinc-500">Loading members...</div>
+        <div className="flex justify-center py-12 text-muted-foreground">Loading members...</div>
       ) : owners.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-zinc-800 rounded-xl">
-          <Users size={40} className="text-zinc-600 mb-4" />
-          <h3 className="text-lg font-semibold text-zinc-300 mb-2">No other members</h3>
-          <p className="text-sm text-zinc-500 max-w-sm mb-6">
+        <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-border rounded-xl">
+          <Users size={40} className="text-muted-foreground/70 mb-4" />
+          <h3 className="text-lg font-semibold text-foreground/80 mb-2">No other members</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mb-6">
             Add roommates or family members to split transactions with them.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {owners.map((owner) => (
-            <Card key={owner.id} className="bg-zinc-900 border-zinc-800 rounded-xl p-4 flex items-center justify-between group">
+            <Card key={owner.id} className="bg-card border-border rounded-xl p-4 flex items-center justify-between group">
               <div className="flex items-center space-x-4 overflow-hidden">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border ${colorMap[owner.color] || colorMap['indigo']} shrink-0`}>
                   {owner.name.substring(0, 2).toUpperCase()}
                 </div>
                 <div className="truncate pr-2">
                   <div className="flex items-center space-x-2">
-                    <h3 className="font-medium text-zinc-50 truncate">{owner.name}</h3>
+                    <h3 className="font-medium text-foreground truncate">{owner.name}</h3>
                     {owner.isDefault && (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
-                            <span className="flex items-center"><Lock className="w-3 h-3 text-zinc-500 shrink-0" /></span>
+                            <span className="flex items-center"><Lock className="w-3 h-3 text-muted-foreground shrink-0" /></span>
                           </TooltipTrigger>
-                          <TooltipContent className="bg-zinc-800 border-zinc-700 text-zinc-200">
+                          <TooltipContent className="bg-muted border-border text-foreground/90">
                             <p>This is you (cannot be deleted)</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     )}
                   </div>
-                  <Badge variant="secondary" className="bg-zinc-800/50 text-zinc-400 text-[10px] mt-1 hover:bg-zinc-800/50">
+                  <Badge variant="secondary" className="bg-muted/50 text-muted-foreground text-[10px] mt-1 hover:bg-muted/50">
                     {formatType(owner.type)}
                   </Badge>
                 </div>
@@ -185,7 +185,7 @@ export default function OwnersPage() {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-8 w-8 text-zinc-500 hover:text-rose-400 hover:bg-rose-950/20 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  className="h-8 w-8 text-muted-foreground hover:text-rose-400 hover:bg-rose-950/20 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                   onClick={() => setOwnerToDelete(owner)}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -198,17 +198,17 @@ export default function OwnersPage() {
 
       {/* Add Owner Modal */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="sm:max-w-[400px] bg-zinc-900 border-zinc-800">
+        <DialogContent className="sm:max-w-[400px] bg-card border-border">
           <DialogHeader>
             <DialogTitle>Add Household Member</DialogTitle>
-            <DialogDescription className="text-zinc-400">
+            <DialogDescription className="text-muted-foreground">
               Add someone you split expenses with.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmitAdd)} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" placeholder="e.g. Priya" className="bg-zinc-950 border-zinc-700 focus-visible:ring-indigo-500" {...register('name')} />
+              <Input id="name" placeholder="e.g. Priya" className="bg-background border-border focus-visible:ring-indigo-500" {...register('name')} />
               {errors.name && <p className="text-rose-400 text-xs">{errors.name.message}</p>}
             </div>
             <div className="space-y-2">
@@ -217,14 +217,14 @@ export default function OwnersPage() {
                 value={watchedType} 
                 onValueChange={(val) => setValue('type', val as any)}
               >
-                <SelectTrigger className="bg-zinc-950 border-zinc-700 focus:ring-indigo-500">
+                <SelectTrigger className="bg-background border-border focus:ring-indigo-500">
                   <SelectValue>
                     {watchedType === 'person' && 'Person'}
                     {watchedType === 'shared' && 'Shared Group'}
                     {watchedType === 'household' && 'Household Pot'}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-50">
+                <SelectContent className="bg-card border-border text-foreground">
                   <SelectItem value="person">Person</SelectItem>
                   <SelectItem value="shared">Shared Group</SelectItem>
                   <SelectItem value="household">Household Pot</SelectItem>
@@ -241,15 +241,15 @@ export default function OwnersPage() {
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!ownerToDelete} onOpenChange={() => setOwnerToDelete(null)}>
-        <AlertDialogContent className="bg-zinc-900 border-zinc-800">
+        <AlertDialogContent className="bg-card border-border">
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {ownerToDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-400">
+            <AlertDialogDescription className="text-muted-foreground">
               This will remove them from your household. Any transactions previously assigned to them will be reassigned to you (Self).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700 hover:text-white border-zinc-700">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-muted text-foreground hover:bg-secondary hover:text-white border-border">Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={onDeleteConfirm} className="bg-rose-500 hover:bg-rose-600 text-white">
               Confirm Remove
             </AlertDialogAction>

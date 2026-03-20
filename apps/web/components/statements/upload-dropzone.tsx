@@ -43,19 +43,19 @@ export function UploadDropzone({ onFileSelect, selectedFile, onClear, accept }: 
 
   if (selectedFile) {
     return (
-      <div className="border-2 border-zinc-700 rounded-xl p-6 flex items-center gap-4 bg-zinc-900/50">
+      <div className="border-2 border-border rounded-xl p-6 flex items-center gap-4 bg-card/50">
         <div className="w-12 h-12 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
           <FileText size={22} className="text-indigo-400" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-zinc-200 truncate">{selectedFile.name}</p>
-          <p className="text-xs text-zinc-500 mt-0.5">
+          <p className="text-sm font-medium text-foreground/90 truncate">{selectedFile.name}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {(selectedFile.size / 1024).toFixed(1)} KB
           </p>
         </div>
         <button
           onClick={onClear}
-          className="w-8 h-8 rounded-full hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground/90 transition-colors"
         >
           <X size={16} />
         </button>
@@ -73,25 +73,25 @@ export function UploadDropzone({ onFileSelect, selectedFile, onClear, accept }: 
         'border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center cursor-pointer transition-all duration-200',
         isDragOver
           ? 'border-indigo-500 bg-indigo-500/5 scale-[1.01]'
-          : 'border-zinc-700 hover:border-zinc-500 bg-zinc-900/30 hover:bg-zinc-900/50'
+          : 'border-border hover:border-border bg-card/30 hover:bg-card/50'
       )}
     >
       <div
         className={cn(
           'w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-colors',
-          isDragOver ? 'bg-indigo-500/20' : 'bg-zinc-800'
+          isDragOver ? 'bg-indigo-500/20' : 'bg-muted'
         )}
       >
         <UploadCloud
           size={32}
-          className={cn('transition-colors', isDragOver ? 'text-indigo-400' : 'text-zinc-500')}
+          className={cn('transition-colors', isDragOver ? 'text-indigo-400' : 'text-muted-foreground')}
         />
       </div>
-      <p className="text-base font-semibold text-zinc-200 mb-1">
+      <p className="text-base font-semibold text-foreground/90 mb-1">
         {isDragOver ? 'Release to upload' : 'Drop your bank statement here'}
       </p>
-      <p className="text-sm text-zinc-500">Supports CSV and Excel from ICICI Bank</p>
-      <p className="text-xs text-zinc-600 mt-3">or click to browse</p>
+      <p className="text-sm text-muted-foreground">Supports CSV and Excel from ICICI Bank</p>
+      <p className="text-xs text-muted-foreground/70 mt-3">or click to browse</p>
 
       <input
         ref={inputRef}

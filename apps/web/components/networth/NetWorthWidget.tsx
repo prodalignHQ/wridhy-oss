@@ -42,15 +42,15 @@ export function NetWorthWidget() {
 
   if (isLoading) {
     return (
-      <Card className="bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-colors cursor-pointer group">
+      <Card className="bg-card border-border hover:border-border transition-colors cursor-pointer group">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">Net Worth</h3>
-            <div className="h-6 w-16 bg-zinc-800 rounded animate-pulse" />
+            <h3 className="text-sm font-medium text-muted-foreground group-hover:text-foreground/80 transition-colors">Net Worth</h3>
+            <div className="h-6 w-16 bg-muted rounded animate-pulse" />
           </div>
           <div className="flex items-end justify-between">
-            <div className="h-8 w-32 bg-zinc-800 rounded animate-pulse" />
-            <Loader2 className="animate-spin text-zinc-600 h-4 w-4" />
+            <div className="h-8 w-32 bg-muted rounded animate-pulse" />
+            <Loader2 className="animate-spin text-muted-foreground/70 h-4 w-4" />
           </div>
         </CardContent>
       </Card>
@@ -81,15 +81,15 @@ export function NetWorthWidget() {
 
   return (
     <Link href="/networth" className="block focus:outline-none focus:ring-2 focus:ring-indigo-500/50 rounded-xl">
-      <Card className="bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-all duration-300 cursor-pointer group h-full">
+      <Card className="bg-card border-border hover:border-border transition-all duration-300 cursor-pointer group h-full">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">Net Worth</h3>
+            <h3 className="text-sm font-medium text-muted-foreground group-hover:text-foreground/80 transition-colors">Net Worth</h3>
             {latest && (
               <div
                 className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
                   isNeutral
-                    ? 'text-zinc-400 bg-zinc-800/50'
+                    ? 'text-muted-foreground bg-muted/50'
                     : isPositive
                     ? 'text-emerald-400 bg-emerald-400/10'
                     : 'text-rose-400 bg-rose-400/10'
@@ -109,18 +109,18 @@ export function NetWorthWidget() {
               </div>
             )}
             {!latest && (
-              <div className="text-xs text-zinc-500 bg-zinc-800/50 px-2 py-1 rounded-full">
+              <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded-full">
                 No data
               </div>
             )}
           </div>
           
           <div className="flex flex-col">
-            <span className={`text-2xl font-semibold tracking-tight font-mono ${latest && netWorthValue < 0 ? 'text-rose-400' : 'text-zinc-100'}`}>
+            <span className={`text-2xl font-semibold tracking-tight font-mono ${latest && netWorthValue < 0 ? 'text-rose-400' : 'text-foreground'}`}>
               {latest ? formatINR(netWorthValue) : '—'}
             </span>
             
-            <span className="text-[11px] text-zinc-500 mt-1 h-4">
+            <span className="text-[11px] text-muted-foreground mt-1 h-4">
               {latest && previous && (
                 <>Change since {prevDateLabel}</>
               )}

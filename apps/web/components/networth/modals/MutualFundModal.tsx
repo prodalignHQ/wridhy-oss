@@ -91,7 +91,7 @@ export function MutualFundModal({ open, onClose, onSave, asset }: MutualFundModa
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="folioNumber">Folio Number <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+              <Label htmlFor="folioNumber">Folio Number <span className="text-muted-foreground font-normal">(Optional)</span></Label>
               <Input id="folioNumber" placeholder="e.g. 12345678" {...register('folioNumber')} />
             </div>
             
@@ -126,7 +126,7 @@ export function MutualFundModal({ open, onClose, onSave, asset }: MutualFundModa
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="comments">Comments <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+            <Label htmlFor="comments">Comments <span className="text-muted-foreground font-normal">(Optional)</span></Label>
             <Input id="comments" placeholder="e.g. SIP of ₹5k/mo" {...register('comments')} />
           </div>
         </form>

@@ -260,7 +260,7 @@ export default function NetWorthPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <Loader2 className="animate-spin text-zinc-600" size={32} />
+        <Loader2 className="animate-spin text-muted-foreground/70" size={32} />
       </div>
     )
   }
@@ -299,14 +299,14 @@ export default function NetWorthPage() {
 
       {/* ─── Page header ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-semibold text-zinc-50">Net Worth</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Net Worth</h1>
 
         <div className="flex items-center gap-3">
           {/* Copy from previous dropdown */}
           <CopyFromSnapshotMenu snapshots={snapshots} onCopy={handleCopySnapshot} />
 
           {/* Mode toggle */}
-          <div className="rounded-full bg-zinc-800 p-1 flex items-center gap-0.5">
+          <div className="rounded-full bg-muted p-1 flex items-center gap-0.5">
             {(['detailed', 'quick'] as Mode[]).map((m) => (
               <button
                 key={m}
@@ -314,8 +314,8 @@ export default function NetWorthPage() {
                 className={cn(
                   'px-4 py-1.5 rounded-full text-sm font-medium transition-all',
                   mode === m
-                    ? 'bg-zinc-600 text-zinc-50'
-                    : 'text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:text-foreground/90'
                 )}
               >
                 {m === 'detailed' ? 'Detailed' : 'Quick Entry'}
@@ -359,7 +359,7 @@ export default function NetWorthPage() {
                 size="sm"
                 onClick={handleSaveDraft}
                 disabled={savingDraft}
-                className="border-zinc-700 text-zinc-400 hover:text-zinc-50 gap-1.5"
+                className="border-border text-muted-foreground hover:text-foreground gap-1.5"
               >
                 {savingDraft ? (
                   <Loader2 size={13} className="animate-spin" />
@@ -392,14 +392,14 @@ export default function NetWorthPage() {
           />
 
           {/* ─── Section C: Liabilities ───────────────────────────────── */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+          <div className="bg-card border border-border rounded-xl p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-semibold text-zinc-100">Liabilities</h2>
+              <h2 className="text-base font-semibold text-foreground">Liabilities</h2>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setAddLiability(true)}
-                className="border-zinc-700 text-zinc-400 hover:text-zinc-50 gap-1.5"
+                className="border-border text-muted-foreground hover:text-foreground gap-1.5"
               >
                 <PlusCircle size={13} />
                 Add Liability
@@ -413,8 +413,8 @@ export default function NetWorthPage() {
           </div>
 
           {/* ─── Section D: History chart ─────────────────────────────── */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-base font-semibold text-zinc-100 mb-5">Net Worth Over Time</h2>
+          <div className="bg-card border border-border rounded-xl p-6">
+            <h2 className="text-base font-semibold text-foreground mb-5">Net Worth Over Time</h2>
             <NetWorthHistoryChart snapshots={snapshots} />
           </div>
         </>

@@ -162,12 +162,12 @@ function InvoiceListSection({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">{title}</h2>
-        <span className="text-xs text-zinc-600">{invoices.length}</span>
+        <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{title}</h2>
+        <span className="text-xs text-muted-foreground/70">{invoices.length}</span>
       </div>
 
       {invoices.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-800 px-4 py-5 text-sm text-zinc-600">
+        <div className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground/70">
           Nothing here yet.
         </div>
       ) : (
@@ -183,13 +183,13 @@ function InvoiceListSection({
                   'w-full rounded-xl border px-4 py-3 text-left transition-colors',
                   active
                     ? 'border-indigo-500/60 bg-indigo-500/10'
-                    : 'border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900'
+                    : 'border-border bg-card/50 hover:bg-card'
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-zinc-100">{invoice.name}</p>
-                    <p className="mt-1 text-xs text-zinc-500">{formatMonth(invoice.invoiceMonth)}</p>
+                    <p className="truncate text-sm font-semibold text-foreground">{invoice.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatMonth(invoice.invoiceMonth)}</p>
                   </div>
                   <span
                     className={cn(
@@ -206,7 +206,7 @@ function InvoiceListSection({
                   {invoice.statements.map((statement) => (
                     <span
                       key={statement.id}
-                      className="rounded-full border border-zinc-800 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-400"
+                      className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[11px] text-muted-foreground"
                     >
                       {statement.accountName}
                     </span>
@@ -684,7 +684,7 @@ export default function InvoicesPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="text-zinc-500">Loading invoices...</div>
+        <div className="text-muted-foreground">Loading invoices...</div>
       </div>
     )
   }
@@ -693,8 +693,8 @@ export default function InvoicesPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-50">Invoices</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
+          <h1 className="text-2xl font-semibold text-foreground">Invoices</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Build invoice drafts from monthly statements, then generate a stored snapshot.
           </p>
         </div>
@@ -712,7 +712,7 @@ export default function InvoicesPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <aside className="space-y-5 rounded-2xl border border-border bg-card/40 p-4">
           <InvoiceListSection
             title="Drafts"
             invoices={drafts}
@@ -735,14 +735,14 @@ export default function InvoicesPage() {
 
         <section className="space-y-6">
           {composerOpen ? (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
+            <div className="rounded-2xl border border-border bg-card/50 p-6">
               <div className="flex items-start gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-300">
                   <Receipt size={22} />
                 </div>
                 <div className="space-y-1">
-                  <h2 className="text-xl font-semibold text-zinc-50">Create invoice draft</h2>
-                  <p className="text-sm text-zinc-500">
+                  <h2 className="text-xl font-semibold text-foreground">Create invoice draft</h2>
+                  <p className="text-sm text-muted-foreground">
                     Pick a tagged month, select the statements to include, and start editing the
                     invoice before you generate it.
                   </p>
@@ -752,41 +752,41 @@ export default function InvoicesPage() {
               <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                    <label className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                       Invoice Name
                     </label>
                     <Input
                       value={newInvoiceName}
                       onChange={(e) => setNewInvoiceName(e.target.value)}
-                      className="border-zinc-700 bg-zinc-950 text-zinc-100"
+                      className="border-border bg-background text-foreground"
                       placeholder="March 2026 household invoice"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                    <label className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                       Invoice Month
                     </label>
                     <Input
                       type="month"
                       value={newInvoiceMonth}
                       onChange={(e) => setNewInvoiceMonth(e.target.value)}
-                      className="border-zinc-700 bg-zinc-950 text-zinc-100"
+                      className="border-border bg-background text-foreground"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                      <label className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                         Statements For {newInvoiceMonth ? formatMonth(newInvoiceMonth) : 'This Month'}
                       </label>
-                      <span className="text-xs text-zinc-600">
+                      <span className="text-xs text-muted-foreground/70">
                         {newStatementIds.length} selected
                       </span>
                     </div>
 
                     {newMonthStatements.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-zinc-800 px-4 py-5 text-sm text-zinc-600">
+                      <div className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground/70">
                         Upload and tag statements for this month first.
                       </div>
                     ) : (
@@ -801,7 +801,7 @@ export default function InvoicesPage() {
                                 'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
                                 checked
                                   ? 'border-indigo-500/50 bg-indigo-500/10'
-                                  : 'border-zinc-800 bg-zinc-950/70 hover:bg-zinc-900'
+                                  : 'border-border bg-background/70 hover:bg-card'
                               )}
                             >
                               <input
@@ -814,13 +814,13 @@ export default function InvoicesPage() {
                                       : prev.filter((value) => value !== statement.id)
                                   )
                                 }}
-                                className="mt-1 h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-indigo-500"
+                                className="mt-1 h-4 w-4 rounded border-border bg-card text-indigo-500"
                               />
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-zinc-100">
+                                <p className="text-sm font-semibold text-foreground">
                                   {statement.account.accountName}
                                 </p>
-                                <p className="mt-1 text-xs text-zinc-500">
+                                <p className="mt-1 text-xs text-muted-foreground">
                                   {statement.account.bankName} · {statement.importedCount} transactions
                                 </p>
                               </div>
@@ -832,26 +832,26 @@ export default function InvoicesPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                <div className="rounded-2xl border border-border bg-background/70 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                     What happens next
                   </p>
-                  <div className="mt-4 space-y-4 text-sm text-zinc-400">
+                  <div className="mt-4 space-y-4 text-sm text-muted-foreground">
                     <div>
-                      <p className="font-medium text-zinc-200">1. Draft is created</p>
+                      <p className="font-medium text-foreground/90">1. Draft is created</p>
                       <p className="mt-1">
                         The draft appears in the Drafts section so you can come back to it anytime.
                       </p>
                     </div>
                     <div>
-                      <p className="font-medium text-zinc-200">2. Edit transactions</p>
+                      <p className="font-medium text-foreground/90">2. Edit transactions</p>
                       <p className="mt-1">
                         Categorize rows, assign owners, and filter down by description, category, or
                         debit versus credit.
                       </p>
                     </div>
                     <div>
-                      <p className="font-medium text-zinc-200">3. Generate snapshot</p>
+                      <p className="font-medium text-foreground/90">3. Generate snapshot</p>
                       <p className="mt-1">
                         Generation stores a copy of the invoice data so the analysis stays stable.
                       </p>
@@ -870,28 +870,28 @@ export default function InvoicesPage() {
               </div>
             </div>
           ) : detailLoading ? (
-            <div className="flex h-64 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900/40">
-              <div className="text-zinc-500">Loading invoice...</div>
+            <div className="flex h-64 items-center justify-center rounded-2xl border border-border bg-card/40">
+              <div className="text-muted-foreground">Loading invoice...</div>
             </div>
           ) : !activeInvoice ? (
-            <div className="flex h-64 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900/40">
-              <div className="text-zinc-500">Select an invoice to continue.</div>
+            <div className="flex h-64 items-center justify-center rounded-2xl border border-border bg-card/40">
+              <div className="text-muted-foreground">Select an invoice to continue.</div>
             </div>
           ) : (
             <>
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
+              <div className="rounded-2xl border border-border bg-card/50 p-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-3">
                     {activeInvoice.status === 'draft' ? (
                       <Input
                         value={draftName}
                         onChange={(e) => setDraftName(e.target.value)}
-                        className="h-11 max-w-xl border-zinc-700 bg-zinc-950 text-xl font-semibold text-zinc-50"
+                        className="h-11 max-w-xl border-border bg-background text-xl font-semibold text-foreground"
                       />
                     ) : (
                       <div>
-                        <h2 className="text-2xl font-semibold text-zinc-50">{activeInvoice.name}</h2>
-                        <p className="mt-1 text-sm text-zinc-500">
+                        <h2 className="text-2xl font-semibold text-foreground">{activeInvoice.name}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
                           Generated on{' '}
                           {activeInvoice.generatedAt
                             ? new Date(activeInvoice.generatedAt).toLocaleDateString('en-IN', {
@@ -905,7 +905,7 @@ export default function InvoicesPage() {
                     )}
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-zinc-800 bg-zinc-950/80 px-3 py-1 text-xs font-semibold text-zinc-300">
+                      <span className="rounded-full border border-border bg-background/80 px-3 py-1 text-xs font-semibold text-foreground/80">
                         {formatMonth(activeInvoice.invoiceMonth)}
                       </span>
                       <span
@@ -936,7 +936,7 @@ export default function InvoicesPage() {
                         variant="outline"
                         onClick={() => void handleSaveDraft()}
                         disabled={savingDraft || !draftHasChanges || draftStatementIds.length === 0}
-                        className="gap-2 border-zinc-700 text-zinc-200"
+                        className="gap-2 border-border text-foreground/90"
                       >
                         <Save size={15} />
                         {savingDraft ? 'Saving...' : 'Save Draft'}
@@ -964,7 +964,7 @@ export default function InvoicesPage() {
                 </div>
 
                 <div className="mt-5 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                     <FileText size={14} />
                     Statements
                   </div>
@@ -972,7 +972,7 @@ export default function InvoicesPage() {
                     {activeInvoice.statements.map((statement) => (
                       <span
                         key={statement.id}
-                        className="rounded-full border border-zinc-800 bg-zinc-950/80 px-3 py-1 text-xs text-zinc-300"
+                        className="rounded-full border border-border bg-background/80 px-3 py-1 text-xs text-foreground/80"
                       >
                         {statement.accountName}
                       </span>
@@ -991,7 +991,7 @@ export default function InvoicesPage() {
                               'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
                               checked
                                 ? 'border-indigo-500/50 bg-indigo-500/10'
-                                : 'border-zinc-800 bg-zinc-950/70 hover:bg-zinc-900'
+                                : 'border-border bg-background/70 hover:bg-card'
                             )}
                           >
                             <input
@@ -1003,13 +1003,13 @@ export default function InvoicesPage() {
                                   return prev.filter((value) => value !== statement.id)
                                 })
                               }}
-                              className="mt-1 h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-indigo-500"
+                              className="mt-1 h-4 w-4 rounded border-border bg-card text-indigo-500"
                             />
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-zinc-100">
+                              <p className="text-sm font-semibold text-foreground">
                                 {statement.account.accountName}
                               </p>
-                              <p className="mt-1 text-xs text-zinc-500">
+                              <p className="mt-1 text-xs text-muted-foreground">
                                 {statement.account.bankName} · {statement.importedCount} transactions
                               </p>
                             </div>
@@ -1022,30 +1022,30 @@ export default function InvoicesPage() {
               </div>
 
               {activeInvoice.status === 'generated' && activeInvoice.analysis ? (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
+                <div className="rounded-2xl border border-border bg-card/50 p-6">
                   <div className="flex items-center gap-2">
                     <Sparkles size={16} className="text-emerald-400" />
-                    <h3 className="text-lg font-semibold text-zinc-50">Analysis</h3>
+                    <h3 className="text-lg font-semibold text-foreground">Analysis</h3>
                   </div>
 
                   <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5">
+                    <div className="rounded-2xl border border-border bg-background/70 p-5">
                       <div className="flex items-center gap-2">
-                        <User size={15} className="text-zinc-500" />
-                        <p className="text-sm font-semibold text-zinc-200">Who spent how much?</p>
+                        <User size={15} className="text-muted-foreground" />
+                        <p className="text-sm font-semibold text-foreground/90">Who spent how much?</p>
                       </div>
                       <div className="mt-4 space-y-3">
                         {activeInvoice.analysis.ownerTotals.map((owner) => (
                           <div
                             key={`${owner.ownerId ?? owner.name}-total`}
-                            className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3"
+                            className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3"
                           >
                             <div className="flex items-center gap-3">
                               <div
                                 className="h-3 w-3 rounded-full"
                                 style={{ backgroundColor: owner.color ?? '#71717a' }}
                               />
-                              <span className="font-medium text-zinc-100">{owner.name}</span>
+                              <span className="font-medium text-foreground">{owner.name}</span>
                             </div>
                             <span className="font-mono text-rose-400">{formatINR(owner.total)}</span>
                           </div>
@@ -1053,10 +1053,10 @@ export default function InvoicesPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5">
+                    <div className="rounded-2xl border border-border bg-background/70 p-5">
                       <div className="flex items-center gap-2">
-                        <Tag size={15} className="text-zinc-500" />
-                        <p className="text-sm font-semibold text-zinc-200">
+                        <Tag size={15} className="text-muted-foreground" />
+                        <p className="text-sm font-semibold text-foreground/90">
                           Who spent how much in each category?
                         </p>
                       </div>
@@ -1064,17 +1064,17 @@ export default function InvoicesPage() {
                         {activeInvoice.analysis.ownerCategoryTotals.map((owner) => (
                           <div key={`${owner.ownerId ?? owner.name}-categories`} className="space-y-2">
                             <div className="flex items-center justify-between">
-                              <span className="font-medium text-zinc-100">{owner.name}</span>
-                              <span className="font-mono text-zinc-300">{formatINR(owner.total)}</span>
+                              <span className="font-medium text-foreground">{owner.name}</span>
+                              <span className="font-mono text-foreground/80">{formatINR(owner.total)}</span>
                             </div>
                             <div className="space-y-2">
                               {owner.categories.map((category) => (
                                 <div
                                   key={`${owner.ownerId ?? owner.name}-${category.category}`}
-                                  className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-2.5"
+                                  className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-2.5"
                                 >
-                                  <span className="text-sm text-zinc-300">{category.category}</span>
-                                  <span className="font-mono text-zinc-100">
+                                  <span className="text-sm text-foreground/80">{category.category}</span>
+                                  <span className="font-mono text-foreground">
                                     {formatINR(category.total)}
                                   </span>
                                 </div>
@@ -1088,11 +1088,11 @@ export default function InvoicesPage() {
                 </div>
               ) : null}
 
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
+              <div className="rounded-2xl border border-border bg-card/50 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-zinc-50">Transactions</h3>
-                    <p className="mt-0.5 text-sm text-zinc-500">
+                    <h3 className="text-lg font-semibold text-foreground">Transactions</h3>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
                       {filteredTransactions.length} of {activeInvoice.transactions.length} transactions
                     </p>
                   </div>
@@ -1101,13 +1101,13 @@ export default function InvoicesPage() {
                     <div className="relative min-w-56">
                       <Search
                         size={15}
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                       />
                       <Input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Filter by description"
-                        className="border-zinc-700 bg-zinc-950 pl-8 text-zinc-100"
+                        className="border-border bg-background pl-8 text-foreground"
                       />
                     </div>
 
@@ -1115,13 +1115,13 @@ export default function InvoicesPage() {
                       value={categoryFilter}
                       onValueChange={(value) => setCategoryFilter(value ?? 'all')}
                     >
-                      <SelectTrigger className="w-[180px] border-zinc-700 bg-zinc-950 text-zinc-200">
+                      <SelectTrigger className="w-[180px] border-border bg-background text-foreground/90">
                         <div className="flex items-center gap-2">
-                          <Filter size={14} className="text-zinc-500" />
+                          <Filter size={14} className="text-muted-foreground" />
                           <SelectValue placeholder="Category" />
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="border-zinc-700 bg-zinc-900">
+                      <SelectContent className="border-border bg-card">
                         <SelectItem value="all">All categories</SelectItem>
                         {categoryOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
@@ -1135,10 +1135,10 @@ export default function InvoicesPage() {
                       value={typeFilter}
                       onValueChange={(value) => setTypeFilter(value as 'all' | 'debit' | 'credit')}
                     >
-                      <SelectTrigger className="w-[170px] border-zinc-700 bg-zinc-950 text-zinc-200">
+                      <SelectTrigger className="w-[170px] border-border bg-background text-foreground/90">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="border-zinc-700 bg-zinc-900">
+                      <SelectContent className="border-border bg-card">
                         <SelectItem value="all">All amounts</SelectItem>
                         <SelectItem value="debit">Debit only</SelectItem>
                         <SelectItem value="credit">Credit only</SelectItem>
@@ -1149,53 +1149,53 @@ export default function InvoicesPage() {
 
                 {filteredTransactions.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-800">
-                      <Receipt size={24} className="text-zinc-600" />
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+                      <Receipt size={24} className="text-muted-foreground/70" />
                     </div>
-                    <p className="text-sm font-semibold text-zinc-400">No matching transactions</p>
-                    <p className="mt-1 text-xs text-zinc-600">
+                    <p className="text-sm font-semibold text-muted-foreground">No matching transactions</p>
+                    <p className="mt-1 text-xs text-muted-foreground/70">
                       Adjust the filters or add more statements to this invoice.
                     </p>
                   </div>
                 ) : (
-                  <div className="mt-5 overflow-x-auto rounded-2xl border border-zinc-800">
+                  <div className="mt-5 overflow-x-auto rounded-2xl border border-border">
                     <table className="w-full text-sm">
-                      <thead className="bg-zinc-950/80">
-                        <tr className="border-b border-zinc-800">
+                      <thead className="bg-background/80">
+                        <tr className="border-b border-border">
                           {activeInvoice.status === 'draft' ? (
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                               <input
                                 type="checkbox"
                                 checked={allFilteredSelected}
                                 onChange={(e) => toggleFilteredSelection(e.target.checked)}
-                                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-indigo-500"
+                                className="h-4 w-4 rounded border-border bg-card text-indigo-500"
                                 aria-label="Select all filtered transactions"
                               />
                             </th>
                           ) : null}
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Date
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Description
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Statement
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Category
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Owners
                           </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Amount
                           </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-800">
                         {filteredTransactions.map((transaction) => (
-                          <tr key={transaction.id} className="hover:bg-zinc-800/30">
+                          <tr key={transaction.id} className="hover:bg-muted/30">
                             {activeInvoice.status === 'draft' ? (
                               <td className="px-4 py-3 align-top">
                                 <input
@@ -1204,20 +1204,20 @@ export default function InvoicesPage() {
                                   onChange={(e) =>
                                     toggleTransactionSelection(transaction.id, e.target.checked)
                                   }
-                                  className="mt-0.5 h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-indigo-500"
+                                  className="mt-0.5 h-4 w-4 rounded border-border bg-card text-indigo-500"
                                   aria-label={`Select transaction ${transaction.description}`}
                                 />
                               </td>
                             ) : null}
-                            <td className="px-4 py-3 whitespace-nowrap text-zinc-500">
+                            <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                               {formatShortDate(transaction.date)}
                             </td>
                             <td className="px-4 py-3">
-                              <p className="max-w-md truncate text-zinc-100">
+                              <p className="max-w-md truncate text-foreground">
                                 {transaction.description}
                               </p>
                             </td>
-                            <td className="px-4 py-3 text-zinc-400">
+                            <td className="px-4 py-3 text-muted-foreground">
                               {statementLabels.get(transaction.statementId) ?? 'Statement removed'}
                             </td>
                             <td className="px-4 py-3">
@@ -1235,7 +1235,7 @@ export default function InvoicesPage() {
                                   color={transaction.category.color ?? '#6366f1'}
                                 />
                               ) : (
-                                <span className="text-xs text-zinc-500">— Uncategorized</span>
+                                <span className="text-xs text-muted-foreground">— Uncategorized</span>
                               )}
                             </td>
                             <td className="px-4 py-3">
@@ -1250,7 +1250,7 @@ export default function InvoicesPage() {
                                 className={cn(
                                   'rounded-lg transition-colors',
                                   activeInvoice.status === 'draft'
-                                    ? 'cursor-pointer hover:bg-zinc-800/60'
+                                    ? 'cursor-pointer hover:bg-muted/60'
                                     : 'cursor-default'
                                 )}
                               >
@@ -1328,21 +1328,21 @@ export default function InvoicesPage() {
           }
         }}
       >
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-50 sm:max-w-md">
+        <DialogContent className="border-border bg-card text-foreground sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-zinc-50">Apply category to selected rows?</DialogTitle>
-            <DialogDescription className="text-zinc-400">
+            <DialogTitle className="text-foreground">Apply category to selected rows?</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               {pendingCategoryChange
                 ? `You have ${pendingCategoryChange.selectedIds.length} selected filtered rows. Do you want to apply this category change to all of them?`
                 : ''}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="border-zinc-800 bg-zinc-950/60">
+          <DialogFooter className="border-border bg-background/60">
             <Button
               variant="ghost"
               onClick={() => setPendingCategoryChange(null)}
               disabled={applyingCategoryChange}
-              className="text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground/90"
             >
               No
             </Button>
@@ -1350,7 +1350,7 @@ export default function InvoicesPage() {
               variant="outline"
               onClick={() => void handleApplyOnlyThisRow()}
               disabled={applyingCategoryChange}
-              className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
+              className="border-border text-foreground/90 hover:bg-muted"
             >
               No, only this row
             </Button>

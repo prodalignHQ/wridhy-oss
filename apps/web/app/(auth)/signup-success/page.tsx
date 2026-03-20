@@ -12,14 +12,14 @@ function SignupSuccessContent() {
   const loginHref = email ? `/login?email=${encodeURIComponent(email)}` : '/login'
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
-      <Card className="w-full max-w-lg bg-zinc-900 border-zinc-800 rounded-2xl p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-lg bg-card border-border rounded-2xl p-4">
         <CardHeader className="text-center pb-6">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
             <CheckCircle2 className="h-7 w-7" />
           </div>
-          <CardTitle className="text-3xl font-semibold text-zinc-50">Account created</CardTitle>
-          <CardDescription className="text-zinc-400">
+          <CardTitle className="text-3xl font-semibold text-foreground">Account created</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Your MoMoney account is ready. We&apos;ve sent a verification email so you can unlock the app.
           </CardDescription>
         </CardHeader>
@@ -32,7 +32,7 @@ function SignupSuccessContent() {
             <p>
               {email ? (
                 <>
-                  We sent a verification link to <span className="font-semibold text-zinc-50">{email}</span>.
+                  We sent a verification link to <span className="font-semibold text-foreground">{email}</span>.
                 </>
               ) : (
                 'We sent a verification link to your email address.'
@@ -40,11 +40,11 @@ function SignupSuccessContent() {
               Verify your email, then sign in to unlock all features.
             </p>
           </div>
-          <p className="text-sm leading-6 text-zinc-400">
+          <p className="text-sm leading-6 text-muted-foreground">
             You can sign in before verifying if you want to, but MoMoney will stay locked until the email is verified.
           </p>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3 border-t border-zinc-800 bg-transparent pt-6 sm:flex-row sm:justify-center">
+        <CardFooter className="flex flex-col gap-3 border-t border-border bg-transparent pt-6 sm:flex-row sm:justify-center">
           <Link
             href={loginHref}
             className="inline-flex h-10 items-center justify-center rounded-lg bg-indigo-500 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-600"
@@ -53,7 +53,7 @@ function SignupSuccessContent() {
           </Link>
           <Link
             href="/signup"
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-700 px-5 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-800"
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-5 text-sm font-medium text-foreground/90 transition-colors hover:bg-muted"
           >
             Create another account
           </Link>
@@ -65,7 +65,7 @@ function SignupSuccessContent() {
 
 export default function SignupSuccessPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4 text-zinc-400">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background p-4 text-muted-foreground">Loading...</div>}>
       <SignupSuccessContent />
     </Suspense>
   )

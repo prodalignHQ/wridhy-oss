@@ -34,7 +34,7 @@ export function QuickEntryMode({ onSaveSnapshot }: QuickEntryModeProps) {
       {/* Inputs */}
       <div className="w-full grid grid-cols-2 gap-6">
         <div className="flex flex-col gap-2">
-          <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold text-center">
+          <label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold text-center">
             Total Assets (₹)
           </label>
           <input
@@ -43,11 +43,11 @@ export function QuickEntryMode({ onSaveSnapshot }: QuickEntryModeProps) {
             placeholder="0"
             value={assets}
             onChange={(e) => setAssets(e.target.value)}
-            className="text-3xl font-mono font-bold text-center w-full bg-zinc-900 border-b-2 border-zinc-700 focus:border-indigo-500 outline-none p-4 text-emerald-400 placeholder:text-zinc-700 transition-colors"
+            className="text-3xl font-mono font-bold text-center w-full bg-card border-b-2 border-border focus:border-indigo-500 outline-none p-4 text-emerald-400 placeholder:text-muted-foreground/60 transition-colors"
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold text-center">
+          <label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold text-center">
             Total Liabilities (₹)
           </label>
           <input
@@ -56,18 +56,18 @@ export function QuickEntryMode({ onSaveSnapshot }: QuickEntryModeProps) {
             placeholder="0"
             value={liabilities}
             onChange={(e) => setLiabilities(e.target.value)}
-            className="text-3xl font-mono font-bold text-center w-full bg-zinc-900 border-b-2 border-zinc-700 focus:border-indigo-500 outline-none p-4 text-rose-400 placeholder:text-zinc-700 transition-colors"
+            className="text-3xl font-mono font-bold text-center w-full bg-card border-b-2 border-border focus:border-indigo-500 outline-none p-4 text-rose-400 placeholder:text-muted-foreground/60 transition-colors"
           />
         </div>
       </div>
 
       {/* Net Worth computed */}
       <div className="flex flex-col items-center gap-2">
-        <p className="text-xs uppercase tracking-widest text-zinc-500 font-semibold">Net Worth</p>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">Net Worth</p>
         <p
           className={cn(
             'text-5xl font-bold font-mono text-center transition-colors',
-            !hasValues && 'text-zinc-700',
+            !hasValues && 'text-muted-foreground/60',
             hasValues && isPositive && 'text-emerald-400',
             hasValues && !isPositive && 'text-rose-400'
           )}
@@ -75,7 +75,7 @@ export function QuickEntryMode({ onSaveSnapshot }: QuickEntryModeProps) {
           {hasValues ? (isPositive ? '' : '−') + formatINR(Math.abs(netWorth)) : '—'}
         </p>
         {hasValues && (
-          <p className="text-xs text-zinc-500 font-mono">
+          <p className="text-xs text-muted-foreground font-mono">
             {formatINR(assetValue)} assets − {formatINR(liabilityValue)} liabilities
           </p>
         )}
@@ -90,7 +90,7 @@ export function QuickEntryMode({ onSaveSnapshot }: QuickEntryModeProps) {
         {loading ? 'Saving snapshot…' : 'Save Snapshot'}
       </Button>
 
-      <p className="text-xs text-zinc-600 text-center max-w-sm">
+      <p className="text-xs text-muted-foreground/70 text-center max-w-sm">
         Quick Entry saves a snapshot with the totals above — it doesn't update your detailed
         asset and liability breakdown. Switch to Detailed mode to manage individual entries.
       </p>

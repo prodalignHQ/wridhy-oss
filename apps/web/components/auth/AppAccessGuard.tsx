@@ -24,8 +24,8 @@ export function AppAccessGuard({ emailVerified, children }: AppAccessGuardProps)
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-6 text-center">
         <div className="max-w-md space-y-3">
-          <p className="text-lg font-semibold text-zinc-100">Email verification required</p>
-          <p className="text-sm leading-6 text-zinc-400">
+          <p className="text-lg font-semibold text-foreground">Email verification required</p>
+          <p className="text-sm leading-6 text-muted-foreground">
             We&apos;re taking you back to the dashboard. Verify your email there to unlock the rest of the app.
           </p>
         </div>

@@ -47,7 +47,7 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
 
   if (assets.length === 0) {
     return (
-      <div className="text-center py-6 text-zinc-500 text-sm border border-dashed border-zinc-800 rounded-lg">
+      <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
         <p>No deposits added (FDs, RDs, PPF).</p>
         <button
           onClick={() => setIsAdding(true)}
@@ -69,7 +69,7 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between px-3 py-2 mt-2">
-        <div className="text-xs uppercase font-semibold text-zinc-500 tracking-widest">
+        <div className="text-xs uppercase font-semibold text-muted-foreground tracking-widest">
           Deposits & PPF
         </div>
         <button
@@ -81,7 +81,7 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
         </button>
       </div>
 
-      <div className="grid grid-cols-[1.5fr_1fr_120px_120px_120px_80px] gap-3 px-3 pb-2 text-xs uppercase tracking-wide text-zinc-500 font-semibold border-b border-zinc-800/50">
+      <div className="grid grid-cols-[1.5fr_1fr_120px_120px_120px_80px] gap-3 px-3 pb-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold border-b border-border/50">
         <span>Name & Type</span>
         <span>Account / Rate</span>
         <span className="text-right">Invested</span>
@@ -98,35 +98,35 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
         return (
           <div
             key={asset.id}
-            className="grid grid-cols-[1.5fr_1fr_120px_120px_120px_80px] gap-3 items-center px-3 py-2.5 rounded-lg hover:bg-zinc-800/50 transition-colors group border-b border-zinc-800/30 last:border-0"
+            className="grid grid-cols-[1.5fr_1fr_120px_120px_120px_80px] gap-3 items-center px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors group border-b border-border/30 last:border-0"
           >
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className={`text-[10px] leading-none px-1.5 py-0.5 border-zinc-700 ${
+              <Badge variant="outline" className={`text-[10px] leading-none px-1.5 py-0.5 border-border ${
                 asset.type === 'fixed_deposit' ? 'text-blue-400' :
                 asset.type === 'recurring_deposit' ? 'text-amber-400' : 'text-purple-400'
               }`}>
                 {TYPE_LABELS[asset.type] || asset.type}
               </Badge>
               <div className="flex flex-col">
-                <span className="text-sm text-zinc-200">{asset.name}</span>
+                <span className="text-sm text-foreground/90">{asset.name}</span>
                 {asset.metadata.comments && (
-                  <span className="text-[10px] text-zinc-500 truncate max-w-[150px]">{asset.metadata.comments}</span>
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[150px]">{asset.metadata.comments}</span>
                 )}
               </div>
             </div>
             
             <div className="flex flex-col gap-0.5 items-start">
               {asset.metadata.accountNumber ? (
-                <span className="text-xs font-mono text-zinc-400">{asset.metadata.accountNumber}</span>
+                <span className="text-xs font-mono text-muted-foreground">{asset.metadata.accountNumber}</span>
               ) : (
-                <span className="text-xs text-zinc-600 italic">No A/c</span>
+                <span className="text-xs text-muted-foreground/70 italic">No A/c</span>
               )}
               {asset.metadata.interestRate ? (
-                <span className="text-[10px] text-zinc-500">{asset.metadata.interestRate}% Interest</span>
+                <span className="text-[10px] text-muted-foreground">{asset.metadata.interestRate}% Interest</span>
               ) : null}
             </div>
 
-            <span className="text-right font-mono text-sm text-zinc-400">
+            <span className="text-right font-mono text-sm text-muted-foreground">
               {formatINR(invested)}
             </span>
             <div className="text-right flex flex-col">
@@ -142,32 +142,32 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
             <div className="text-right flex flex-col items-end">
               {asset.metadata.maturityDate ? (
                 <>
-                  <span className="text-sm text-zinc-300">
+                  <span className="text-sm text-foreground/80">
                     {new Date(asset.metadata.maturityDate).toLocaleDateString('en-IN', {
                       month: 'short', year: 'numeric'
                     })}
                   </span>
                   {asset.metadata.maturityAmount ? (
-                    <span className="text-[10px] text-zinc-500 font-mono">
+                    <span className="text-[10px] text-muted-foreground font-mono">
                       {formatINR(asset.metadata.maturityAmount)}
                     </span>
                   ) : null}
                 </>
               ) : (
-                <span className="text-sm text-zinc-600">—</span>
+                <span className="text-sm text-muted-foreground/70">—</span>
               )}
             </div>
 
             <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
               <button
                 onClick={() => setEditAsset(asset)}
-                className="p-1 text-zinc-500 hover:text-zinc-200 rounded"
+                className="p-1 text-muted-foreground hover:text-foreground/90 rounded"
               >
                 <Pencil size={13} />
               </button>
               <button
                 onClick={() => setDeleteId(asset.id)}
-                className="p-1 text-zinc-500 hover:text-rose-400 rounded"
+                className="p-1 text-muted-foreground hover:text-rose-400 rounded"
               >
                 <Trash2 size={13} />
               </button>
@@ -177,12 +177,12 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
       })}
 
       {assets.length > 0 && (
-        <div className="grid grid-cols-[1.5fr_1fr_120px_120px_120px_80px] gap-3 px-3 py-3 bg-zinc-900/50 rounded-b-lg border-t border-zinc-800 mt-1">
-          <span className="text-xs text-zinc-400 font-semibold flex items-center">
+        <div className="grid grid-cols-[1.5fr_1fr_120px_120px_120px_80px] gap-3 px-3 py-3 bg-card/50 rounded-b-lg border-t border-border mt-1">
+          <span className="text-xs text-muted-foreground font-semibold flex items-center">
             Total Deposits
           </span>
           <span />
-          <span className="text-right font-mono text-sm font-semibold text-zinc-300">
+          <span className="text-right font-mono text-sm font-semibold text-foreground/80">
             {formatINR(subtotalInvested)}
           </span>
           <div className="text-right flex flex-col">

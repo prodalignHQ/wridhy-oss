@@ -74,11 +74,11 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
-      <Card className="w-full max-w-sm bg-zinc-900 border-zinc-800 rounded-2xl p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-sm bg-card border-border rounded-2xl p-4">
         <CardHeader className="text-center pb-6">
           <CardTitle className="text-2xl font-semibold mb-1">Welcome back</CardTitle>
-          <CardDescription className="text-zinc-400">Sign in to your MoMoney account</CardDescription>
+          <CardDescription className="text-muted-foreground">Sign in to your MoMoney account</CardDescription>
         </CardHeader>
         <CardContent>
           {verificationState === 'sent' && (
@@ -94,7 +94,7 @@ function LoginForm() {
                 id="email"
                 type="email"
                 placeholder="m@example.com"
-                className="bg-zinc-950 border-zinc-700 focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-indigo-500"
                 {...register('email')}
               />
               {errors.email && <p className="text-rose-400 text-xs mt-1">{errors.email.message}</p>}
@@ -106,7 +106,7 @@ function LoginForm() {
               <Input
                 id="password"
                 type="password"
-                className="bg-zinc-950 border-zinc-700 focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-indigo-500"
                 {...register('password')}
               />
               {errors.password && <p className="text-rose-400 text-xs mt-1">{errors.password.message}</p>}
@@ -120,8 +120,8 @@ function LoginForm() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex justify-center border-t border-zinc-800 pt-6">
-          <p className="text-sm text-zinc-400">
+        <CardFooter className="flex justify-center border-t border-border pt-6">
+          <p className="text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium">
               Sign up
@@ -135,7 +135,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4 text-zinc-400">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background p-4 text-muted-foreground">Loading...</div>}>
       <LoginForm />
     </Suspense>
   )
