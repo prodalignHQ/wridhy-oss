@@ -21,13 +21,39 @@ networthRoute.use('*', authMiddleware)
 
 const insertAssetSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  type: z.enum(['bank_account', 'investment', 'real_estate', 'crypto', 'cash', 'other']),
+  type: z.enum([
+    'mutual_fund', 'stock', 'fixed_deposit', 'recurring_deposit', 'ppf', 'savings_account', 'real_estate', 'crypto', 'cash', 'other'
+  ]),
   value: z.number().nonnegative('Value must be non-negative'),
   currency: z.string().default('INR'),
   valuationDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Invalid date'),
+  metadata: z.record(z.any()).default({}),
+}).superRefine((data, ctx) => {
+  if (data.type === 'stock') {
+    if (typeof data.metadata.quantity !== 'number' || typeof data.metadata.ltp !== 'number') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Stock reqs quantity and ltp', path: ['metadata'] })
+    }
+  } else if (data.type === 'mutual_fund') {
+    if (typeof data.metadata.investedAmount !== 'number') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Mutual Fund reqs investedAmount', path: ['metadata'] })
+    }
+  } else if (['fixed_deposit', 'recurring_deposit', 'ppf'].includes(data.type)) {
+     if (typeof data.metadata.investedAmount !== 'number') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Deposit reqs investedAmount', path: ['metadata'] })
+    }
+  }
 })
 
-const updateAssetSchema = insertAssetSchema.partial()
+const updateAssetSchema = z.object({
+  name: z.string().min(1, 'Name is required').optional(),
+  type: z.enum([
+    'mutual_fund', 'stock', 'fixed_deposit', 'recurring_deposit', 'ppf', 'savings_account', 'real_estate', 'crypto', 'cash', 'other'
+  ]).optional(),
+  value: z.number().nonnegative('Value must be non-negative').optional(),
+  currency: z.string().optional(),
+  valuationDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Invalid date').optional(),
+  metadata: z.record(z.any()).optional(),
+})
 
 const insertLiabilitySchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -40,30 +66,8 @@ const insertLiabilitySchema = z.object({
 const updateLiabilitySchema = insertLiabilitySchema.partial()
 
 const draftSchema = z.object({
-  assetBreakdown: z
-    .array(
-      z.object({
-        id: z.string().optional(),
-        name: z.string(),
-        type: z.string(),
-        value: z.number(),
-        currency: z.string(),
-        valuationDate: z.string(),
-      })
-    )
-    .optional(),
-  liabilityBreakdown: z
-    .array(
-      z.object({
-        id: z.string().optional(),
-        name: z.string(),
-        type: z.string(),
-        outstandingAmount: z.number(),
-        interestRate: z.number().optional(),
-        monthlyPayment: z.number().optional(),
-      })
-    )
-    .optional(),
+  assetBreakdown: z.array(z.record(z.any())).optional(),
+  liabilityBreakdown: z.array(z.record(z.any())).optional(),
 })
 
 // ─── Helper: compute live net worth ──────────────────────────────────────────
@@ -128,11 +132,14 @@ networthRoute.post('/snapshot', async (c) => {
     name: a.name,
     type: a.type,
     value: parseFloat(a.value as string),
+    metadata: a.metadata,
   }))
   const liabilityBreakdown = userLiabilities.map((l) => ({
     name: l.name,
     type: l.type,
     amount: parseFloat(l.outstandingAmount as string),
+    interestRate: l.interestRate ? parseFloat(l.interestRate as string) : undefined,
+    monthlyPayment: l.monthlyPayment ? parseFloat(l.monthlyPayment as string) : undefined,
   }))
 
   // Upsert — if snapshot for this month already exists, replace it
@@ -204,6 +211,7 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
       name: a.name,
       type: a.type as any,
       value: a.value.toFixed(2),
+      metadata: (a as any).metadata ?? {},
       currency: 'INR',
       valuationDate: today,
     }))
@@ -216,6 +224,8 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
       name: l.name,
       type: l.type as any,
       outstandingAmount: (l as any).amount?.toFixed(2) ?? '0',
+      interestRate: (l as any).interestRate?.toFixed(2),
+      monthlyPayment: (l as any).monthlyPayment?.toFixed(2),
       lastUpdated: today,
     }))
     await db.insert(liabilities).values(liabilityValues)
@@ -252,6 +262,7 @@ networthRoute.put('/draft', zValidator('json', draftSchema), async (c) => {
       type: a.type,
       value: parseFloat(a.value as string),
       currency: a.currency,
+      metadata: a.metadata,
       valuationDate: (a.valuationDate as Date).toISOString().split('T')[0],
     }))
 
@@ -266,6 +277,16 @@ networthRoute.put('/draft', zValidator('json', draftSchema), async (c) => {
       monthlyPayment: l.monthlyPayment ? parseFloat(l.monthlyPayment as string) : undefined,
     }))
 
+  const cleanAssetBreakdown = assetBreakdown.map(a => {
+    const { id, ...rest } = a;
+    return id ? a : rest;
+  })
+
+  const cleanLiabilityBreakdown = liabilityBreakdown.map(l => {
+    const { id, ...rest } = l;
+    return id ? l : rest;
+  })
+
   // Upsert draft (unique on userId)
   const existing = await db.query.netWorthDrafts.findFirst({
     where: eq(netWorthDrafts.userId, userId),
@@ -275,13 +296,13 @@ networthRoute.put('/draft', zValidator('json', draftSchema), async (c) => {
   if (existing) {
     ;[draft] = await db
       .update(netWorthDrafts)
-      .set({ assetBreakdown, liabilityBreakdown, savedAt: new Date() })
+      .set({ assetBreakdown: cleanAssetBreakdown, liabilityBreakdown: cleanLiabilityBreakdown, savedAt: new Date() })
       .where(eq(netWorthDrafts.userId, userId))
       .returning()
   } else {
     ;[draft] = await db
       .insert(netWorthDrafts)
-      .values({ userId, assetBreakdown, liabilityBreakdown })
+      .values({ userId, assetBreakdown: cleanAssetBreakdown, liabilityBreakdown: cleanLiabilityBreakdown })
       .returning()
   }
 
@@ -318,6 +339,7 @@ networthRoute.post('/assets', zValidator('json', insertAssetSchema), async (c) =
       name: body.name,
       type: body.type,
       value: body.value.toFixed(2),
+      metadata: body.metadata,
       currency: body.currency,
       valuationDate: new Date(body.valuationDate),
     })
@@ -336,6 +358,7 @@ networthRoute.patch('/assets/:id', zValidator('json', updateAssetSchema), async 
   if (body.type !== undefined) updateData.type = body.type
   if (body.value !== undefined) updateData.value = body.value.toFixed(2)
   if (body.currency !== undefined) updateData.currency = body.currency
+  if (body.metadata !== undefined) updateData.metadata = body.metadata
   if (body.valuationDate !== undefined) updateData.valuationDate = new Date(body.valuationDate)
 
   const [asset] = await db

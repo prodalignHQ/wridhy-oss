@@ -9,7 +9,18 @@ export const transactionTypeEnum = pgEnum('transaction_type', ['debit', 'credit'
 export const ruleSourceEnum = pgEnum('rule_source', ['system', 'user'])
 export const matchFieldEnum = pgEnum('match_field', ['merchant', 'description', 'amount'])
 export const matchTypeEnum = pgEnum('match_type', ['contains', 'equals', 'regex', 'gt', 'lt'])
-export const assetTypeEnum = pgEnum('asset_type', ['bank_account', 'investment', 'real_estate', 'crypto', 'cash', 'other'])
+export const assetTypeEnum = pgEnum('asset_type', [
+  'mutual_fund',
+  'stock',
+  'fixed_deposit',
+  'recurring_deposit',
+  'ppf',
+  'savings_account',
+  'real_estate',
+  'crypto',
+  'cash',
+  'other'
+])
 export const liabilityTypeEnum = pgEnum('liability_type', ['home_loan', 'car_loan', 'credit_card', 'student_loan', 'personal_loan', 'other'])
 export const invoiceStatusEnum = pgEnum('invoice_status', ['draft', 'generated'])
 
@@ -227,6 +238,7 @@ export const assets = pgTable('assets', {
   type: assetTypeEnum('type').notNull(),
   value: numeric('value', { precision: 15, scale: 2 }).notNull(),
   currency: text('currency').notNull().default('INR'),
+  metadata: jsonb('metadata').notNull().default({}),
   valuationDate: timestamp('valuation_date', { mode: 'date' }).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -267,12 +279,8 @@ export const netWorthSnapshots = pgTable('net_worth_snapshots', {
 export const netWorthDrafts = pgTable('net_worth_drafts', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
-  assetBreakdown: jsonb('asset_breakdown').$type<Array<{
-    id?: string; name: string; type: string; value: number; currency: string; valuationDate: string
-  }>>(),
-  liabilityBreakdown: jsonb('liability_breakdown').$type<Array<{
-    id?: string; name: string; type: string; outstandingAmount: number; interestRate?: number; monthlyPayment?: number
-  }>>(),
+  assetBreakdown: jsonb('asset_breakdown').$type<Array<Record<string, any>>>(),
+  liabilityBreakdown: jsonb('liability_breakdown').$type<Array<Record<string, any>>>(),
   savedAt: timestamp('saved_at').defaultNow().notNull(),
 })
 

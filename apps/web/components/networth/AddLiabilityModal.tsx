@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,201 +8,126 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-const LIABILITY_TYPE_LABELS: Record<string, string> = {
-  home_loan: 'Home Loan',
-  car_loan: 'Car Loan',
-  credit_card: 'Credit Card',
-  student_loan: 'Student Loan',
-  personal_loan: 'Personal Loan',
-  other: 'Other',
+export interface Liability {
+  id: string
+  userId: string
+  name: string
+  type: string
+  outstandingAmount: string | number
+  interestRate?: string | number | null
+  monthlyPayment?: string | number | null
+  createdAt: string
+  updatedAt: string
 }
 
 const schema = z.object({
+  type: z.enum(['credit_card', 'home_loan', 'auto_loan', 'personal_loan', 'student_loan', 'other']),
   name: z.string().min(1, 'Name is required'),
-  type: z.enum(['home_loan', 'car_loan', 'credit_card', 'student_loan', 'personal_loan', 'other']),
-  outstandingAmount: z.coerce.number().nonnegative('Must be ≥ 0'),
-  interestRate: z.coerce.number().nonnegative().optional().or(z.literal('')),
-  monthlyPayment: z.coerce.number().nonnegative().optional().or(z.literal('')),
+  outstandingAmount: z.number({ required_error: 'Amount is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
+  interestRate: z.union([z.number().nonnegative(), z.nan()]).optional().transform(v => Number.isNaN(v) ? undefined : v),
+  monthlyPayment: z.union([z.number().nonnegative(), z.nan()]).optional().transform(v => Number.isNaN(v) ? undefined : v),
 })
 
 type FormData = z.infer<typeof schema>
 
-export interface Liability {
-  id: string
-  name: string
-  type: string
-  outstandingAmount: string
-  interestRate?: string | null
-  monthlyPayment?: string | null
-  lastUpdated: string | Date
-  createdAt: string
-  userId: string
-}
-
 interface AddLiabilityModalProps {
   open: boolean
   onClose: () => void
-  onSave: (data: FormData, id?: string) => Promise<void>
-  liability?: Liability | null
-  defaultType?: string
+  onSave: (data: any, id?: string) => Promise<void>
+  liability?: Liability
 }
 
-export function AddLiabilityModal({
-  open,
-  onClose,
-  onSave,
-  liability,
-  defaultType,
-}: AddLiabilityModalProps) {
-  const [loading, setLoading] = useState(false)
-
+export function AddLiabilityModal({ open, onClose, onSave, liability }: AddLiabilityModalProps) {
   const {
     register,
     handleSubmit,
     setValue,
     watch,
-    reset,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: liability
-      ? {
-          name: liability.name,
-          type: liability.type as FormData['type'],
-          outstandingAmount: parseFloat(liability.outstandingAmount),
-          interestRate: liability.interestRate ? parseFloat(liability.interestRate) : undefined,
-          monthlyPayment: liability.monthlyPayment
-            ? parseFloat(liability.monthlyPayment)
-            : undefined,
-        }
-      : {
-          type: (defaultType as FormData['type']) ?? 'home_loan',
-        },
+    defaultValues: {
+      type: (liability?.type as any) || 'credit_card',
+      name: liability?.name || '',
+      outstandingAmount: liability ? parseFloat(liability.outstandingAmount as any) : undefined,
+      interestRate: liability?.interestRate ? parseFloat(liability.interestRate as any) : undefined,
+      monthlyPayment: liability?.monthlyPayment ? parseFloat(liability.monthlyPayment as any) : undefined,
+    },
   })
 
-  const selectedType = watch('type')
+  const typeValue = watch('type')
 
   const onSubmit = async (data: FormData) => {
-    setLoading(true)
-    try {
-      await onSave(data, liability?.id)
-      reset()
-      onClose()
-    } finally {
-      setLoading(false)
-    }
+    await onSave(data, liability?.id)
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-zinc-900 border border-zinc-800 text-zinc-50 max-w-md">
+    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{liability ? 'Edit Liability' : 'Add Liability'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-          {/* Name */}
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-zinc-400">Name</Label>
-            <Input
-              {...register('name')}
-              placeholder="e.g. Home Loan - SBI"
-              className="bg-zinc-800 border-zinc-700 text-zinc-50"
-            />
-            {errors.name && <p className="text-xs text-rose-400">{errors.name.message}</p>}
+        <form id="liability-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="type">Debt Type</Label>
+              <Select value={typeValue} onValueChange={(val: any) => setValue('type', val)}>
+                <SelectTrigger id="type">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="credit_card">Credit Card</SelectItem>
+                  <SelectItem value="home_loan">Home Loan</SelectItem>
+                  <SelectItem value="auto_loan">Auto Loan</SelectItem>
+                  <SelectItem value="personal_loan">Personal Loan</SelectItem>
+                  <SelectItem value="student_loan">Student Loan</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Name / Bank</Label>
+              <Input id="name" placeholder="e.g. HDFC Credit Card" {...register('name')} />
+              {errors.name && <p className="text-xs text-rose-400">{errors.name.message}</p>}
+            </div>
           </div>
 
-          {/* Type */}
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-zinc-400">Type</Label>
-            <Select
-              value={selectedType}
-              onValueChange={(v) => setValue('type', v as FormData['type'])}
-            >
-              <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-800 border-zinc-700">
-                {Object.entries(LIABILITY_TYPE_LABELS).map(([val, label]) => (
-                  <SelectItem key={val} value={val} className="text-zinc-50 focus:bg-zinc-700">
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-2">
+            <Label htmlFor="outstandingAmount">Outstanding Amount (₹)</Label>
+            <Input id="outstandingAmount" type="number" step="0.01" placeholder="0.00" {...register('outstandingAmount', { valueAsNumber: true })} />
+            {errors.outstandingAmount && <p className="text-xs text-rose-400">{errors.outstandingAmount.message}</p>}
           </div>
 
-          {/* Outstanding Amount */}
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-zinc-400">
-              Outstanding Amount (₹)
-            </Label>
-            <Input
-              {...register('outstandingAmount')}
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              className="bg-zinc-800 border-zinc-700 text-zinc-50 font-mono"
-            />
-            {errors.outstandingAmount && (
-              <p className="text-xs text-rose-400">{errors.outstandingAmount.message}</p>
-            )}
-          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="interestRate">Interest Rate (APR) <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+              <Input id="interestRate" type="number" step="0.01" placeholder="0.00" {...register('interestRate', { valueAsNumber: true })} />
+            </div>
 
-          {/* Interest Rate (optional) */}
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-zinc-400">
-              Interest Rate (% p.a.) — optional
-            </Label>
-            <Input
-              {...register('interestRate')}
-              type="number"
-              step="0.01"
-              placeholder="8.5"
-              className="bg-zinc-800 border-zinc-700 text-zinc-50 font-mono"
-            />
-          </div>
-
-          {/* Monthly Payment (optional) */}
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-zinc-400">
-              Monthly Payment (₹) — optional
-            </Label>
-            <Input
-              {...register('monthlyPayment')}
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              className="bg-zinc-800 border-zinc-700 text-zinc-50 font-mono"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="border-zinc-700 text-zinc-400 hover:text-zinc-50"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading} className="bg-indigo-600 hover:bg-indigo-500">
-              {loading ? 'Saving…' : liability ? 'Save Changes' : 'Add Liability'}
-            </Button>
+            <div className="space-y-2">
+              <Label htmlFor="monthlyPayment">Monthly EMI/Payment <span className="text-zinc-500 font-normal">(Optional)</span></Label>
+              <Input id="monthlyPayment" type="number" step="0.01" placeholder="0.00" {...register('monthlyPayment', { valueAsNumber: true })} />
+            </div>
           </div>
         </form>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} type="button">
+            Cancel
+          </Button>
+          <Button type="submit" form="liability-form" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save Liability'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

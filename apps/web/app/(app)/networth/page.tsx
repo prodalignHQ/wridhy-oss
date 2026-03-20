@@ -9,12 +9,11 @@ import { formatINR } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { StatCard } from '@/components/ui/custom/StatCard'
 import { Button } from '@/components/ui/button'
-import { AssetTable } from '@/components/networth/AssetTable'
+import { AssetLayout } from '@/components/networth/AssetLayout'
 import { LiabilityTable } from '@/components/networth/LiabilityTable'
 import { NetWorthHistoryChart } from '@/components/networth/NetWorthHistoryChart'
 import { CopyFromSnapshotMenu } from '@/components/networth/CopyFromSnapshotMenu'
 import { QuickEntryMode } from '@/components/networth/QuickEntryMode'
-import { AddAssetModal, type Asset } from '@/components/networth/AddAssetModal'
 import { AddLiabilityModal, type Liability } from '@/components/networth/AddLiabilityModal'
 
 type Mode = 'detailed' | 'quick'
@@ -23,7 +22,7 @@ interface NetWorthData {
   totalAssets: number
   totalLiabilities: number
   netWorth: number
-  assets: Asset[]
+  assets: any[]
   liabilities: Liability[]
 }
 
@@ -386,25 +385,11 @@ export default function NetWorthPage() {
           </div>
 
           {/* ─── Section B: Assets ────────────────────────────────────── */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-semibold text-zinc-100">Assets</h2>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setAddAsset(true)}
-                className="border-zinc-700 text-zinc-400 hover:text-zinc-50 gap-1.5"
-              >
-                <PlusCircle size={13} />
-                Add Asset
-              </Button>
-            </div>
-            <AssetTable
-              assets={data?.assets ?? []}
-              onAdd={handleSaveAsset}
-              onDelete={handleDeleteAsset}
-            />
-          </div>
+          <AssetLayout
+            assets={data?.assets ?? []}
+            onAdd={handleSaveAsset}
+            onDelete={handleDeleteAsset}
+          />
 
           {/* ─── Section C: Liabilities ───────────────────────────────── */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
@@ -436,13 +421,6 @@ export default function NetWorthPage() {
       )}
 
       {/* Global Add modals (for top-level buttons) */}
-      {addAsset && (
-        <AddAssetModal
-          open
-          onClose={() => setAddAsset(false)}
-          onSave={async (data, id) => { await handleSaveAsset(data, id); setAddAsset(false) }}
-        />
-      )}
       {addLiability && (
         <AddLiabilityModal
           open

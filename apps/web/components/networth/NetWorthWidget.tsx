@@ -1,90 +1,140 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { TrendingUp, TrendingDown, Minus, ArrowRight } from 'lucide-react'
-import Link from 'next/link'
-import { apiClient } from '@/lib/api'
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 import { formatINR } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/lib/store/auth.store'
+import { apiClient } from '@/lib/api'
+import Link from 'next/link'
+import { Loader2 } from 'lucide-react'
 
 interface Snapshot {
   id: string
-  snapshotDate: string
-  netWorth: string
-  totalAssets: string
-  totalLiabilities: string
+  yearOffset: number
+  month: number
+  netWorth: string | number
+  totalAssets: string | number
+  totalLiabilities: string | number
 }
 
 export function NetWorthWidget() {
+  const user = useAuthStore((state) => state.user)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    apiClient
-      .fetch<Snapshot[]>('/v1/networth/history')
-      .then(setSnapshots)
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    async function load() {
+      if (!user) return
+      try {
+        const res = await apiClient.fetch<Snapshot[]>('/v1/networth/history')
+        setSnapshots(res)
+      } catch (error) {
+        console.error('Failed to load net worth history for widget', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    load()
+  }, [user])
+
+  if (!user) return null
+
+  if (isLoading) {
+    return (
+      <Card className="bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-colors cursor-pointer group">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">Net Worth</h3>
+            <div className="h-6 w-16 bg-zinc-800 rounded animate-pulse" />
+          </div>
+          <div className="flex items-end justify-between">
+            <div className="h-8 w-32 bg-zinc-800 rounded animate-pulse" />
+            <Loader2 className="animate-spin text-zinc-600 h-4 w-4" />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   const latest = snapshots[snapshots.length - 1]
-  const previous = snapshots[snapshots.length - 2]
+  const previous = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
 
-  const latestNW = latest ? parseFloat(latest.netWorth) : null
-  const delta = latest && previous ? parseFloat(latest.netWorth) - parseFloat(previous.netWorth) : null
+  const netWorthValue = latest ? Number(latest.netWorth) : 0
+  
+  let delta = 0
+  let isPositive = true
+  let isNeutral = true
 
-  const isPositive = latestNW !== null && latestNW >= 0
-  const deltaPositive = delta !== null && delta >= 0
+  if (latest && previous) {
+    const prevVal = Number(previous.netWorth)
+    delta = netWorthValue - prevVal
+    isPositive = delta >= 0
+    isNeutral = delta === 0
+  } else if (latest && !previous) {
+    delta = netWorthValue
+    isPositive = delta >= 0
+    isNeutral = delta === 0
+  }
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const prevMonthName = previous ? monthNames[previous.month - 1] : 'start'
 
   return (
-    <Link
-      href="/networth"
-      className="block bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 hover:bg-zinc-800/50 transition-all group"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Net Worth</p>
-
-          {loading ? (
-            <div className="h-8 w-32 bg-zinc-800 animate-pulse rounded" />
-          ) : latestNW === null ? (
-            <div>
-              <p className="text-xl font-bold text-zinc-500 font-mono">Not tracked yet</p>
-              <p className="text-xs text-zinc-600 mt-1">Click to add assets and liabilities</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <p
-                className={cn(
-                  'text-3xl font-bold font-mono tabular-nums',
-                  isPositive ? 'text-emerald-400' : 'text-rose-400'
-                )}
+    <Link href="/networth" className="block focus:outline-none focus:ring-2 focus:ring-indigo-500/50 rounded-xl">
+      <Card className="bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-all duration-300 cursor-pointer group h-full">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">Net Worth</h3>
+            {latest && (
+              <div
+                className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
+                  isNeutral
+                    ? 'text-zinc-400 bg-zinc-800/50'
+                    : isPositive
+                    ? 'text-emerald-400 bg-emerald-400/10'
+                    : 'text-rose-400 bg-rose-400/10'
+                }`}
               >
-                {isPositive ? '' : '−'}
-                {formatINR(Math.abs(latestNW))}
-              </p>
-
-              {delta !== null && (
-                <span
-                  className={cn(
-                    'flex items-center gap-1 text-xs font-medium',
-                    deltaPositive ? 'text-emerald-400' : 'text-rose-400'
-                  )}
-                >
-                  {deltaPositive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                  {deltaPositive ? '+' : '−'}
-                  {formatINR(Math.abs(delta))} since last snapshot
+                {isNeutral ? (
+                  <Minus size={12} />
+                ) : isPositive ? (
+                  <TrendingUp size={12} />
+                ) : (
+                  <TrendingDown size={12} />
+                )}
+                <span>
+                  {isNeutral ? '' : isPositive ? '+' : ''}
+                  {formatINR(delta)}
                 </span>
+              </div>
+            )}
+            {!latest && (
+              <div className="text-xs text-zinc-500 bg-zinc-800/50 px-2 py-1 rounded-full">
+                No data
+              </div>
+            )}
+          </div>
+          
+          <div className="flex flex-col">
+            <span className={`text-2xl font-semibold tracking-tight font-mono ${latest && netWorthValue < 0 ? 'text-rose-400' : 'text-zinc-100'}`}>
+              {latest ? formatINR(netWorthValue) : '—'}
+            </span>
+            
+            <span className="text-[11px] text-zinc-500 mt-1 h-4">
+              {latest && previous && (
+                <>Change since {prevMonthName} {previous.yearOffset + 2026}</>
               )}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 text-zinc-600 group-hover:text-zinc-400 transition-colors mt-1">
-          <span className="text-xs">View details</span>
-          <ArrowRight size={13} />
-        </div>
-      </div>
+              {latest && !previous && (
+                <>Initial snapshot</>
+              )}
+              {!latest && (
+                <>Click to get started</>
+              )}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
     </Link>
   )
 }

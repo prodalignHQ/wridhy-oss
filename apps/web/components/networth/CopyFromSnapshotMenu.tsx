@@ -54,7 +54,7 @@ export function CopyFromSnapshotMenu({ snapshots, onCopy, disabled }: CopyFromSn
     return (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipTrigger render={trigger} />
           <TooltipContent className="bg-zinc-800 border-zinc-700 text-zinc-300 text-xs">
             Save your first snapshot to enable this
           </TooltipContent>
@@ -65,7 +65,7 @@ export function CopyFromSnapshotMenu({ snapshots, onCopy, disabled }: CopyFromSn
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuTrigger render={trigger} />
       <DropdownMenuContent
         align="end"
         className="bg-zinc-900 border-zinc-800 text-zinc-200 min-w-[220px]"
@@ -83,7 +83,7 @@ export function CopyFromSnapshotMenu({ snapshots, onCopy, disabled }: CopyFromSn
                 {format(new Date(snap.snapshotDate), 'MMMM yyyy')}
               </p>
               <p className="text-xs text-zinc-500 font-mono">
-                NW: {snap.netWorth >= 0 ? '+' : ''}
+                NW: {Number(snap.netWorth) >= 0 ? '+' : ''}
                 {parseFloat(snap.netWorth as string).toLocaleString('en-IN', {
                   style: 'currency',
                   currency: 'INR',

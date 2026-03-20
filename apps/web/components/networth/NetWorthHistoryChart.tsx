@@ -10,9 +10,6 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  defs,
-  linearGradient,
-  stop,
 } from 'recharts'
 import { format } from 'date-fns'
 import { TrendingUp } from 'lucide-react'
