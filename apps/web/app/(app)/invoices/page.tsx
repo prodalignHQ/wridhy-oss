@@ -245,6 +245,12 @@ export default function InvoicesPage() {
     categoryId: string | null
     selectedIds: string[]
   } | null>(null)
+  const [pendingOwnerChange, setPendingOwnerChange] = useState<{
+    transactionId: string
+    ownerIds: string[]
+    selectedIds: string[]
+  } | null>(null)
+  const [applyingOwnerChange, setApplyingOwnerChange] = useState(false)
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set())
 
   const [newInvoiceName, setNewInvoiceName] = useState('')
@@ -562,17 +568,47 @@ export default function InvoicesPage() {
     }
   }
 
+  const applyOwnerChange = useCallback(
+    async (transactionIds: string[], ownerIds: string[]) => {
+      if (!activeInvoice || activeInvoice.status !== 'draft' || transactionIds.length === 0) {
+        return
+      }
+
+      if (transactionIds.length === 1) {
+        await apiClient.fetch(`/v1/transactions/${transactionIds[0]}/owners`, {
+          method: 'PUT',
+          body: JSON.stringify({ ownerIds }),
+        })
+      } else {
+        await apiClient.fetch('/v1/transactions/bulk/owners', {
+          method: 'PATCH',
+          body: JSON.stringify({ transactionIds, ownerIds }),
+        })
+      }
+
+      await loadInvoiceDetail(activeInvoice.id)
+    },
+    [activeInvoice, loadInvoiceDetail]
+  )
+
   const handleOwnerSave = async (ownerIds: string[]) => {
     if (!splitTarget || !activeInvoice || activeInvoice.status !== 'draft') return
 
     try {
-      await apiClient.fetch(`/v1/transactions/${splitTarget.id}/owners`, {
-        method: 'PUT',
-        body: JSON.stringify({ ownerIds }),
-      })
+      const selectedIds = filteredTransactionIds.filter((id) => selectedTransactionIds.has(id))
+      const shouldPrompt = selectedIds.length > 1 && selectedTransactionIds.has(splitTarget.id)
 
+      if (shouldPrompt) {
+        setPendingOwnerChange({
+          transactionId: splitTarget.id,
+          ownerIds,
+          selectedIds,
+        })
+        return
+      }
+
+      await applyOwnerChange([splitTarget.id], ownerIds)
       toast.success('Owners updated')
-      await loadInvoiceDetail(activeInvoice.id)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update owners')
     }
@@ -678,6 +714,42 @@ export default function InvoicesPage() {
       toast.error(error instanceof Error ? error.message : 'Failed to update category')
     } finally {
       setApplyingCategoryChange(false)
+    }
+  }
+
+  const handleApplyOwnersToSelectedRows = async () => {
+    if (!pendingOwnerChange) return
+
+    setApplyingOwnerChange(true)
+
+    try {
+      await applyOwnerChange(pendingOwnerChange.selectedIds, pendingOwnerChange.ownerIds)
+      toast.success(
+        `Updated owners for ${pendingOwnerChange.selectedIds.length} selected transaction${
+          pendingOwnerChange.selectedIds.length === 1 ? '' : 's'
+        }`
+      )
+      setPendingOwnerChange(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update owners')
+    } finally {
+      setApplyingOwnerChange(false)
+    }
+  }
+
+  const handleApplyOwnersOnlyThisRow = async () => {
+    if (!pendingOwnerChange) return
+
+    setApplyingOwnerChange(true)
+
+    try {
+      await applyOwnerChange([pendingOwnerChange.transactionId], pendingOwnerChange.ownerIds)
+      toast.success('Updated owners for this row')
+      setPendingOwnerChange(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update owners')
+    } finally {
+      setApplyingOwnerChange(false)
     }
   }
 
@@ -1360,6 +1432,51 @@ export default function InvoicesPage() {
               className="bg-indigo-600 text-white hover:bg-indigo-500"
             >
               {applyingCategoryChange ? 'Applying...' : 'Yes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!pendingOwnerChange}
+        onOpenChange={(open) => {
+          if (!open && !applyingOwnerChange) {
+            setPendingOwnerChange(null)
+          }
+        }}
+      >
+        <DialogContent className="border-border bg-card text-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Apply owners to selected rows?</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {pendingOwnerChange
+                ? `You have ${pendingOwnerChange.selectedIds.length} selected filtered rows. Do you want to apply this ownership change to all of them?`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="border-border bg-background/60">
+            <Button
+              variant="ghost"
+              onClick={() => setPendingOwnerChange(null)}
+              disabled={applyingOwnerChange}
+              className="text-muted-foreground hover:bg-muted hover:text-foreground/90"
+            >
+              No
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void handleApplyOwnersOnlyThisRow()}
+              disabled={applyingOwnerChange}
+              className="border-border text-foreground/90 hover:bg-muted"
+            >
+              No, only this row
+            </Button>
+            <Button
+              onClick={() => void handleApplyOwnersToSelectedRows()}
+              disabled={applyingOwnerChange}
+              className="bg-indigo-600 text-white hover:bg-indigo-500"
+            >
+              {applyingOwnerChange ? 'Applying...' : 'Yes'}
             </Button>
           </DialogFooter>
         </DialogContent>

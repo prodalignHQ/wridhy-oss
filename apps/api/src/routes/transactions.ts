@@ -110,6 +110,11 @@ const bulkUpdateTxnCategorySchema = z.object({
   transactionIds: z.array(z.string().uuid()).min(1),
   categoryId: z.string().uuid().nullable(),
 })
+ 
+const bulkUpdateTxnOwnersSchema = z.object({
+  transactionIds: z.array(z.string().uuid()).min(1),
+  ownerIds: z.array(z.string().uuid()).min(1),
+})
 
 transactionsRoute.patch(
   '/bulk/category',
@@ -138,7 +143,7 @@ transactionsRoute.patch(
     const updated = await db
       .update(transactions)
       .set({ categoryId, updatedAt: new Date() })
-      .where(and(eq(transactions.userId, userId), inArray(transactions.id, uniqueTransactionIds)))
+      .where(and(eq(transactions.userId, userId), inArray(transactions.id, uniqueTransactionIds as string[])))
       .returning({ id: transactions.id })
 
     if (updated.length === 0) {
@@ -152,6 +157,72 @@ transactionsRoute.patch(
       success: true,
       data: {
         updatedCount: updated.length,
+      },
+    })
+  }
+)
+ 
+transactionsRoute.patch(
+  '/bulk/owners',
+  zValidator('json', bulkUpdateTxnOwnersSchema),
+  async (c) => {
+    const userId = c.get('userId')
+    const { transactionIds, ownerIds } = c.req.valid('json')
+    const uniqueTransactionIds = Array.from(new Set(transactionIds))
+ 
+    // Verify all owners belong to this user
+    const validOwners = await db.query.owners.findMany({
+      where: and(eq(owners.userId, userId), inArray(owners.id, ownerIds)),
+    })
+ 
+    if (validOwners.length !== ownerIds.length) {
+      return c.json(
+        { success: false, error: { code: 'BAD_REQUEST', message: 'One or more owner IDs are invalid' } },
+        400
+      )
+    }
+ 
+    // Fetch all transactions to ensure they belong to the user and to get their amounts
+    const txns = await db.query.transactions.findMany({
+      where: and(eq(transactions.userId, userId), inArray(transactions.id, uniqueTransactionIds as string[])),
+    })
+ 
+    if (txns.length === 0) {
+      return c.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'No transactions found' } },
+        404
+      )
+    }
+ 
+    const n = ownerIds.length
+    const sharePercent = (100 / n).toFixed(2)
+ 
+    await db.transaction(async (tx) => {
+      // 1. Delete all existing ownership records for these transactions
+      await tx
+        .delete(transactionOwners)
+        .where(inArray(transactionOwners.transactionId, uniqueTransactionIds as string[]))
+ 
+      // 2. Insert new ownership records for each transaction
+      for (const txn of txns) {
+        const txnAmount = parseFloat(String(txn.amount))
+        const shareAmount = (txnAmount / n).toFixed(2)
+ 
+        for (const ownerId of ownerIds) {
+          await tx.insert(transactionOwners).values({
+            transactionId: txn.id,
+            ownerId,
+            amount: shareAmount,
+            percentage: sharePercent,
+          })
+        }
+      }
+    })
+ 
+    return c.json({
+      success: true,
+      data: {
+        updatedCount: txns.length,
       },
     })
   }

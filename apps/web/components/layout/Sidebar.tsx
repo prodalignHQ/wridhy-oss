@@ -14,6 +14,7 @@ import {
   Receipt,
   Lock,
   LogOut,
+  Users,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth.store"
@@ -28,6 +29,7 @@ const financeNavItems = [
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/networth", label: "Net Worth", icon: TrendingUp },
   { href: "/accounts", label: "Accounts", icon: Landmark },
+  { href: "/settings/owners", label: "Household", icon: Users },
 ]
 
 const toolNavItems = [
