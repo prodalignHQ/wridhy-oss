@@ -2,14 +2,12 @@ import { z } from 'zod'
 
 // ─── Owner ────────────────────────────────────────────────────────────────────
 
-export const OwnerTypeSchema = z.enum(['person', 'shared', 'household'])
-export type OwnerType = z.infer<typeof OwnerTypeSchema>
 
 export const OwnerSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
   name: z.string().min(1).max(100),
-  type: OwnerTypeSchema,
+  notes: z.string().max(40).nullable(),
   color: z.string(),
   isDefault: z.boolean(),
   createdAt: z.date(),
@@ -18,7 +16,7 @@ export type Owner = z.infer<typeof OwnerSchema>
 
 export const CreateOwnerSchema = z.object({
   name: z.string().min(1).max(100),
-  type: OwnerTypeSchema.default('person'),
+  notes: z.string().max(40).optional(),
   color: z.string().optional(),
 })
 export type CreateOwner = z.infer<typeof CreateOwnerSchema>

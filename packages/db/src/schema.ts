@@ -3,7 +3,6 @@ import { relations } from 'drizzle-orm'
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-export const ownerTypeEnum = pgEnum('owner_type', ['person', 'shared', 'household'])
 export const accountTypeEnum = pgEnum('account_type', ['bank', 'credit_card', 'wallet', 'investment'])
 export const transactionTypeEnum = pgEnum('transaction_type', ['debit', 'credit'])
 export const ruleSourceEnum = pgEnum('rule_source', ['system', 'user'])
@@ -79,7 +78,7 @@ export const owners = pgTable('owners', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  type: ownerTypeEnum('type').notNull().default('person'),
+  notes: text('notes'),
   color: text('color').notNull().default('indigo'), // from fixed palette
   isDefault: boolean('is_default').notNull().default(false), // true for "Self"
   createdAt: timestamp('created_at').defaultNow().notNull(),

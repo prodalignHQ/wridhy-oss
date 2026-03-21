@@ -37,7 +37,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 interface Owner {
   id: string
   name: string
-  type: 'person' | 'shared' | 'household'
+  notes: string | null
   color: string
   isDefault: boolean
 }
@@ -53,7 +53,7 @@ const colorMap: Record<string, string> = {
 
 const ownerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  type: z.enum(['person', 'shared', 'household']),
+  notes: z.string().max(40, 'Notes must be 40 characters or less').optional(),
 })
 
 type OwnerFormValues = z.infer<typeof ownerSchema>
@@ -64,21 +64,18 @@ export default function OwnersPage() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [ownerToDelete, setOwnerToDelete] = useState<Owner | null>(null)
 
-  const { register, handleSubmit, watch, formState: { errors }, setValue, reset } = useForm<z.infer<typeof ownerSchema>>({
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<z.infer<typeof ownerSchema>>({
     resolver: zodResolver(ownerSchema),
     defaultValues: {
       name: '',
-      type: 'person',
+      notes: '',
     }
   })
-
-  // Watch form value for controlled select
-  const watchedType = watch('type')
 
   // Reset form when dialog opens
   useEffect(() => {
     if (isAddOpen) {
-      reset({ name: '', type: 'person' })
+      reset({ name: '', notes: '' })
     }
   }, [isAddOpen, reset])
 
@@ -125,9 +122,6 @@ export default function OwnersPage() {
     }
   }
 
-  const formatType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1)
-  }
 
   return (
     <div className="space-y-6">
@@ -175,9 +169,11 @@ export default function OwnersPage() {
                       </TooltipProvider>
                     )}
                   </div>
-                  <Badge variant="secondary" className="bg-muted/50 text-muted-foreground text-[10px] mt-1 hover:bg-muted/50">
-                    {formatType(owner.type)}
-                  </Badge>
+                  {owner.notes && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5 italic truncate max-w-[180px]">
+                      {owner.notes}
+                    </p>
+                  )}
                 </div>
               </div>
               
@@ -212,24 +208,14 @@ export default function OwnersPage() {
               {errors.name && <p className="text-rose-400 text-xs">{errors.name.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label>Type</Label>
-              <Select 
-                value={watchedType} 
-                onValueChange={(val) => setValue('type', val as any)}
-              >
-                <SelectTrigger className="bg-background border-border focus:ring-indigo-500">
-                  <SelectValue>
-                    {watchedType === 'person' && 'Person'}
-                    {watchedType === 'shared' && 'Shared Group'}
-                    {watchedType === 'household' && 'Household Pot'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border text-foreground">
-                  <SelectItem value="person">Person</SelectItem>
-                  <SelectItem value="shared">Shared Group</SelectItem>
-                  <SelectItem value="household">Household Pot</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="notes">Notes</Label>
+              <Input 
+                id="notes" 
+                placeholder="Short note (max 40 chars)" 
+                className="bg-background border-border focus-visible:ring-indigo-500" 
+                {...register('notes')} 
+              />
+              {errors.notes && <p className="text-rose-400 text-xs">{errors.notes.message}</p>}
             </div>
             <DialogFooter className="pt-4">
               <Button type="button" variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>

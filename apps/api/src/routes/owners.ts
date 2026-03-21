@@ -18,11 +18,12 @@ const PALETTE = ['indigo', 'emerald', 'rose', 'amber', 'sky', 'violet']
 
 const insertOwnerSchema = z.object({
   name: z.string().min(1),
-  type: z.enum(['person', 'shared', 'household']).default('person'),
+  notes: z.string().max(40).optional(),
 })
 
 const updateOwnerSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).optional(),
+  notes: z.string().max(40).optional(),
 })
 
 ownersRoute.get('/', async (c) => {
@@ -36,8 +37,8 @@ ownersRoute.get('/', async (c) => {
 
 ownersRoute.post('/', zValidator('json', insertOwnerSchema), async (c) => {
   const userId = c.get('userId')
-  const { name, type } = c.req.valid('json')
-
+  const { name, notes } = c.req.valid('json')
+  
   // Pick a random color from the palette
   const color = PALETTE[Math.floor(Math.random() * PALETTE.length)]
 
@@ -46,7 +47,7 @@ ownersRoute.post('/', zValidator('json', insertOwnerSchema), async (c) => {
     .values({
       userId,
       name,
-      type,
+      notes,
       color,
       isDefault: false,
     })
@@ -58,11 +59,11 @@ ownersRoute.post('/', zValidator('json', insertOwnerSchema), async (c) => {
 ownersRoute.patch('/:id', zValidator('json', updateOwnerSchema), async (c) => {
   const userId = c.get('userId')
   const ownerId = c.req.param('id')
-  const { name } = c.req.valid('json')
+  const { name, notes } = c.req.valid('json')
 
   const [owner] = await db
     .update(owners)
-    .set({ name })
+    .set({ name, notes })
     .where(and(eq(owners.id, ownerId), eq(owners.userId, userId)))
     .returning()
 
