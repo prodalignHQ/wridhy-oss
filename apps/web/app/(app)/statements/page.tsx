@@ -289,7 +289,7 @@ export default function StatementsPage() {
     apiClient.fetch<Statement[]>('/v1/statements').then(setStatements).catch(console.error)
   }, [])
 
-  // Client-side preview parsing when file + bankId are selected
+  // Backend preview parsing when file + bankId are selected
   useEffect(() => {
     if (!selectedFile || !selectedBankId) {
       setPreviewRows([])
@@ -297,23 +297,23 @@ export default function StatementsPage() {
       return
     }
 
-    setIsParsing(true)
-    const reader = new FileReader()
-    reader.onload = async (e) => {
+    const fetchPreview = async () => {
+      setIsParsing(true)
       try {
-        const buffer = e.target?.result as ArrayBuffer
+        const formData = new FormData()
+        formData.append('file', selectedFile)
+        formData.append('bankId', selectedBankId)
 
-        // Dynamically import the correct parser
-        let rows: PreviewRow[] = []
-        if (selectedBankId === 'icici_savings') {
-          const { iciciSavingsParser } = await import('@momoney/parsers')
-          const parsed = iciciSavingsParser.parse(buffer)
-          rows = parsed.map((p: any) => ({ date: p.date.toISOString(), description: p.description, amount: p.amount, type: p.type }))
-        } else if (selectedBankId === 'icici_credit') {
-          const { iciciCreditParser } = await import('@momoney/parsers')
-          const parsed = iciciCreditParser.parse(buffer)
-          rows = parsed.map((p: any) => ({ date: p.date.toISOString(), description: p.description, amount: p.amount, type: p.type }))
-        }
+        const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+        const res = await fetch(`${baseURL}/v1/statements/preview`, {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        })
+        const result = await res.json()
+        if (!res.ok || !result.success) throw new Error(result?.error?.message || 'Preview failed')
+
+        const rows: PreviewRow[] = result.data
 
         // Derive default month from earliest transaction
         if (rows.length > 0) {
@@ -332,11 +332,8 @@ export default function StatementsPage() {
         setIsParsing(false)
       }
     }
-    reader.onerror = () => {
-      toast.error('Failed to read file')
-      setIsParsing(false)
-    }
-    reader.readAsArrayBuffer(selectedFile)
+
+    fetchPreview()
   }, [selectedFile, selectedBankId])
 
   const handleImport = async () => {

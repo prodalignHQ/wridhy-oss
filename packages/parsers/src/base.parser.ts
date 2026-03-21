@@ -34,5 +34,5 @@ export interface BankParser {
    * @returns Array of parsed transactions (may be empty; never throws on
    *          partial parse — bad rows are skipped)
    */
-  parse(buffer: ArrayBuffer): ParsedTransaction[]
+  parse(buffer: ArrayBuffer): ParsedTransaction[] | Promise<ParsedTransaction[]>
 }

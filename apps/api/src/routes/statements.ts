@@ -52,6 +52,76 @@ statementsRoute.get('/', zValidator('query', listQuerySchema), async (c) => {
   return c.json({ success: true, data })
 })
 
+// ─── POST /v1/statements/preview ──────────────────────────────────────────────
+
+statementsRoute.post('/preview', async (c) => {
+  // Parse multipart form body
+  const body = await c.req.parseBody()
+  const file = body['file']
+  const bankId = String(body['bankId'] ?? '').trim()
+
+  if (!file || typeof file === 'string') {
+    return c.json(
+      { success: false, error: { code: 'BAD_REQUEST', message: 'Missing file in form data' } },
+      400
+    )
+  }
+  if (!bankId) {
+    return c.json(
+      { success: false, error: { code: 'BAD_REQUEST', message: 'Missing bankId' } },
+      400
+    )
+  }
+
+  // Get the parser
+  const parser = getParser(bankId)
+  if (!parser) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: `No parser found for bankId "${bankId}".`,
+        },
+      },
+      400
+    )
+  }
+
+  // Parse the file buffer
+  let buffer: ArrayBuffer
+  try {
+    buffer = await (file as File).arrayBuffer()
+  } catch {
+    return c.json(
+      { success: false, error: { code: 'BAD_REQUEST', message: 'Failed to read uploaded file' } },
+      400
+    )
+  }
+
+  try {
+    const parsedTxns = await parser.parse(buffer)
+    return c.json({
+      success: true,
+      data: parsedTxns.map((t) => ({
+        date: t.date.toISOString(),
+        description: t.description,
+        amount: t.amount,
+        type: t.type,
+      })),
+    })
+  } catch (err) {
+    console.error('Preview parse error:', err)
+    return c.json(
+      {
+        success: false,
+        error: { code: 'PARSE_ERROR', message: 'Failed to parse statement file for preview.' },
+      },
+      422
+    )
+  }
+})
+
 // ─── POST /v1/statements/upload ───────────────────────────────────────────────
 
 statementsRoute.post('/upload', async (c) => {
@@ -122,7 +192,7 @@ statementsRoute.post('/upload', async (c) => {
 
   let parsedTxns
   try {
-    parsedTxns = parser.parse(buffer)
+    parsedTxns = await parser.parse(buffer)
   } catch (err) {
     console.error('Parse error:', err)
     return c.json(

@@ -139,7 +139,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 1 — Auth, Accounts & Owners
+## Phase 1 — Auth, Accounts & Owners ✅
 
 > **Goal:** A user can sign up, log in, create their first bank account, and define the members of their household (owners). Owners are the foundation for transaction splitting in Phase 2+.
 
@@ -213,7 +213,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 2 — Statement Upload, Month Tagging & Owner Assignment
+## Phase 2 — Statement Upload, Month Tagging & Owner Assignment 🟡
 
 > **Goal:** The core value prop. Upload a real CSV from your bank, tag the statement to a month, and see your transactions appear in a table. Every transaction can immediately be assigned to one or more owners and split equally between them. Month tagging is the foundation for invoice creation in Phase 4.
 
@@ -324,7 +324,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 3 — Categorization & Rules Engine
+## Phase 3 — Categorization & Rules Engine ✅
 
 > **Goal:** Transactions are auto-categorized on import using a priority-based rules engine. Users can create and preview custom rules. Categories are fully manageable.
 
@@ -415,7 +415,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 4 — Invoices, Dashboard & Insights
+## Phase 4 — Invoices, Dashboard & Insights 🟡
 
 > **Goal:** Turn categorized, owner-attributed transaction data into saved monthly invoices and meaningful visualizations. Users can draft an invoice from tagged statements, generate it into a frozen snapshot with analysis, and still use the broader dashboard/insights views for trends over time.
 
@@ -551,7 +551,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 5 — Net Worth Tracker
+## Phase 5 — Net Worth Tracker ✅
 
 > **Goal:** Users track assets and liabilities over time, save monthly snapshots, and see a net worth trend line.
 

@@ -16,7 +16,12 @@ export const iciciSavingsCsvParser: BankParser = {
   displayName: 'ICICI Bank Savings Account (CSV)',
 
   parse(buffer: ArrayBuffer): ParsedTransaction[] {
+    console.log("CSV-ing");
+
     const text = new TextDecoder().decode(buffer)
+    console.log("CSV-ing");
+    console.log(text);
+
     try {
       const result = Papa.parse(text, {
         header: false,
@@ -24,6 +29,12 @@ export const iciciSavingsCsvParser: BankParser = {
       })
 
       const rows = result.data as string[][]
+      console.log("CSV Rows found:", rows.length);
+      if (rows.length > 0) {
+        console.log("First 5 rows for debugging:");
+        rows.slice(0, 5).forEach((r, i) => console.log(`Row ${i}:`, r));
+      }
+      
       const results: ParsedTransaction[] = []
       let headerFound = false
 
@@ -32,9 +43,10 @@ export const iciciSavingsCsvParser: BankParser = {
           // Look for 'DATE' in index 0 and 'PARTICULARS' in index 2
           const col0 = String(row[0] ?? '').trim().toUpperCase()
           const col2 = String(row[2] ?? '').trim().toUpperCase()
-          
+
           if (col0 === 'DATE' && col2 === 'PARTICULARS') {
             headerFound = true
+            console.log("Header found!");
           }
           continue
         }
@@ -77,6 +89,7 @@ export const iciciSavingsCsvParser: BankParser = {
         results.push(txn)
       }
 
+      console.log("Returning results: ", results.length);
       return results
     } catch (e) {
       return []

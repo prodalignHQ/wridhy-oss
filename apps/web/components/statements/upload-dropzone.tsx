@@ -90,14 +90,14 @@ export function UploadDropzone({ onFileSelect, selectedFile, onClear, accept }: 
       <p className="text-base font-semibold text-foreground/90 mb-1">
         {isDragOver ? 'Release to upload' : 'Drop your bank statement here'}
       </p>
-      <p className="text-sm text-muted-foreground">Supports CSV and Excel from ICICI Bank</p>
+      <p className="text-sm text-muted-foreground">Supports CSV, PDF and Excel from ICICI Bank</p>
       <p className="text-xs text-muted-foreground/70 mt-3">or click to browse</p>
 
       <input
         ref={inputRef}
         type="file"
         className="hidden"
-        accept={accept ?? '.csv,.xls,.xlsx'}
+        accept={accept ?? '.csv,.xls,.xlsx,.pdf'}
         onChange={handleInputChange}
       />
     </div>
