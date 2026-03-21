@@ -27,6 +27,7 @@ export const iciciSavingsXlsParser: BankParser = {
 
     const sheet = workbook.Sheets[sheetName]
     if (!sheet) return []
+
     // Convert to array-of-arrays; blank cells become ''
     const rows: (string | number)[][] = XLSX.utils.sheet_to_json(sheet, {
       header: 1,
@@ -34,45 +35,64 @@ export const iciciSavingsXlsParser: BankParser = {
       raw: true,
     })
 
+    if (rows.length === 0) return []
+
     const results: ParsedTransaction[] = []
-    let headerFound = false
     let last: ParsedTransaction | null = null
 
+    // Column mapping for easy access
+    let colIdx = {
+      sNo: -1,
+      valueDate: -1,
+      remarks: -1,
+      withdrawal: -1,
+      deposit: -1,
+      balance: -1
+    }
+
+    let headerFound = false
+
     for (const row of rows) {
-      // Detect header row by looking for "S No." in column index 1
       if (!headerFound) {
-        const col1 = String(row[1] ?? '').trim()
-        if (col1 === 'S No.') {
+        // Look for the header row containing "S No." and "Value Date"
+        const rowStr = row.map(c => String(c ?? '').trim().toLowerCase())
+        if (rowStr.includes('s no.') && rowStr.includes('value date')) {
           headerFound = true
+          colIdx = {
+            sNo: rowStr.indexOf('s no.'),
+            valueDate: rowStr.indexOf('value date'),
+            remarks: rowStr.indexOf('transaction remarks'),
+            withdrawal: rowStr.indexOf('withdrawal amount(inr)'),
+            deposit: rowStr.indexOf('deposit amount(inr)'),
+            balance: rowStr.indexOf('balance(inr)')
+          }
         }
         continue
       }
 
-      // Row structure (0-indexed): [blank, SNo, ValueDate, TxnDate, ChequeNo, Remarks, Withdrawal, Deposit, Balance]
-      const sNo = String(row[1] ?? '').trim()
-      const valueDate = String(row[2] ?? '').trim()
-      const remarks = String(row[5] ?? '').trim()
-      const withdrawal = parseFloat(String(row[6] ?? '0')) || 0
-      const deposit = parseFloat(String(row[7] ?? '0')) || 0
-      const balance = parseFloat(String(row[8] ?? '0')) || undefined
+      const sNo = String(row[colIdx.sNo] ?? '').trim()
+      const valueDate = String(row[colIdx.valueDate] ?? '').trim()
+      const remarks = String(row[colIdx.remarks] ?? '').trim()
+      const withdrawal = parseFloat(String(row[colIdx.withdrawal] ?? '0')) || 0
+      const deposit = parseFloat(String(row[colIdx.deposit] ?? '0')) || 0
+      const balance = parseFloat(String(row[colIdx.balance] ?? '0')) || undefined
 
       // Continuation row: S No. is blank and the previous transaction exists
       if (!sNo && last) {
         if (remarks) {
-          last.description = last.description + ' ' + remarks
+          last.description = (last.description + ' ' + remarks).trim()
         }
         continue
       }
 
-      // Skip rows that look like footers / totals
-      if (!sNo || !valueDate || !/^\d{2}\/\d{2}\/\d{4}$/.test(valueDate)) {
+      // Skip rows without a valid date format (DD/MM/YYYY)
+      if (!valueDate || !/^\d{2}\/\d{2}\/\d{4}$/.test(valueDate)) {
         continue
       }
 
       // Parse date: "DD/MM/YYYY"
       const [day, month, year] = valueDate.split('/').map(Number)
       const date = new Date(year!, month! - 1, day!)
-
       if (isNaN(date.getTime())) continue
 
       const amount = Math.max(withdrawal, deposit)
