@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transactions — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link active">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>💳 Transactions</h1>
+      <p class="subtitle">The central view for managing, categorizing, and attributing all imported transactions</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">Overview</h2>
+      <p class="section-desc">The Transactions Dashboard is the main workspace in MoMoney. After importing statements, all extracted transactions appear here. Users can search, filter, bulk-edit, assign owners, and adjust categories. This view is the foundation for all downstream analytics and invoices.</p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">What Users Can Do</h2>
+      <div class="card-grid">
+        <div class="feature-card">
+          <div class="card-icon">🔍</div>
+          <h3>Search & Filter</h3>
+          <p>Filter transactions by date range, account, category, merchant, owner, or debit/credit type. Full-text search on descriptions.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🏷️</div>
+          <h3>Edit Categories</h3>
+          <p>Change the category of individual transactions. Can also bulk-reassign a category to multiple selected rows at once.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🏪</div>
+          <h3>Edit Merchants</h3>
+          <p>Override the auto-detected merchant name. Useful when the normalized name isn't matching the user's mental model.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">👤</div>
+          <h3>Assign Owners</h3>
+          <p>Tag a transaction to one or more household members (owners). Can split the amount across multiple owners by percentage.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">✏️</div>
+          <h3>Add Comments</h3>
+          <p>Each transaction supports a free-text comment field for personal notes (e.g., "Annual subscription for tool X").</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">☑️</div>
+          <h3>Bulk Operations</h3>
+          <p>Select multiple transactions and bulk-assign a category or owner in a single action — saves time when cleaning up imported data.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Transaction Fields</h2>
+      <table class="doc-table">
+        <thead>
+          <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Date</td><td>Date</td><td>Transaction date (from statement)</td></tr>
+          <tr><td>Description</td><td>Text</td><td>Raw description from the bank</td></tr>
+          <tr><td>Merchant</td><td>Text</td><td>Normalized merchant name (auto or user-set)</td></tr>
+          <tr><td>Amount</td><td>Decimal</td><td>Transaction value in INR</td></tr>
+          <tr><td>Type</td><td>Enum</td><td><code>debit</code> (money out) or <code>credit</code> (money in)</td></tr>
+          <tr><td>Category</td><td>Reference</td><td>Assigned category (auto or user-assigned)</td></tr>
+          <tr><td>Owners</td><td>List</td><td>People attributed to this transaction + their split</td></tr>
+          <tr><td>Comment</td><td>Text</td><td>User-provided note</td></tr>
+          <tr><td>Account</td><td>Reference</td><td>The financial account this transaction came from</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Owner Assignment & Splitting</h2>
+      <p class="section-desc">Every transaction can be attributed to one or more "owners" — people within the user's household or expense-sharing group. Owners can each carry a percentage share of the transaction amount.</p>
+      <div class="two-col">
+        <div class="info-card">
+          <h3>Example: Equal Split</h3>
+          <p>A ₹4,000 dinner transaction split between Alex and Sam:</p>
+          <ul style="margin-top: 0.75rem;">
+            <li>Alex → 50% → ₹2,000</li>
+            <li>Sam → 50% → ₹2,000</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <h3>Owner Types</h3>
+          <ul>
+            <li><strong>Person</strong> — an individual (e.g., "Rohan", "Priya")</li>
+            <li><strong>Shared</strong> — a shared/joint expense</li>
+            <li><strong>Household</strong> — attributed to the whole household</li>
+          </ul>
+          <p style="margin-top: 0.75rem;">A default "Self" owner is created when you sign up.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Invoice Impact:</strong> Owner splits flow through to invoice analysis. When generating a monthly invoice, the "who spent how much" breakdown respects the split percentages assigned here.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Merchant Normalization</h2>
+      <p class="section-desc">Bank transaction descriptions are often messy and inconsistent. MoMoney normalizes them before display.</p>
+      <table class="doc-table">
+        <thead>
+          <tr><th>Raw Bank Description</th><th>Normalized Merchant</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>AMZN MKTP IN 7X3K4D</td><td>Amazon</td></tr>
+          <tr><td>Amazon Marketplace</td><td>Amazon</td></tr>
+          <tr><td>AMAZON PAY INDIA PVT</td><td>Amazon</td></tr>
+          <tr><td>ZOMATO-ORDER 8834</td><td>Zomato</td></tr>
+          <tr><td>UPI/SWIGGY/123456</td><td>Swiggy</td></tr>
+        </tbody>
+      </table>
+      <p class="section-desc" style="margin-top: 1rem;">Normalization is driven by a system merchant dictionary and can be extended by users. It improves categorization accuracy since rules match on merchants, not raw descriptions.</p>
+    </section>
+  </main>
+</body>
+</html>

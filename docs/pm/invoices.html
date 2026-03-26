@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoices — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link active">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>🧾 Invoices</h1>
+      <p class="subtitle">Monthly financial summaries — showing who spent what, across all accounts</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">What is an Invoice?</h2>
+      <p class="section-desc">An invoice in MoMoney is a consolidated monthly spending report. It pulls together transactions from one or more bank statements (across different accounts and banks) that were all tagged to the same month. Once generated, it produces a permanent snapshot with a detailed owner-level spending breakdown.</p>
+      <div class="callout">
+        <strong>Key use case:</strong> A couple uploads their ICICI savings and HDFC credit card statements for March 2025. They create an invoice combining both. The invoice shows total household spend, category breakdown, and who (Alex vs. Sam) spent how much.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Invoice Lifecycle</h2>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-body"><h4>Create Draft</h4><p>Select statements tagged to the same month, give it a name</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-body"><h4>Edit & Refine</h4><p>Adjust categories and owner splits before generating</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-body"><h4>Generate Invoice</h4><p>Snapshot is locked and stored permanently</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-body"><h4>View Analysis</h4><p>See per-owner and per-category breakdowns</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Invoice States</h2>
+      <div class="two-col">
+        <div class="info-card">
+          <h3>📝 Draft</h3>
+          <p>A work-in-progress invoice. Drafts can be reopened and updated at any time. They do not lock the underlying transactions. Multiple changes to categories and owner splits can be made before generating.</p>
+          <div class="tag-list"><span class="tag">Editable</span><span class="tag">Not permanent</span></div>
+        </div>
+        <div class="info-card success">
+          <h3>✅ Generated</h3>
+          <p>A finalized invoice. A snapshot of all transaction data (amounts, categories, owner splits) is stored at generation time. Even if underlying transactions are later modified, the invoice snapshot is preserved.</p>
+          <div class="tag-list"><span class="tag green">Permanent snapshot</span><span class="tag green">Read-only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Invoice Analysis</h2>
+      <p class="section-desc">After generating an invoice, the Analysis view provides two key breakdowns:</p>
+      <div class="two-col">
+        <div class="info-card highlight">
+          <h3>👤 Who Spent How Much?</h3>
+          <p>Total debit spend per owner, calculated using the assigned split amounts on each transaction.</p>
+          <ul>
+            <li>Alex: ₹24,000</li>
+            <li>Sam: ₹18,500</li>
+            <li>Household (shared): ₹12,000</li>
+          </ul>
+        </div>
+        <div class="info-card highlight">
+          <h3>📊 Who Spent Where?</h3>
+          <p>Category-level breakdown per owner. Respects owner split amounts — not just transaction totals.</p>
+          <ul>
+            <li>Alex → Food & Dining: ₹8,400</li>
+            <li>Alex → Transport: ₹3,200</li>
+            <li>Sam → Shopping: ₹11,000</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Note:</strong> Only <em>debit</em> transactions are included in the spending analysis. Credit transactions (income, refunds) are visible in the invoice but excluded from owner spend calculations.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Invoice Filtering</h2>
+      <p class="section-desc">While preparing or reviewing an invoice, users can filter transactions by:</p>
+      <div class="tag-list">
+        <span class="tag">Description keyword</span>
+        <span class="tag">Category</span>
+        <span class="tag cyan">Debit / Credit</span>
+        <span class="tag green">Owner</span>
+        <span class="tag">Date range</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Multi-Account Invoices</h2>
+      <div class="info-card">
+        <h3>Combining Multiple Statements</h3>
+        <p>An invoice can include statements from multiple accounts and multiple banks — as long as they are all tagged to the same month.</p>
+        <ul>
+          <li>ICICI Savings — March 2025 ✓</li>
+          <li>HDFC Credit Card — March 2025 ✓</li>
+          <li>Axis Wallet — March 2025 ✓</li>
+        </ul>
+        <p style="margin-top: 0.75rem;">All three may be combined into a single "March 2025 Invoice" to get a complete picture of household spending across all sources.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

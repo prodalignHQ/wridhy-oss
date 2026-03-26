@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Categorization — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link active">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>🏷️ Categorization</h1>
+      <p class="subtitle">How MoMoney automatically (and accurately) classifies every transaction</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">How Categorization Works</h2>
+      <p class="section-desc">MoMoney uses a layered approach to categorize transactions automatically. Categories come pre-configured at the system level and can be supplemented by user-defined rules. When a user manually overrides a category, the system can also create a new rule to apply that override automatically in the future.</p>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-body"><h4>Merchant match</h4><p>Check normalized merchant against the merchant dictionary</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-body"><h4>User rules</h4><p>Apply user-defined rules (high priority)</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-body"><h4>System rules</h4><p>Apply system-level pattern rules</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-body"><h4>Uncategorized</h4><p>Falls through if no rule matched</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Default Categories</h2>
+      <div class="tag-list">
+        <span class="tag">🍕 Food & Dining</span>
+        <span class="tag">🛒 Groceries</span>
+        <span class="tag">🛍️ Shopping</span>
+        <span class="tag">✈️ Travel</span>
+        <span class="tag">🚗 Transport</span>
+        <span class="tag">📦 Subscriptions</span>
+        <span class="tag">💡 Utilities</span>
+        <span class="tag">🏥 Healthcare</span>
+        <span class="tag">🎬 Entertainment</span>
+        <span class="tag">🏠 Rent</span>
+        <span class="tag">📈 Investment</span>
+        <span class="tag">🔄 Transfers</span>
+        <span class="tag cyan">💰 Income</span>
+        <span class="tag green">🎓 Education</span>
+      </div>
+      <p class="section-desc" style="margin-top: 1rem;">System categories are pre-seeded and available to all users. Users can also create their own custom categories.</p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Rules Engine</h2>
+      <p class="section-desc">Users can define automation rules that apply categories based on field matches. Rules have a priority — user rules take precedence over system rules.</p>
+      <table class="doc-table">
+        <thead>
+          <tr><th>Rule Component</th><th>Options</th><th>Example</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Match Field</strong></td>
+            <td><code>merchant</code>, <code>description</code>, <code>amount</code></td>
+            <td>merchant</td>
+          </tr>
+          <tr>
+            <td><strong>Match Type</strong></td>
+            <td><code>contains</code>, <code>equals</code>, <code>regex</code>, <code>gt</code>, <code>lt</code></td>
+            <td>contains</td>
+          </tr>
+          <tr>
+            <td><strong>Match Value</strong></td>
+            <td>Any string or number</td>
+            <td>"uber"</td>
+          </tr>
+          <tr>
+            <td><strong>Assigned Category</strong></td>
+            <td>Any category</td>
+            <td>Transport</td>
+          </tr>
+          <tr>
+            <td><strong>Priority</strong></td>
+            <td>1–999 (user), 1000–4999 (system)</td>
+            <td>100</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout" style="margin-top: 1rem;">
+        <strong>Example rules:</strong><br>
+        If merchant <em>contains</em> "uber" → Transport<br>
+        If description <em>contains</em> "salary" → Income<br>
+        If merchant <em>equals</em> "Swiggy" → Food & Dining
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Manual Overrides</h2>
+      <p class="section-desc">Users can always manually change the category for any transaction directly from the transaction list. When they override a category, they can optionally create a new rule from that action — so the same merchant is auto-categorized correctly in the future.</p>
+      <div class="info-card">
+        <h3>Example: Fixing an Amazon Transaction</h3>
+        <ul>
+          <li>Amazon auto-categorized as "Shopping"</li>
+          <li>User changes it to "Groceries" (for Amazon Fresh orders)</li>
+          <li>User creates a rule: if merchant = "Amazon" and description contains "Fresh" → Groceries</li>
+          <li>Future Amazon Fresh transactions categorized correctly automatically</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

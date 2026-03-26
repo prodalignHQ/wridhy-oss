@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operating Modes — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link active">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>⚙️ Operating Modes</h1>
+      <p class="subtitle">Three ways to use MoMoney — from fully private to full cloud sync</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">Why Modes?</h2>
+      <p class="section-desc">Different users have fundamentally different comfort levels with cloud data storage. MoMoney solves this by offering three distinct operating modes — users can choose the one that fits their privacy preferences and usage pattern, and can migrate between them at any time.</p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Mode 1 — Session Mode</h2>
+      <div class="mode-card">
+        <div class="mode-icon">🔐</div>
+        <div class="mode-body">
+          <h3>Session Mode <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">(Default for hosted)</span></h3>
+          <p>Financial data lives only in the browser's memory or local storage. Nothing is sent to or stored on the server. When the session ends, the data is gone — unless the user exports it.</p>
+          <ul>
+            <li>Transactions exist in browser memory only</li>
+            <li>Backend database stores no financial records</li>
+            <li>Insights are computed entirely on-device</li>
+            <li>Data disappears when the session ends (without export)</li>
+          </ul>
+          <div class="tag-list">
+            <span class="tag green">Maximum privacy</span>
+            <span class="tag green">Zero server storage</span>
+            <span class="tag">Export: SQLite / CSV / JSON</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Mode 2 — Cloud Persistence</h2>
+      <div class="mode-card">
+        <div class="mode-icon">☁️</div>
+        <div class="mode-body">
+          <h3>Cloud Persistence <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">(Explicit opt-in)</span></h3>
+          <p>Users explicitly grant permission to store financial data on the server. This unlocks cross-device access, long-term analytics, and persistent invoices.</p>
+          <ul>
+            <li>Access your data from any device</li>
+            <li>Persistent analytics and historical insights</li>
+            <li>Persistent invoice drafts and generated invoices</li>
+            <li>Automatic backups</li>
+            <li>Users can disable persistence or delete all stored data at any time</li>
+          </ul>
+          <div class="tag-list">
+            <span class="tag cyan">Cross-device</span>
+            <span class="tag cyan">Long-term history</span>
+            <span class="tag">Requires explicit consent</span>
+          </div>
+        </div>
+      </div>
+      <div class="callout" style="margin-top: 1rem;">
+        <strong>Consent requirement:</strong> Users must explicitly approve: <em>"Allow this platform to securely store my financial data."</em> This is not set by default and must be a conscious action.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Mode 3 — Local SQLite Mode</h2>
+      <div class="mode-card">
+        <div class="mode-icon">🗄️</div>
+        <div class="mode-body">
+          <h3>Local SQLite Mode</h3>
+          <p>Users run MoMoney against a local SQLite database file — either imported from a previous session export or created fresh. This enables fully offline operation with all features available.</p>
+          <ul>
+            <li>Fully offline — no internet required after initial load</li>
+            <li>Statement uploads, categorization, invoices, analytics all work</li>
+            <li>Net worth tracking available</li>
+            <li>Import/export SQLite file anytime</li>
+            <li>Download backups of the local file</li>
+          </ul>
+          <div class="tag-list">
+            <span class="tag green">Fully offline</span>
+            <span class="tag green">No cloud dependency</span>
+            <span class="tag">SQLite schema mirrors cloud</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Data Migration Between Modes</h2>
+      <p class="section-desc">Users are never locked into a mode. They can move their data between modes freely.</p>
+      <table class="doc-table">
+        <thead><tr><th>From</th><th>To</th><th>Supported?</th></tr></thead>
+        <tbody>
+          <tr><td>Session Mode</td><td>SQLite (local file)</td><td>✅ Yes</td></tr>
+          <tr><td>SQLite (local file)</td><td>Cloud Persistence</td><td>✅ Yes</td></tr>
+          <tr><td>Cloud Persistence</td><td>SQLite (local file)</td><td>✅ Yes</td></tr>
+          <tr><td>Session Mode</td><td>Cloud Persistence</td><td>✅ Yes (via export + import)</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

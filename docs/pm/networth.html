@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Net Worth — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link active">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>📈 Net Worth Tracking</h1>
+      <p class="subtitle">Measure and visualize your total financial position over time</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">Overview</h2>
+      <p class="section-desc">The Net Worth module allows users to track their total financial position — assets minus liabilities — month over month. This gives a macro view of financial health that complements the transaction-level spending insights.</p>
+      <div class="callout">
+        <strong>Formula:</strong> Net Worth = Total Assets − Total Liabilities
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">How It Works</h2>
+      <p class="section-desc">Users log their current assets and liabilities. The system calculates a net worth snapshot and stores it with a date. Over time, these snapshots form a timeline that can be visualized as a growth chart.</p>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-body"><h4>Add Assets</h4><p>Log current value of all assets (savings, investments, property, etc.)</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-body"><h4>Add Liabilities</h4><p>Log outstanding loans, credit card balances, etc.</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-body"><h4>Save Snapshot</h4><p>System stores net worth = assets − liabilities for that date</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-body"><h4>Track Over Time</h4><p>Monthly inputs build a long-term growth timeline</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Asset Types Supported</h2>
+      <div class="two-col">
+        <div class="info-card">
+          <h3>Assets</h3>
+          <div class="tag-list">
+            <span class="tag green">Mutual Funds</span>
+            <span class="tag green">Stocks</span>
+            <span class="tag green">Fixed Deposits</span>
+            <span class="tag green">Recurring Deposits</span>
+            <span class="tag green">PPF</span>
+            <span class="tag green">Savings Account Balance</span>
+            <span class="tag green">Real Estate</span>
+            <span class="tag green">Crypto</span>
+            <span class="tag green">Cash</span>
+          </div>
+        </div>
+        <div class="info-card">
+          <h3>Liabilities</h3>
+          <div class="tag-list">
+            <span class="tag">Home Loan</span>
+            <span class="tag">Car Loan</span>
+            <span class="tag">Credit Card Balance</span>
+            <span class="tag">Student Loan</span>
+            <span class="tag">Personal Loan</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Net Worth Timeline</h2>
+      <p class="section-desc">The timeline chart visualizes net worth growth over time. Users can filter to see:</p>
+      <div class="tag-list">
+        <span class="tag">Monthly growth</span>
+        <span class="tag">Yearly growth</span>
+        <span class="tag cyan">Long-term trends</span>
+        <span class="tag green">Assets vs. Liabilities over time</span>
+      </div>
+      <div class="info-card" style="margin-top: 1.25rem;">
+        <h3>Example Monthly Snapshot</h3>
+        <table class="doc-table" style="margin-top: 0.75rem;">
+          <thead><tr><th>Month</th><th>Assets</th><th>Liabilities</th><th>Net Worth</th></tr></thead>
+          <tbody>
+            <tr><td>Jan 2025</td><td>₹10,00,000</td><td>₹4,00,000</td><td>₹6,00,000</td></tr>
+            <tr><td>Feb 2025</td><td>₹10,50,000</td><td>₹3,90,000</td><td>₹6,60,000</td></tr>
+            <tr><td>Mar 2025</td><td>₹11,20,000</td><td>₹3,80,000</td><td>₹7,40,000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Draft Support</h2>
+      <div class="info-card">
+        <h3>In-Progress Snapshots</h3>
+        <p>The system maintains a single "draft" per user — the in-progress working state for an upcoming net worth snapshot. Users can update assets and liabilities over several sessions before committing the snapshot. When they're ready, they save it as a permanent monthly entry.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

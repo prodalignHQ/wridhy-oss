@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vision & Goals — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link active">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Vision & Goals</h1>
+      <p class="subtitle">Why MoMoney exists and what it is trying to achieve</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">The Problem</h2>
+      <p class="section-desc">Most personal finance apps share a common set of painful trade-offs. They either require too much manual work, provide poor categorization, or demand that you hand over sensitive financial data to a third party — often all three.</p>
+      <div class="two-col">
+        <div class="info-card">
+          <h3>❌ What's Broken Today</h3>
+          <ul>
+            <li>Manual expense entry is tedious and unsustainable</li>
+            <li>Auto-categorization accuracy is often poor</li>
+            <li>Limited long-term analytics and historical comparisons</li>
+            <li>Poor data portability — you're locked into the app</li>
+            <li>Financial data stored without explicit user consent</li>
+            <li>No ability to split & attribute expenses to household members</li>
+          </ul>
+        </div>
+        <div class="info-card highlight">
+          <h3>✅ How MoMoney Solves It</h3>
+          <ul>
+            <li>Automated transaction ingestion via statement upload</li>
+            <li>Rules-based + merchant-dictionary categorization</li>
+            <li>Monthly, yearly, and custom-range analytics</li>
+            <li>Full data portability: SQLite, CSV, JSON</li>
+            <li>Privacy-first: no data stored without explicit opt-in</li>
+            <li>Owner assignment & expense splitting for families/couples</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Product Vision</h2>
+      <div class="callout">
+        <strong>Mission:</strong> Build a privacy-first personal finance platform that enables users to import bank statements, automatically categorize transactions, analyze spending patterns, and maintain full ownership and portability of their financial data.
+      </div>
+      <p class="section-desc">The system is delivered as a web application, but the backend is API-first so that future mobile apps can be built on the same foundation without a re-architecture.</p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Primary Goals</h2>
+      <div class="card-grid">
+        <div class="feature-card">
+          <div class="card-icon">⚡</div>
+          <h3>Reduce Friction</h3>
+          <p>No manual entry. Upload a statement file and let the system do the rest — parsing, deduplication, and categorization happen automatically.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🎯</div>
+          <h3>Accurate Categorization</h3>
+          <p>Combine merchant normalization with a configurable rules engine to categorize transactions correctly from day one and improve with use.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">💡</div>
+          <h3>Clear Spending Insights</h3>
+          <p>Give users a true picture of where their money goes — by category, merchant, time period, and household member.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">👨‍👩‍👧</div>
+          <h3>Household Attribution</h3>
+          <p>Assign owners to transactions and split expenses across people. Generate per-person breakdowns inside monthly invoices.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📂</div>
+          <h3>Full Data Portability</h3>
+          <p>Users can export their data as SQLite, CSV, or JSON at any time. No lock-in.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🔐</div>
+          <h3>Privacy as Default</h3>
+          <p>Financial data is never persisted by default. Cloud storage is an explicit opt-in with clear consent prompts.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📈</div>
+          <h3>Long-term Growth Tracking</h3>
+          <p>Track net worth over months and years. Visualize how assets and liabilities move over time.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📱</div>
+          <h3>API-First Architecture</h3>
+          <p>The backend is designed to support web and future mobile clients without re-architecting the data layer.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">What's Out of Scope (v1)</h2>
+      <p class="section-desc">To maintain focus and ship a high-quality v1, the following capabilities are explicitly deferred:</p>
+      <div class="info-card warning-card">
+        <h3>🚫 Not in v1</h3>
+        <ul>
+          <li>Direct bank API integrations (no Open Banking / account aggregation)</li>
+          <li>Bill payment functionality</li>
+          <li>Tax preparation or filing</li>
+          <li>Investment trading or portfolio management</li>
+          <li>Financial advisory or AI-driven recommendations (scoped for future)</li>
+          <li>Automatic recurring transaction detection</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

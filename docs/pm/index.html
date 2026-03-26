@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MoMoney — Product Documentation</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-icon">💰</span>
+      <span class="brand-name">MoMoney</span>
+    </div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link active">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+
+  <main class="content">
+    <header class="page-header hero-header">
+      <div class="hero-content">
+        <div class="hero-badge">Product Documentation</div>
+        <h1 class="hero-title">MoMoney</h1>
+        <p class="hero-subtitle">A privacy-first personal finance platform that gives you full ownership and understanding of your financial life — without the friction of manual data entry.</p>
+        <div class="hero-cta">
+          <a href="vision.html" class="btn btn-primary">Explore the Vision →</a>
+          <a href="statements.html" class="btn btn-ghost">See Core Features →</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="section">
+      <h2 class="section-title">What is MoMoney?</h2>
+      <p class="section-desc">MoMoney is a web-based personal finance application built for individuals and families who want <strong>clear, automated insights</strong> into their spending — without sacrificing privacy. Users upload their bank statements; MoMoney handles everything else: parsing, categorization, analysis, and reporting.</p>
+
+      <div class="card-grid">
+        <div class="feature-card">
+          <div class="card-icon">📥</div>
+          <h3>Upload Statements</h3>
+          <p>Upload PDF or CSV bank statements. MoMoney automatically parses transactions and presents a clean preview before import.</p>
+          <a href="statements.html" class="card-link">Learn more →</a>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🏷️</div>
+          <h3>Auto-Categorize</h3>
+          <p>Transactions are automatically categorized using a merchant dictionary, pattern matching, and user-defined rules.</p>
+          <a href="categorization.html" class="card-link">Learn more →</a>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📊</div>
+          <h3>Analyze Spending</h3>
+          <p>Rich dashboards show monthly spend breakdowns, category trends, merchant leaderboards, and historical comparisons.</p>
+          <a href="insights.html" class="card-link">Learn more →</a>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🧾</div>
+          <h3>Generate Invoices</h3>
+          <p>Create monthly financial summaries showing who spent what — perfect for couples and families tracking shared expenses.</p>
+          <a href="invoices.html" class="card-link">Learn more →</a>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📈</div>
+          <h3>Track Net Worth</h3>
+          <p>Log assets and liabilities over time to visualize your net worth growth month by month and year by year.</p>
+          <a href="networth.html" class="card-link">Learn more →</a>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🔒</div>
+          <h3>Privacy First</h3>
+          <p>Financial data is never stored by default. Users choose when and whether to persist data — locally or in the cloud.</p>
+          <a href="modes.html" class="card-link">Learn more →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">How It Works — At a Glance</h2>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Upload a bank statement</h4>
+            <p>PDF or CSV from your bank</p>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Preview parsed transactions</h4>
+            <p>Review before confirming import</p>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Transactions auto-categorized</h4>
+            <p>With merchant normalization</p>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Analyze & generate invoices</h4>
+            <p>Dashboards, trends, reports</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Tech at a Glance</h2>
+      <p class="section-desc">Built as a modern monorepo with a clear separation of concerns. The backend is API-first, designed to also support mobile apps in the future.</p>
+      <div class="tech-grid">
+        <div class="tech-item"><span class="tech-label">Frontend</span><span class="tech-value">Next.js 16 + Tailwind CSS v4</span></div>
+        <div class="tech-item"><span class="tech-label">Backend API</span><span class="tech-value">Hono.js (lightweight, fast)</span></div>
+        <div class="tech-item"><span class="tech-label">Database</span><span class="tech-value">PostgreSQL via Drizzle ORM</span></div>
+        <div class="tech-item"><span class="tech-label">Auth</span><span class="tech-value">Better Auth (email + password)</span></div>
+        <div class="tech-item"><span class="tech-label">Parsers</span><span class="tech-value">ICICI Bank (PDF, CSV, XLS)</span></div>
+        <div class="tech-item"><span class="tech-label">Monorepo</span><span class="tech-value">Turborepo + pnpm workspaces</span></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

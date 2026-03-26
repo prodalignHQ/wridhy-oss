@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data & Privacy — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link active">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>🔒 Data & Privacy</h1>
+      <p class="subtitle">MoMoney's privacy-first design principles and data portability guarantees</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">Privacy Principles</h2>
+      <p class="section-desc">MoMoney is built on an explicit privacy-first philosophy. Financial data is sensitive — MoMoney treats it that way by making non-storage the default, not an advanced setting.</p>
+      <div class="info-card highlight">
+        <h3>Core Rules</h3>
+        <ul>
+          <li>Financial data is <strong>not stored by default</strong> — it exists only in the browser session</li>
+          <li>Users must <strong>explicitly opt-in</strong> to cloud persistence (not buried in settings — requires active consent)</li>
+          <li>Users can <strong>export their data at any time</strong> in portable formats</li>
+          <li>Users can <strong>delete all stored data at any time</strong> with no penalty</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Authentication</h2>
+      <p class="section-desc">Authentication is only required when using cloud persistence mode. Users can use the app in session mode without creating an account.</p>
+      <div class="two-col">
+        <div class="info-card">
+          <h3>Current Auth Methods</h3>
+          <ul>
+            <li>Email + password signup</li>
+            <li>Email verification required</li>
+            <li>Login / Logout</li>
+            <li>Password reset</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <h3>Future Auth Methods</h3>
+          <ul>
+            <li>Sign in with Google</li>
+            <li>Sign in with Apple</li>
+          </ul>
+          <div class="tag-list"><span class="tag">Planned</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Data Portability</h2>
+      <p class="section-desc">Users own their data. MoMoney supports export in three formats:</p>
+      <div class="card-grid">
+        <div class="feature-card">
+          <div class="card-icon">🗄️</div>
+          <h3>SQLite</h3>
+          <p>A complete database file with all transactions, accounts, categories, rules, invoices, and net worth entries. Can be re-imported to run MoMoney locally.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📄</div>
+          <h3>CSV</h3>
+          <p>A flat spreadsheet export of all transactions. Suitable for import into Excel, Google Sheets, or other finance tools.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">{ }</div>
+          <h3>JSON</h3>
+          <p>A structured JSON export of all data. Developer-friendly format for building custom tooling on top of your financial data.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Security</h2>
+      <table class="doc-table">
+        <thead><tr><th>Requirement</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr><td>Encrypted Storage</td><td>Financial data encrypted at rest when cloud persistence is enabled</td></tr>
+          <tr><td>Secure Auth</td><td>Password hashing, session tokens, email verification</td></tr>
+          <tr><td>Data Isolation</td><td>Strict per-user data isolation — no cross-user data access possible</td></tr>
+          <tr><td>No Third-Party Sharing</td><td>Financial data is never shared with third parties or used for ads</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Performance Requirements</h2>
+      <p class="section-desc">MoMoney is designed to scale with heavy personal use without degrading the experience.</p>
+      <div class="two-col">
+        <div class="info-card success">
+          <h3>Scale Targets</h3>
+          <ul>
+            <li>100,000+ transactions per user</li>
+            <li>Analytics queries under 1 second</li>
+            <li>1,000,000 registered users (system level)</li>
+            <li>10,000,000+ total transactions (system level)</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <h3>Architecture Choices That Enable This</h3>
+          <ul>
+            <li>PostgreSQL with indexed queries</li>
+            <li>Drizzle ORM for type-safe, efficient queries</li>
+            <li>Hono.js lightweight API backend</li>
+            <li>Deduplication hashing to prevent data bloat</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

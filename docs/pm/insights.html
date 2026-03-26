@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insights & Analytics — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link active">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>📊 Insights & Analytics</h1>
+      <p class="subtitle">Understanding where your money goes — monthly, yearly, and over time</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">Overview</h2>
+      <p class="section-desc">MoMoney's Insights module gives users a multi-dimensional view of their spending. From a quick monthly summary to long-term category trends, all analytics are derived directly from the user's imported transactions — no manual entry required.</p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Monthly Spend Dashboard</h2>
+      <p class="section-desc">The primary analytics view. Gives a clear snapshot of what happened in a given month.</p>
+      <div class="card-grid">
+        <div class="feature-card">
+          <div class="card-icon">💸</div>
+          <h3>Total Spend</h3>
+          <p>Sum of all debit transactions in the selected month, with a delta vs. the previous month.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🧩</div>
+          <h3>Category Breakdown</h3>
+          <p>Donut or bar chart showing total spend per category. Click into any category for transaction-level detail.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🏪</div>
+          <h3>Top Merchants</h3>
+          <p>Leaderboard of highest-spend merchants for the month, with transaction count and total.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📅</div>
+          <h3>Spend Timeline</h3>
+          <p>Day-by-day or week-by-week spend within the month — useful for spotting spikes or unusual dates.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Historical Insights</h2>
+      <p class="section-desc">Analyze spending patterns across time to identify trends, growth, and lifestyle changes.</p>
+      <div class="two-col">
+        <div class="info-card">
+          <h3>Supported Time Ranges</h3>
+          <ul>
+            <li>Monthly view</li>
+            <li>Yearly view</li>
+            <li>Last 12 months</li>
+            <li>Last X years</li>
+            <li>Custom date range</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <h3>What You Can Analyze</h3>
+          <ul>
+            <li>Category trends over time</li>
+            <li>Top merchant trends</li>
+            <li>Per-owner spend comparison</li>
+            <li>Spending growth/decline</li>
+            <li>Month-over-month δ for any category</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Category Analytics</h2>
+      <p class="section-desc">Drill into any category to see a deep view of spending within it.</p>
+      <div class="info-card highlight">
+        <h3>Example: Food & Dining Deep Dive</h3>
+        <table class="doc-table" style="margin-top: 0.75rem;">
+          <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Total spend (March)</td><td>₹12,400</td></tr>
+            <tr><td>Transaction count</td><td>42</td></tr>
+            <tr><td>Top merchant #1</td><td>Zomato (₹4,800)</td></tr>
+            <tr><td>Top merchant #2</td><td>Swiggy (₹3,100)</td></tr>
+            <tr><td>Top merchant #3</td><td>Starbucks (₹1,600)</td></tr>
+            <tr><td>vs. Last Month</td><td>+₹1,200 (+10.7%)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Merchant Analytics</h2>
+      <p class="section-desc">Merchant-level analytics reveal how much you spend with any individual merchant and across which categories.</p>
+      <div class="info-card">
+        <h3>Example: Amazon Merchant View</h3>
+        <ul>
+          <li>Total spend: ₹1,24,000</li>
+          <li>Transactions: 63</li>
+          <li>Categories split: Shopping (52%), Electronics (30%), Groceries (18%)</li>
+        </ul>
+      </div>
+      <p class="section-desc" style="margin-top: 1rem;">This helps users understand that Amazon isn't just one category — it's a mix of different spending types that may need to be tracked separately.</p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Owner Insights</h2>
+      <p class="section-desc">For households and couples, the owner analytics view shows a side-by-side comparison of individual spending patterns — across categories and time.</p>
+      <div class="tag-list">
+        <span class="tag">Per-person monthly totals</span>
+        <span class="tag">Per-person category breakdown</span>
+        <span class="tag cyan">Month-over-month comparison</span>
+        <span class="tag green">Share of total household spend</span>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

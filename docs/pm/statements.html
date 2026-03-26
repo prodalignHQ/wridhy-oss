@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Statement Import — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link active">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>📥 Statement Import</h1>
+      <p class="subtitle">How users bring their bank data into MoMoney — without manual entry</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">Overview</h2>
+      <p class="section-desc">Statement Import is the primary entry point for financial data. Users download a statement from their bank's online portal and upload it to MoMoney. The system parses the file, extracts structured transaction data, shows a preview, and — after the user confirms — imports the transactions into their account.</p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Upload Flow</h2>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-body"><h4>Select account</h4><p>Choose which financial account this statement belongs to</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-body"><h4>Tag to a month</h4><p>Pick the statement month for invoice grouping</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-body"><h4>Upload file</h4><p>PDF, CSV, or XLS depending on the bank</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-body"><h4>Preview transactions</h4><p>Review parsed rows before importing</p></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">5</div>
+          <div class="step-body"><h4>Confirm import</h4><p>Duplicates skipped automatically</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Supported File Formats</h2>
+      <div class="two-col">
+        <div class="info-card">
+          <h3>Currently Supported Banks</h3>
+          <ul>
+            <li><strong>ICICI Bank</strong> — Savings Account (PDF, CSV, XLS)</li>
+            <li><strong>ICICI Bank</strong> — Credit Card (CSV)</li>
+          </ul>
+          <div class="tag-list">
+            <span class="tag">PDF</span>
+            <span class="tag">CSV</span>
+            <span class="tag green">XLS</span>
+          </div>
+        </div>
+        <div class="info-card">
+          <h3>Parser Architecture</h3>
+          <p>The parser system is designed as a registry — each bank + format combination is a separate parser plugin. Adding support for a new bank requires writing a parser that conforms to the shared <code>BankParser</code> interface.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Statement Tagging</h2>
+      <p class="section-desc">Every statement must be tagged to a <strong>statement month</strong> (e.g., March 2025). This is a required step — it's how statements are grouped into monthly invoices later.</p>
+      <div class="info-card highlight">
+        <h3>Why Tagging Matters</h3>
+        <ul>
+          <li>Statements tagged to the same month can be combined into a single invoice</li>
+          <li>Multiple statements from different banks/accounts can share the same month tag</li>
+          <li>The tag drives all month-based analytics and invoice generation</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">What Gets Parsed</h2>
+      <table class="doc-table">
+        <thead>
+          <tr><th>Field</th><th>Description</th><th>Example</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>transaction_date</code></td><td>Date of the transaction</td><td>2025-03-15</td></tr>
+          <tr><td><code>description</code></td><td>Raw bank description text</td><td>AMZN MKTP IN 123456</td></tr>
+          <tr><td><code>amount</code></td><td>Transaction amount</td><td>₹4,500.00</td></tr>
+          <tr><td><code>type</code></td><td>Debit or Credit</td><td>debit</td></tr>
+          <tr><td><code>merchant</code></td><td>Normalized merchant name (auto-derived)</td><td>Amazon</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Duplicate Prevention</h2>
+      <div class="info-card success">
+        <h3>🔑 Automatic Deduplication</h3>
+        <p>Each transaction is assigned a deterministic hash based on: account ID + date + amount + description. If an identical transaction already exists in the database, it is automatically skipped during import. The import summary shows exactly how many transactions were imported vs. skipped as duplicates.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Financial Accounts</h2>
+      <p class="section-desc">Before uploading a statement, users must have a financial account set up. Accounts represent the source of the statement (e.g., "ICICI Savings", "ICICI Credit Card").</p>
+      <table class="doc-table">
+        <thead><tr><th>Account Type</th><th>Examples</th></tr></thead>
+        <tbody>
+          <tr><td>Bank Account</td><td>ICICI Savings, HDFC Savings</td></tr>
+          <tr><td>Credit Card</td><td>ICICI Coral, Axis Ace</td></tr>
+          <tr><td>Wallet</td><td>PayTM, PhonePe</td></tr>
+          <tr><td>Investment</td><td>Zerodha, Groww</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

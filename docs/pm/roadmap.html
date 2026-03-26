@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roadmap — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link active">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>🗺️ Roadmap</h1>
+      <p class="subtitle">What's built, what's being built, and what comes next</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">Current Status</h2>
+      <p class="section-desc">MoMoney is being built in distinct phases. The project has completed <strong>Phase 0</strong> (foundation) and is actively in progress on core features.</p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Phase 0 — Foundation ✅ Complete</h2>
+      <div class="info-card success">
+        <h3>What was built</h3>
+        <ul>
+          <li>Turborepo monorepo setup with pnpm workspaces</li>
+          <li>Drizzle ORM schema definition (all core tables)</li>
+          <li>Shared TypeScript type definitions (Zod models)</li>
+          <li>Next.js 16 app shell with dark mode and Shadcn UI components</li>
+          <li>Hono.js API health check and route stubs</li>
+          <li>Docker Compose postgres setup for local dev</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Implemented Features</h2>
+      <p class="section-desc">These are features that exist in the codebase based on current routes, pages, and API endpoints:</p>
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>Authentication</h4>
+          <p>Signup, login, logout, email verification via Better Auth. Protected routes with session middleware.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Financial Accounts</h4>
+          <p>Create and manage bank accounts, credit cards, wallets, and investment accounts.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Statement Upload & Parsing</h4>
+          <p>Upload ICICI bank statements in PDF, CSV, and XLS formats. Parse and preview transactions before import. Deduplication on import.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Transaction Dashboard</h4>
+          <p>Full transaction table with filtering, search, category editing, merchant editing, owner assignment, bulk operations, and comment fields.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Categorization Rules Engine</h4>
+          <p>Create and manage rules (match on merchant/description/amount). System and user rules with priority ordering.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Invoices (Drafts + Generation)</h4>
+          <p>Create invoice drafts from tagged statements, generate permanent snapshots, view analysis (per-owner and per-category spending breakdowns).</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Net Worth Tracking</h4>
+          <p>Log assets and liabilities, save monthly snapshots, draft support. Asset types include mutual funds, stocks, FDs, real estate, crypto, and more.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Owners Management</h4>
+          <p>Create owners (people and household groups), assign to transactions with percentage splits.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Merchants</h4>
+          <p>System and user merchant dictionary. Raw pattern matching to normalized merchant names.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Future Roadmap</h2>
+      <div class="card-grid">
+        <div class="feature-card">
+          <div class="card-icon">🏦</div>
+          <h3>More Bank Parsers</h3>
+          <p>Add support for HDFC, Axis, SBI, Kotak, and other major Indian banks in PDF and CSV formats.</p>
+          <div class="tag-list"><span class="tag">Planned</span></div>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📊</div>
+          <h3>Insights Module</h3>
+          <p>Full analytics dashboards with monthly spending, category trends, merchant leaderboards, and owner comparisons.</p>
+          <div class="tag-list"><span class="tag">Planned</span></div>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">💳</div>
+          <h3>Budgeting Tools</h3>
+          <p>Set monthly spending budgets per category. Alert when approaching or exceeding a budget.</p>
+          <div class="tag-list"><span class="tag">Future</span></div>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🔁</div>
+          <h3>Subscription Detection</h3>
+          <p>Automatically detect recurring charges (Netflix, Spotify, gym) and surface them as a dedicated view.</p>
+          <div class="tag-list"><span class="tag">Future</span></div>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🤖</div>
+          <h3>AI-Powered Insights</h3>
+          <p>Use ML models to improve categorization accuracy and surface spending anomalies automatically.</p>
+          <div class="tag-list"><span class="tag">Future</span></div>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📱</div>
+          <h3>Mobile App</h3>
+          <p>Native mobile app (iOS/Android) built on the same API backend. The API-first architecture makes this straightforward.</p>
+          <div class="tag-list"><span class="tag">Future</span></div>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🏦</div>
+          <h3>Bank API Integration</h3>
+          <p>Direct integrations via Open Banking APIs for auto-fetching statements — no manual upload required.</p>
+          <div class="tag-list"><span class="tag">Future</span></div>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🎯</div>
+          <h3>Financial Goal Tracking</h3>
+          <p>Set savings goals, track progress toward them, and connect them to net worth snapshots.</p>
+          <div class="tag-list"><span class="tag">Future</span></div>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">💰</div>
+          <h3>Savings Rate Tracking</h3>
+          <p>Calculate savings rate (income − spend) over time and visualize it alongside net worth growth.</p>
+          <div class="tag-list"><span class="tag">Future</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Architecture Decisions Made</h2>
+      <table class="doc-table">
+        <thead><tr><th>Question</th><th>Decision</th></tr></thead>
+        <tbody>
+          <tr><td>Should PDF parsing support any bank or just specific templates?</td><td>Start with mandate for Excel/CSV support; PDF added for ICICI</td></tr>
+          <tr><td>Should merchant recognition use rules or ML?</td><td>Rules-based (merchant dictionary + pattern matching)</td></tr>
+          <tr><td>Should recurring transactions be auto-detected?</td><td>No (deferred to future)</td></tr>
+          <tr><td>Should transactions have tags in addition to categories?</td><td>A comment/notes field is provided instead of tags</td></tr>
+          <tr><td>Should income tracking be included in MVP?</td><td>Yes — credit transactions from bank statements are captured</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

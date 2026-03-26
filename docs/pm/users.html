@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Target Users — MoMoney Docs</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand"><span class="brand-icon">💰</span><span class="brand-name">MoMoney</span></div>
+    <ul class="nav-list">
+      <li class="nav-section-label">Overview</li>
+      <li><a href="index.html" class="nav-link">Home</a></li>
+      <li><a href="vision.html" class="nav-link">Vision & Goals</a></li>
+      <li><a href="users.html" class="nav-link active">Target Users</a></li>
+      <li class="nav-section-label">Core Features</li>
+      <li><a href="statements.html" class="nav-link">Statement Import</a></li>
+      <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+      <li><a href="categorization.html" class="nav-link">Categorization</a></li>
+      <li><a href="invoices.html" class="nav-link">Invoices</a></li>
+      <li><a href="insights.html" class="nav-link">Insights & Analytics</a></li>
+      <li><a href="networth.html" class="nav-link">Net Worth</a></li>
+      <li class="nav-section-label">Product</li>
+      <li><a href="modes.html" class="nav-link">Operating Modes</a></li>
+      <li><a href="data.html" class="nav-link">Data & Privacy</a></li>
+      <li><a href="roadmap.html" class="nav-link">Roadmap</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Target Users</h1>
+      <p class="subtitle">Who MoMoney is built for and the jobs it does for them</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">Primary User</h2>
+      <div class="mode-card">
+        <div class="mode-icon">🧑‍💻</div>
+        <div class="mode-body">
+          <h3>The Cost-Aware Individual</h3>
+          <p>An individual who wants to understand their monthly spending without the burden of manually logging every purchase. They have bank accounts and credit cards, receive monthly statements, and want clear insights — but don't want to trust a third-party app with their financial data indefinitely.</p>
+          <ul>
+            <li>Uses digital banking (ICICI, HDFC, Axis, SBI, etc.)</li>
+            <li>Comfortable uploading a downloaded statement PDF or CSV</li>
+            <li>Values having control over their own data</li>
+            <li>Interested in monthly spending summaries and category breakdowns</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Secondary Users</h2>
+      <div class="card-grid">
+        <div class="feature-card">
+          <div class="card-icon">👫</div>
+          <h3>Couples</h3>
+          <p>A couple managing shared finances. They want to understand combined spend, see who spent what on joint expenses, and split costs fairly each month.</p>
+          <p style="margin-top: 0.5rem; font-size: 0.8rem;">Key feature: <strong>Owner assignment + invoice analysis</strong></p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🏡</div>
+          <h3>Families</h3>
+          <p>Families with multiple earners or household members. They want to assign transactions to individuals and generate a clear monthly household statement.</p>
+          <p style="margin-top: 0.5rem; font-size: 0.8rem;">Key feature: <strong>Household owners + expense splits</strong></p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🔒</div>
+          <h3>Privacy-Focused Users</h3>
+          <p>Users who are deeply uncomfortable giving any third-party cloud access to their bank data. They want powerful analytics but with zero server-side persistence.</p>
+          <p style="margin-top: 0.5rem; font-size: 0.8rem;">Key feature: <strong>Session Mode + local SQLite export</strong></p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">📚</div>
+          <h3>Finance Enthusiasts</h3>
+          <p>People who track their net worth, categorize every transaction, and build detailed spending trend reports. They want depth and configurability.</p>
+          <p style="margin-top: 0.5rem; font-size: 0.8rem;">Key feature: <strong>Rules engine + historical insights + net worth tracking</strong></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">User Jobs To Be Done</h2>
+      <table class="doc-table">
+        <thead>
+          <tr>
+            <th>When I…</th>
+            <th>I want to…</th>
+            <th>So that…</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Get my monthly bank statement</td>
+            <td>Upload it and immediately see categorized transactions</td>
+            <td>I understand where my money went without manual entry</td>
+          </tr>
+          <tr>
+            <td>See an Amazon transaction</td>
+            <td>Categorize it as Shopping, Electronics, or Groceries</td>
+            <td>My spending reports are accurate</td>
+          </tr>
+          <tr>
+            <td>Pay for a shared dinner</td>
+            <td>Split the transaction between myself and my partner</td>
+            <td>I know exactly what each person actually spent</td>
+          </tr>
+          <tr>
+            <td>End of the month</td>
+            <td>Generate an invoice summarizing all tagged transactions</td>
+            <td>I have a permanent record and can settle shared costs</td>
+          </tr>
+          <tr>
+            <td>Reviewing yearly finances</td>
+            <td>See a month-by-month spend trend by category</td>
+            <td>I can identify lifestyle inflation and cut unnecessary spend</td>
+          </tr>
+          <tr>
+            <td>Concerned about cloud storage</td>
+            <td>Use the app without any data being saved to a server</td>
+            <td>My bank data stays completely private</td>
+          </tr>
+          <tr>
+            <td>Planning for financial goals</td>
+            <td>Track my net worth over time</td>
+            <td>I can measure financial progress month over month</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>
