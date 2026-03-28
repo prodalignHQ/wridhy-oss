@@ -67,7 +67,7 @@ transactionsRoute.get('/', zValidator('query', listQuerySchema), async (c) => {
   const [rows, countResult] = await Promise.all([
     db.query.transactions.findMany({
       where: and(...conditions),
-      orderBy: [desc(transactions.date), desc(transactions.createdAt)],
+      orderBy: [desc(transactions.date), desc(transactions.createdAt), desc(transactions.id)],
       limit,
       offset,
       with: {

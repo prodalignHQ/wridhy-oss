@@ -346,8 +346,10 @@ export default function InvoicesPage() {
     return draftName.trim() !== activeInvoice.name || originalIds.join('|') !== nextIds.join('|')
   }, [activeInvoice, draftName, draftStatementIds])
 
-  const loadInvoiceDetail = useCallback(async (invoiceId: string) => {
-    setDetailLoading(true)
+  const loadInvoiceDetail = useCallback(async (invoiceId: string, backgroundRefresh = false) => {
+    if (!backgroundRefresh) {
+      setDetailLoading(true)
+    }
 
     try {
       const detail = await apiClient.fetch<InvoiceDetail>(`/v1/invoices/${invoiceId}`)
@@ -366,7 +368,9 @@ export default function InvoicesPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load invoice')
     } finally {
-      setDetailLoading(false)
+      if (!backgroundRefresh) {
+        setDetailLoading(false)
+      }
     }
   }, [])
 
@@ -586,7 +590,7 @@ export default function InvoicesPage() {
         })
       }
 
-      await loadInvoiceDetail(activeInvoice.id)
+      await loadInvoiceDetail(activeInvoice.id, true)
     },
     [activeInvoice, loadInvoiceDetail]
   )
@@ -632,7 +636,7 @@ export default function InvoicesPage() {
         })
       }
 
-      await loadInvoiceDetail(activeInvoice.id)
+      await loadInvoiceDetail(activeInvoice.id, true)
     },
     [activeInvoice, loadInvoiceDetail]
   )

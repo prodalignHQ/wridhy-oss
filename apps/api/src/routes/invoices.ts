@@ -204,7 +204,7 @@ async function loadLiveTransactions(userId: string, statementIds: string[]) {
 
   const rows = await db.query.transactions.findMany({
     where: and(eq(transactions.userId, userId), inArray(transactions.statementId, statementIds)),
-    orderBy: [asc(transactions.date), asc(transactions.createdAt)],
+    orderBy: [asc(transactions.date), asc(transactions.createdAt), asc(transactions.id)],
     with: {
       category: {
         columns: {
@@ -528,7 +528,7 @@ invoicesRoute.get('/:id', async (c) => {
 
   const items = await db.query.invoiceItems.findMany({
     where: eq(invoiceItems.invoiceId, invoiceId),
-    orderBy: [asc(invoiceItems.date), asc(invoiceItems.createdAt)],
+    orderBy: [asc(invoiceItems.date), asc(invoiceItems.createdAt), asc(invoiceItems.id)],
   })
 
   const snapshotTransactions: InvoiceTransactionPayload[] = items.map((item) => ({
