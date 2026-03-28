@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import { CategoryBadge } from '@/components/ui/custom/CategoryBadge'
@@ -41,6 +41,18 @@ export function CategoryPicker({ categoryId, category, onUpdate }: CategoryPicke
     await onUpdate(selected?.id ?? null)
   }
 
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (open) {
+      // Ensure we don't jump to the top when focusing
+      const id = requestAnimationFrame(() => {
+        inputRef.current?.focus({ preventScroll: true })
+      })
+      return () => cancelAnimationFrame(id)
+    }
+  }, [open])
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="cursor-pointer hover:opacity-80 transition-opacity">
@@ -52,13 +64,16 @@ export function CategoryPicker({ categoryId, category, onUpdate }: CategoryPicke
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2 bg-card border-border" align="start">
+      <PopoverContent 
+        className="w-64 p-2 bg-card border-border" 
+        align="start"
+      >
         <Input
+          ref={inputRef}
           placeholder="Search categories…"
           className="mb-2 h-8 bg-muted border-border text-sm text-foreground/90"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          autoFocus
         />
         <div className="max-h-56 overflow-y-auto space-y-0.5">
           <button
