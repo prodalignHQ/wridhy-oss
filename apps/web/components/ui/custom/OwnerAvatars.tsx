@@ -1,3 +1,4 @@
+import { UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const COLOR_MAP: Record<string, { bg: string; text: string }> = {
@@ -60,6 +61,25 @@ export function OwnerAvatars({
   size = "sm",
   className,
 }: OwnerAvatarsProps) {
+  if (owners.length === 0) {
+    return (
+      <div className={cn("flex items-center gap-2 text-muted-foreground/60 hover:text-muted-foreground transition-colors", className)}>
+        <div className={cn(
+          "rounded-full border border-dashed border-muted-foreground/40 flex items-center justify-center",
+          size === "sm" ? "w-6 h-6" : "w-8 h-8"
+        )}>
+          <UserPlus size={size === "sm" ? 12 : 14} />
+        </div>
+        <span className={cn(
+          "font-medium",
+          size === "sm" ? "text-[11px]" : "text-xs"
+        )}>
+          Unassigned
+        </span>
+      </div>
+    )
+  }
+
   const visible = owners.slice(0, max)
   const overflow = owners.length - max
 
