@@ -6,6 +6,9 @@ const DEFAULT_CATEGORY = 'Uncategorized'
 function matchesRule(txn: ParsedTransaction, rule: Rule): boolean {
   const { matchField, matchType, matchValue } = rule
 
+  // Never match if the matchValue is empty — would cause includes('') to match everything
+  if (!matchValue || !matchValue.trim()) return false
+
   let valueToMatch: string
 
   switch (matchField) {
@@ -119,17 +122,7 @@ export function categorize(
     }
   }
 
-  // Fallback to first category if no default
-  const firstCategory = categories[0]
-  if (firstCategory) {
-    return {
-      categoryId: firstCategory.id,
-      ruleId: 'fallback',
-      matchedOn: 'default',
-    }
-  }
-
-  // Last resort - no category found
+  // No category matched — leave uncategorized
   return {
     categoryId: '',
     ruleId: 'none',

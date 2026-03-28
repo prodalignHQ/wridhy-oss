@@ -17,7 +17,7 @@ rulesRoute.use('*', authMiddleware)
 const insertRuleSchema = z.object({
   matchField: z.enum(['merchant', 'description', 'amount']),
   matchType: z.enum(['contains', 'equals', 'regex', 'gt', 'lt']),
-  matchValue: z.string().min(1),
+  matchValue: z.string().min(1).refine(v => v.trim().length > 0, { message: 'matchValue cannot be blank' }),
   categoryId: z.string().uuid(),
   priority: z.number().int().min(1).max(999).default(100),
 })
@@ -285,6 +285,7 @@ rulesRoute.post('/reapply', async (c) => {
           : ''
 
       if (!value) continue
+      if (!rule.matchValue || !rule.matchValue.trim()) continue
 
       const upperValue = value.toUpperCase()
       const upperMatch = rule.matchValue.toUpperCase()

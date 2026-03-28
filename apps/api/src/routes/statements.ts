@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '@momoney/db'
-import { statements, transactions, transactionOwners, owners, financialAccounts, categories, categorizationRules, merchants } from '@momoney/db'
+import { statements, transactions, financialAccounts, categories, categorizationRules, merchants } from '@momoney/db'
 import { eq, and, desc, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
@@ -210,16 +210,6 @@ statementsRoute.post('/upload', async (c) => {
     )
   }
 
-  // Find the user's default ("Self") owner
-  const selfOwner = await db.query.owners.findFirst({
-    where: and(eq(owners.userId, userId), eq(owners.isDefault, true)),
-  })
-  if (!selfOwner) {
-    return c.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Default owner not found' } },
-      500
-    )
-  }
 
   // Fetch categories for categorization
   const allCategories = await db.query.categories.findMany({
@@ -333,13 +323,7 @@ statementsRoute.post('/upload', async (c) => {
           .returning()
 
         if (inserted) {
-          // Auto-assign 100% to Self
-          await tx.insert(transactionOwners).values({
-            transactionId: inserted.id,
-            ownerId: selfOwner.id,
-            amount: txnData.amount.toFixed(2),
-            percentage: '100.00',
-          })
+          // No auto-assignment — transactions start as Unassigned
           importedCount++
         } else {
           duplicatesSkipped++
