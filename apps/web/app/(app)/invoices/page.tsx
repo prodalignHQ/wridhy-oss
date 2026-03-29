@@ -262,6 +262,7 @@ export default function InvoicesPage() {
 
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [ownerFilter, setOwnerFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState<'all' | 'debit' | 'credit'>('all')
 
   const drafts = useMemo(
@@ -307,6 +308,30 @@ export default function InvoicesPage() {
     return Array.from(options.values()).sort((a, b) => a.label.localeCompare(b.label))
   }, [activeInvoice])
 
+  const ownerOptions = useMemo(() => {
+    const options = new Map<string, { value: string; label: string }>([
+      ['unassigned', { value: 'unassigned', label: 'Unassigned' }],
+    ])
+
+    for (const transaction of activeInvoice?.transactions ?? []) {
+      if (transaction.owners.length === 0) {
+        // Already handled by initial map entry
+      } else {
+        for (const owner of transaction.owners) {
+          if (owner.ownerId) {
+            options.set(owner.ownerId, { value: owner.ownerId, label: owner.name })
+          }
+        }
+      }
+    }
+
+    const sorted = Array.from(options.values())
+      .filter((o) => o.value !== 'unassigned')
+      .sort((a, b) => a.label.localeCompare(b.label))
+
+    return [{ value: 'unassigned', label: 'Unassigned' }, ...sorted]
+  }, [activeInvoice])
+
   const filteredTransactions = useMemo(() => {
     return (activeInvoice?.transactions ?? []).filter((transaction) => {
       const matchesSearch = transaction.description
@@ -315,10 +340,15 @@ export default function InvoicesPage() {
       const transactionCategory = transaction.categoryId ?? 'uncategorized'
       const matchesCategory = categoryFilter === 'all' || transactionCategory === categoryFilter
       const matchesType = typeFilter === 'all' || transaction.type === typeFilter
+      const matchesOwner =
+        ownerFilter === 'all' ||
+        (ownerFilter === 'unassigned'
+          ? transaction.owners.length === 0
+          : transaction.owners.some((o) => o.ownerId === ownerFilter))
 
-      return matchesSearch && matchesCategory && matchesType
+      return matchesSearch && matchesCategory && matchesType && matchesOwner
     })
-  }, [activeInvoice, categoryFilter, search, typeFilter])
+  }, [activeInvoice, categoryFilter, search, typeFilter, ownerFilter])
 
   const filteredTransactionIds = useMemo(
     () => filteredTransactions.map((transaction) => transaction.id),
@@ -1200,6 +1230,26 @@ export default function InvoicesPage() {
                       <SelectContent className="border-border bg-card">
                         <SelectItem value="all">All categories</SelectItem>
                         {categoryOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value={ownerFilter}
+                      onValueChange={(value) => setOwnerFilter(value ?? 'all')}
+                    >
+                      <SelectTrigger className="w-[180px] border-border bg-background text-foreground/90">
+                        <div className="flex items-center gap-2">
+                          <User size={14} className="text-muted-foreground" />
+                          <SelectValue placeholder="Assignee" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="border-border bg-card">
+                        <SelectItem value="all">All assignees</SelectItem>
+                        {ownerOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
