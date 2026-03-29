@@ -32,6 +32,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { CategoryBadge } from '@/components/ui/custom/CategoryBadge'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { OwnerAvatars } from '@/components/ui/custom/OwnerAvatars'
@@ -262,7 +268,7 @@ export default function InvoicesPage() {
 
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [ownerFilter, setOwnerFilter] = useState('all')
+  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<'all' | 'debit' | 'credit'>('all')
 
   const drafts = useMemo(
@@ -341,10 +347,11 @@ export default function InvoicesPage() {
       const matchesCategory = categoryFilter === 'all' || transactionCategory === categoryFilter
       const matchesType = typeFilter === 'all' || transaction.type === typeFilter
       const matchesOwner =
-        ownerFilter === 'all' ||
-        (ownerFilter === 'unassigned'
+        ownerFilter.length === 0 ||
+        (ownerFilter.length === 1 && ownerFilter[0] === 'unassigned'
           ? transaction.owners.length === 0
-          : transaction.owners.some((o) => o.ownerId === ownerFilter))
+          : transaction.owners.length === ownerFilter.length &&
+            transaction.owners.every((o) => o.ownerId && ownerFilter.includes(o.ownerId)))
 
       return matchesSearch && matchesCategory && matchesType && matchesOwner
     })
@@ -1237,25 +1244,44 @@ export default function InvoicesPage() {
                       </SelectContent>
                     </Select>
 
-                    <Select
-                      value={ownerFilter}
-                      onValueChange={(value) => setOwnerFilter(value ?? 'all')}
-                    >
-                      <SelectTrigger className="w-[180px] border-border bg-background text-foreground/90">
-                        <div className="flex items-center gap-2">
-                          <User size={14} className="text-muted-foreground" />
-                          <SelectValue placeholder="Assignee" />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent className="border-border bg-card">
-                        <SelectItem value="all">All assignees</SelectItem>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="outline"
+                            className="w-[180px] justify-start border-border bg-background text-foreground/90 hover:bg-background hover:text-foreground"
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <User size={14} className="text-muted-foreground" />
+                              <span className="truncate">
+                                {ownerFilter.length === 0
+                                  ? 'All assignees'
+                                  : ownerFilter.length === 1
+                                    ? ownerOptions.find((o) => o.value === ownerFilter[0])?.label ??
+                                      '1 selected'
+                                    : `${ownerFilter.length} selected`}
+                              </span>
+                            </div>
+                          </Button>
+                        }
+                      />
+                      <DropdownMenuContent className="w-[180px] border-border bg-card">
                         {ownerOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
+                          <DropdownMenuCheckboxItem
+                            key={option.value}
+                            checked={ownerFilter.includes(option.value)}
+                            onCheckedChange={(checked) => {
+                              setOwnerFilter((prev) => {
+                                if (checked) return [...prev, option.value]
+                                return prev.filter((v) => v !== option.value)
+                              })
+                            }}
+                          >
                             {option.label}
-                          </SelectItem>
+                          </DropdownMenuCheckboxItem>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
 
                     <Select
                       value={typeFilter}
