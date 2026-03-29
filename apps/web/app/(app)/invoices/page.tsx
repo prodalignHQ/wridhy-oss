@@ -351,7 +351,7 @@ export default function InvoicesPage() {
         (ownerFilter.length === 1 && ownerFilter[0] === 'unassigned'
           ? transaction.owners.length === 0
           : transaction.owners.length === ownerFilter.length &&
-            transaction.owners.every((o) => o.ownerId && ownerFilter.includes(o.ownerId)))
+          transaction.owners.every((o) => o.ownerId && ownerFilter.includes(o.ownerId)))
 
       return matchesSearch && matchesCategory && matchesType && matchesOwner
     })
@@ -366,6 +366,14 @@ export default function InvoicesPage() {
     () => filteredTransactionIds.filter((id) => selectedTransactionIds.has(id)).length,
     [filteredTransactionIds, selectedTransactionIds]
   )
+
+  const filteredTotal = useMemo(() => {
+    return filteredTransactions.reduce((acc, t) => {
+      const amount = parseFloat(t.amount);
+      console.log("Amount Parsed: ", amount)
+      return acc + amount;
+    }, 0)
+  }, [filteredTransactions])
 
   const allFilteredSelected =
     filteredTransactionIds.length > 0 && selectedFilteredCount === filteredTransactionIds.length
@@ -430,9 +438,9 @@ export default function InvoicesPage() {
           ? requestedMonth
           : statementList.length > 0
             ? monthFromDate(
-                [...statementList]
-                  .sort((a, b) => b.statementMonth.localeCompare(a.statementMonth))[0]!.statementMonth
-              )
+              [...statementList]
+                .sort((a, b) => b.statementMonth.localeCompare(a.statementMonth))[0]!.statementMonth
+            )
             : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
 
       setNewInvoiceMonth(fallbackMonth)
@@ -730,8 +738,7 @@ export default function InvoicesPage() {
     try {
       await applyCategoryChange(pendingCategoryChange.selectedIds, pendingCategoryChange.categoryId)
       toast.success(
-        `Updated category for ${pendingCategoryChange.selectedIds.length} selected transaction${
-          pendingCategoryChange.selectedIds.length === 1 ? '' : 's'
+        `Updated category for ${pendingCategoryChange.selectedIds.length} selected transaction${pendingCategoryChange.selectedIds.length === 1 ? '' : 's'
         }`
       )
       setPendingCategoryChange(null)
@@ -766,8 +773,7 @@ export default function InvoicesPage() {
     try {
       await applyOwnerChange(pendingOwnerChange.selectedIds, pendingOwnerChange.ownerIds)
       toast.success(
-        `Updated owners for ${pendingOwnerChange.selectedIds.length} selected transaction${
-          pendingOwnerChange.selectedIds.length === 1 ? '' : 's'
+        `Updated owners for ${pendingOwnerChange.selectedIds.length} selected transaction${pendingOwnerChange.selectedIds.length === 1 ? '' : 's'
         }`
       )
       setPendingOwnerChange(null)
@@ -1008,10 +1014,10 @@ export default function InvoicesPage() {
                           Generated on{' '}
                           {activeInvoice.generatedAt
                             ? new Date(activeInvoice.generatedAt).toLocaleDateString('en-IN', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              })
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
                             : '—'}
                         </p>
                       </div>
@@ -1258,7 +1264,7 @@ export default function InvoicesPage() {
                                   ? 'All assignees'
                                   : ownerFilter.length === 1
                                     ? ownerOptions.find((o) => o.value === ownerFilter[0])?.label ??
-                                      '1 selected'
+                                    '1 selected'
                                     : `${ownerFilter.length} selected`}
                               </span>
                             </div>
@@ -1429,6 +1435,27 @@ export default function InvoicesPage() {
                           </tr>
                         ))}
                       </tbody>
+                      <tfoot className="bg-background/50 border-t border-border">
+                        <tr>
+                          <td
+                            className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                            colSpan={activeInvoice.status === 'draft' ? 6 : 5}
+                          >
+                            Sub-total
+                          </td>
+                          <td className="px-4 py-4 text-right font-mono whitespace-nowrap">
+                            <span
+                              className={cn(
+                                'text-base font-bold',
+                                filteredTotal < 0 ? 'text-rose-400' : 'text-emerald-400'
+                              )}
+                            >
+                              {filteredTotal < 0 ? '−' : '+'}
+                              {formatINR(Math.abs(filteredTotal))}
+                            </span>
+                          </td>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 )}
@@ -1444,13 +1471,13 @@ export default function InvoicesPage() {
         transaction={
           splitTarget
             ? {
-                id: splitTarget.id,
-                description: splitTarget.description,
-                amount: splitTarget.amount,
-                transactionOwners: splitTarget.owners
-                  .filter((owner) => owner.ownerId)
-                  .map((owner) => ({ ownerId: owner.ownerId! })),
-              }
+              id: splitTarget.id,
+              description: splitTarget.description,
+              amount: splitTarget.amount,
+              transactionOwners: splitTarget.owners
+                .filter((owner) => owner.ownerId)
+                .map((owner) => ({ ownerId: owner.ownerId! })),
+            }
             : null
         }
         owners={owners}
