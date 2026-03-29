@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api'
 
 import { Button } from '@/components/ui/button'
@@ -130,65 +131,79 @@ export default function OwnersPage() {
           <h2 className="text-xl font-semibold text-foreground">Household Members</h2>
           <p className="text-sm text-muted-foreground mt-1">Manage people and shared accounts to split transactions with.</p>
         </div>
-        <Button onClick={() => setIsAddOpen(true)} className="bg-indigo-500 hover:bg-indigo-600">
-          <Plus className="mr-2 h-4 w-4" /> Add Person
-        </Button>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12 text-muted-foreground">Loading members...</div>
-      ) : owners.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-border rounded-xl">
-          <Users size={40} className="text-muted-foreground/70 mb-4" />
-          <h3 className="text-lg font-semibold text-foreground/80 mb-2">No other members</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mb-6">
-            Add roommates or family members to split transactions with them.
-          </p>
-        </div>
+        <div className="flex justify-center py-12 text-muted-foreground font-medium animate-pulse">Loading members...</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {owners.map((owner) => (
-            <Card key={owner.id} className="bg-card border-border rounded-xl p-4 flex items-center justify-between group">
-              <div className="flex items-center space-x-4 overflow-hidden">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border ${colorMap[owner.color] || colorMap['indigo']} shrink-0`}>
-                  {owner.name.substring(0, 2).toUpperCase()}
-                </div>
-                <div className="truncate pr-2">
-                  <div className="flex items-center space-x-2">
-                    <h3 className="font-medium text-foreground truncate">{owner.name}</h3>
-                    {owner.isDefault && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <span className="flex items-center"><Lock className="w-3 h-3 text-muted-foreground shrink-0" /></span>
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-muted border-border text-foreground/90">
-                            <p>This is you (cannot be deleted)</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </div>
-                  {owner.notes && (
-                    <p className="text-[11px] text-muted-foreground mt-0.5 italic truncate max-w-[180px]">
-                      {owner.notes}
-                    </p>
-                  )}
-                </div>
-              </div>
-              
+            <Card key={owner.id} className="relative group bg-card border-border rounded-2xl p-6 flex flex-col items-center justify-center text-center transition-all duration-200 hover:shadow-lg hover:border-primary/20 hover:-translate-y-1 aspect-square sm:aspect-auto sm:min-h-[200px]">
+              {/* Action: Delete (Top-Right) */}
               {!owner.isDefault && (
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-8 w-8 text-muted-foreground hover:text-rose-400 hover:bg-rose-950/20 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                  onClick={() => setOwnerToDelete(owner)}
+                  className="absolute top-3 right-3 h-8 w-8 text-muted-foreground hover:text-rose-400 hover:bg-rose-950/20 opacity-0 group-hover:opacity-100 transition-all rounded-full shrink-0"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setOwnerToDelete(owner);
+                  }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               )}
+
+              {/* Action: Lock (Top-Right for Current User) */}
+              {owner.isDefault && (
+                <div className="absolute top-3 right-3 text-muted-foreground/40">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Lock size={14} />
+                      </TooltipTrigger>
+                      <TooltipContent side="top">This is you (Default)</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              )}
+
+              {/* Avatar Section */}
+              <div className={cn(
+                "w-16 h-16 rounded-full flex items-center justify-center font-bold text-lg border-2 mb-4 shrink-0 transition-transform group-hover:scale-110 shadow-sm",
+                colorMap[owner.color] || colorMap['indigo']
+              )}>
+                {owner.name.substring(0, 2).toUpperCase()}
+              </div>
+
+              {/* Name & Details */}
+              <div className="w-full">
+                <h3 className="font-semibold text-foreground text-base tracking-tight truncate">{owner.name}</h3>
+                {owner.notes && (
+                  <p className="text-xs text-muted-foreground mt-1.5 italic line-clamp-2 leading-relaxed px-1">
+                    {owner.notes}
+                  </p>
+                )}
+                {!owner.notes && <p className="text-[10px] text-muted-foreground mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest font-blue">Member</p>}
+              </div>
             </Card>
           ))}
+
+          {/* Special Add Person Card */}
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border p-6 aspect-square sm:aspect-auto sm:min-h-[200px] text-center hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 hover:-translate-y-1 cursor-pointer overflow-hidden"
+          >
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted border-2 border-muted-foreground/10 group-hover:bg-primary/10 group-hover:border-primary/20 transition-colors">
+              <Plus className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">Add Person</span>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">Split Expenses</p>
+            </div>
+            {/* Background Accent */}
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          </button>
         </div>
       )}
 
