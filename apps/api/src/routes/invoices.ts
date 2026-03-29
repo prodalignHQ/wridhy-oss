@@ -87,14 +87,15 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
   >()
 
   for (const transaction of transactionsList) {
-    if (transaction.type !== 'debit') continue
+    const isCredit = transaction.type === 'credit'
+    if (transaction.type !== 'debit' && !isCredit) continue
 
     const categoryName = transaction.category?.name ?? 'Uncategorized'
     const categoryId = transaction.category?.id ?? null
 
     for (const owner of transaction.owners) {
       const ownerKey = owner.ownerId ?? owner.name
-      const shareAmount = parseFloat(owner.amount)
+      const amount = parseFloat(owner.amount)
 
       if (!ownerTotals.has(ownerKey)) {
         ownerTotals.set(ownerKey, {
@@ -107,7 +108,7 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
       }
 
       const ownerBucket = ownerTotals.get(ownerKey)!
-      ownerBucket.total += shareAmount
+      ownerBucket.total += amount
 
       const categoryKey = `${categoryId ?? 'uncategorized'}:${categoryName}`
       if (!ownerBucket.categories.has(categoryKey)) {
@@ -118,7 +119,7 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
         })
       }
 
-      ownerBucket.categories.get(categoryKey)!.total += shareAmount
+      ownerBucket.categories.get(categoryKey)!.total += amount
     }
   }
 
@@ -237,10 +238,10 @@ async function loadLiveTransactions(userId: string, statementIds: string[]) {
     categoryId: row.categoryId,
     category: row.category
       ? {
-          id: row.category.id,
-          name: row.category.name,
-          color: row.category.color,
-        }
+        id: row.category.id,
+        name: row.category.name,
+        color: row.category.color,
+      }
       : null,
     owners: row.transactionOwners.map((item) => ({
       ownerId: item.ownerId,
