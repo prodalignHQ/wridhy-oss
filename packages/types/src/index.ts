@@ -167,6 +167,52 @@ export const NetWorthSnapshotSchema = z.object({
 })
 export type NetWorthSnapshot = z.infer<typeof NetWorthSnapshotSchema>
 
+// ─── Insights ─────────────────────────────────────────────────────────────────
+
+export const MonthlyInsightSchema = z.object({
+  totalSpend: z.string(),
+  totalIncome: z.string(),
+  netFlow: z.string(),
+  topCategories: z.array(z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    color: z.string(),
+    amount: z.string(),
+    percentage: z.number(),
+  })),
+  uncategorizedCount: z.number(),
+})
+export type MonthlyInsight = z.infer<typeof MonthlyInsightSchema>
+
+export const YearlyInsightSchema = z.array(z.object({
+  month: z.string(), // YYYY-MM
+  spend: z.string(),
+  income: z.string(),
+}))
+export type YearlyInsight = z.infer<typeof YearlyInsightSchema>
+
+
+export const CategoryComparisonSchema = z.array(z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string().nullable(),
+  currentAmount: z.string(),
+  prevAmount: z.string(),
+  diff: z.string(),
+  diffPercentage: z.number(),
+}))
+export type CategoryComparison = z.infer<typeof CategoryComparisonSchema>
+
+export const CategoryAverageSchema = z.array(z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string().nullable(),
+  avgAmount: z.string(),
+  currentAmount: z.string(),
+}))
+export type CategoryAverage = z.infer<typeof CategoryAverageSchema>
+
+
 // ─── API Response Envelope ────────────────────────────────────────────────────
 
 export const ApiSuccessSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
