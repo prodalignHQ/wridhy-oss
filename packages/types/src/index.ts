@@ -61,6 +61,21 @@ export const CategorySchema = z.object({
 })
 export type Category = z.infer<typeof CategorySchema>
 
+// ─── Statement ────────────────────────────────────────────────────────────────
+
+export const StatementSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  accountId: z.string().uuid(),
+  bankId: z.string(),
+  statementMonth: z.date(),
+  parsedCount: z.number().int(),
+  importedCount: z.number().int(),
+  duplicatesSkipped: z.number().int(),
+  importedAt: z.date(),
+})
+export type Statement = z.infer<typeof StatementSchema>
+
 // ─── Categorization Rule ──────────────────────────────────────────────────────
 
 export const MatchFieldSchema = z.enum(['merchant', 'description', 'amount'])

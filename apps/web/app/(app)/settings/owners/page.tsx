@@ -7,14 +7,12 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { apiClient } from '@/lib/api'
+import { useStorageMode } from '@/lib/store/storage-mode'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -60,6 +58,7 @@ const ownerSchema = z.object({
 type OwnerFormValues = z.infer<typeof ownerSchema>
 
 export default function OwnersPage() {
+  const { adapter } = useStorageMode()
   const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -82,12 +81,12 @@ export default function OwnersPage() {
 
   useEffect(() => {
     fetchOwners()
-  }, [])
+  }, [adapter])
 
   const fetchOwners = async () => {
     try {
-      const data = await apiClient.fetch<Owner[]>('/v1/owners')
-      setOwners(data)
+      const data = await adapter.getOwners()
+      setOwners(data as any as Owner[])
     } catch (err: any) {
       toast.error('Failed to load owners')
     } finally {
@@ -97,10 +96,7 @@ export default function OwnersPage() {
 
   const onSubmitAdd = async (values: OwnerFormValues) => {
     try {
-      await apiClient.fetch('/v1/owners', {
-        method: 'POST',
-        body: JSON.stringify(values),
-      })
+      await adapter.createOwner(values)
       toast.success('Household member added')
       setIsAddOpen(false)
       reset()
@@ -113,7 +109,7 @@ export default function OwnersPage() {
   const onDeleteConfirm = async () => {
     if (!ownerToDelete) return
     try {
-      await apiClient.fetch(`/v1/owners/${ownerToDelete.id}`, { method: 'DELETE' })
+      await adapter.deleteOwner(ownerToDelete.id)
       toast.success('Member removed')
       setOwners(owners.filter(o => o.id !== ownerToDelete.id))
     } catch (err: any) {

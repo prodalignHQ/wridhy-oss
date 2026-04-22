@@ -6,7 +6,8 @@ import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { apiClient } from '@/lib/api'
+import { useStorageMode } from '@/lib/store/storage-mode'
+
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -62,7 +63,8 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null)
-  
+  const { adapter } = useStorageMode()
+
   const { register, handleSubmit, watch, formState: { errors }, setValue, reset } = useForm<AccountFormValues>({
     resolver: zodResolver(accountSchema),
     defaultValues: {
@@ -91,8 +93,9 @@ export default function AccountsPage() {
 
   const fetchAccounts = async () => {
     try {
-      const data = await apiClient.fetch<Account[]>('/v1/accounts')
-      setAccounts(data)
+      const data = await adapter.getAccounts()
+      // Fix types by enforcing correct shape
+      setAccounts(data as any as Account[])
     } catch (err: any) {
       toast.error('Failed to load accounts')
     } finally {
@@ -102,10 +105,7 @@ export default function AccountsPage() {
 
   const onSubmitAdd = async (values: AccountFormValues) => {
     try {
-      await apiClient.fetch('/v1/accounts', {
-        method: 'POST',
-        body: JSON.stringify(values),
-      })
+      await adapter.createAccount(values)
       toast.success('Account created successfully')
       setIsAddOpen(false)
       reset()
@@ -118,7 +118,7 @@ export default function AccountsPage() {
   const onDeleteConfirm = async () => {
     if (!accountToDelete) return
     try {
-      await apiClient.fetch(`/v1/accounts/${accountToDelete}`, { method: 'DELETE' })
+      await adapter.deleteAccount(accountToDelete)
       toast.success('Account deleted')
       setAccounts(accounts.filter(a => a.id !== accountToDelete))
     } catch (err: any) {
@@ -170,9 +170,9 @@ export default function AccountsPage() {
                     <p className="text-sm text-muted-foreground">{account.bankName}</p>
                   </div>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-rose-400 hover:bg-rose-950/20 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => setAccountToDelete(account.id)}
                 >
@@ -204,8 +204,8 @@ export default function AccountsPage() {
           <form onSubmit={handleSubmit(onSubmitAdd)} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label>Bank &amp; Statement Type</Label>
-              <Select 
-                value={watchedBankId} 
+              <Select
+                value={watchedBankId}
                 onValueChange={(val) => {
                   if (!val) return
                   const bank = BANKS.find(b => b.id === val)
@@ -233,8 +233,8 @@ export default function AccountsPage() {
             </div>
             <div className="space-y-2">
               <Label>Account Type</Label>
-              <Select 
-                value={watchedAccountType} 
+              <Select
+                value={watchedAccountType}
                 onValueChange={(val) => setValue('accountType', val as any)}
               >
                 <SelectTrigger className="bg-background border-border focus:ring-indigo-500">

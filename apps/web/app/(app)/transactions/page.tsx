@@ -11,7 +11,7 @@ import { OwnerAvatars } from '@/components/ui/custom/OwnerAvatars'
 import { SplitOwnerModal } from '@/components/transactions/split-owner-modal'
 import { CategoryPicker } from '@/components/transactions/category-picker'
 import { useTransactionsStore, type Transaction, type Owner } from '@/lib/store/transactions.store'
-import { apiClient } from '@/lib/api'
+import { useStorageMode } from '@/lib/store/storage-mode'
 import { cn } from '@/lib/utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,6 +57,7 @@ function OwnerFilterPill({ owner, selected, onClick }: { owner: Owner; selected:
 interface FinancialAccount { id: string; accountName: string; bankName: string }
 
 export default function TransactionsPage() {
+  const { adapter } = useStorageMode()
   const {
     transactions, total, totalPages, isLoading, filters,
     setFilters, fetchTransactions, updateTransactionOwners, updateTransactionCategory,
@@ -70,15 +71,14 @@ export default function TransactionsPage() {
 
   // Initial data load
   useEffect(() => {
-    fetchTransactions()
-    apiClient.fetch<Owner[]>('/v1/owners').then(setOwners).catch(console.error)
-    apiClient.fetch<FinancialAccount[]>('/v1/accounts').then(setAccounts).catch(console.error)
-  }, [fetchTransactions])
+    adapter.getOwners().then(setOwners).catch(console.error)
+    adapter.getAccounts().then(setAccounts).catch(console.error)
+  }, [adapter])
 
-  // Re-fetch when filters change
+  // Re-fetch when filters or adapter change
   useEffect(() => {
-    fetchTransactions()
-  }, [fetchTransactions, filters])
+    fetchTransactions(adapter)
+  }, [fetchTransactions, filters, adapter])
 
   const handleSearch = (value: string) => {
     if (searchRef.current) clearTimeout(searchRef.current)
@@ -87,7 +87,7 @@ export default function TransactionsPage() {
 
   const handleCategoryUpdate = async (txnId: string, categoryId: string | null) => {
     try {
-      await updateTransactionCategory(txnId, categoryId)
+      await updateTransactionCategory(adapter, txnId, categoryId)
     } catch {
       toast.error('Failed to update category')
     }
@@ -96,7 +96,7 @@ export default function TransactionsPage() {
   const handleOwnerSave = async (ownerIds: string[]) => {
     if (!splitTarget) return
     try {
-      await updateTransactionOwners(splitTarget.id, ownerIds)
+      await updateTransactionOwners(adapter, splitTarget.id, ownerIds)
       toast.success('Owners updated')
     } catch {
       toast.error('Failed to update owners')
@@ -117,10 +117,8 @@ export default function TransactionsPage() {
   const handleReapplyRules = async () => {
     setReapplyLoading(true)
     try {
-      const result = await apiClient.fetch<{ updatedCount: number }>('/v1/rules/reapply', {
-        method: 'POST',
-      })
-      toast.success(`Updated ${result.updatedCount} transactions`)
+      const result = await adapter.reapplyRules()
+      toast.success(`Updated ${(result as any)?.updatedCount || 0} transactions`)
       fetchTransactions()
     } catch (err) {
       console.error('Failed to reapply rules:', err)

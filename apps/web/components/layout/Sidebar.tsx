@@ -108,7 +108,7 @@ type SidebarProps = {
   user: {
     email: string
     name: string
-  }
+  } | null
   emailVerified: boolean
 }
 
@@ -117,15 +117,19 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
   const logout = useAuthStore((state) => state.logout)
   const { isSidebarCollapsed, toggleSidebar } = useUIStore()
 
-  const initials =
-    user.name
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") ||
-    user.email[0]?.toUpperCase() ||
-    "A"
+  const initials = user
+    ? user.name
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("") ||
+      user.email[0]?.toUpperCase() ||
+      "A"
+    : "LU"
+
+  const displayName = user ? user.name : "Local User"
+  const displayEmail = user ? user.email : "Not signed in"
 
   return (
     <aside
@@ -168,7 +172,7 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
                 key={item.href}
                 {...item}
                 isCollapsed={isSidebarCollapsed}
-                disabled={!emailVerified && item.href !== "/dashboard"}
+                disabled={user !== null && !emailVerified && item.href !== "/dashboard"}
                 active={pathname === item.href || pathname.startsWith(item.href + "/")}
               />
             ))}
@@ -190,7 +194,7 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
                 key={item.href}
                 {...item}
                 isCollapsed={isSidebarCollapsed}
-                disabled={!emailVerified}
+                disabled={user !== null && !emailVerified}
                 active={pathname === item.href || pathname.startsWith(item.href + "/")}
               />
             ))}
@@ -199,9 +203,15 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
       </nav>
 
       <div className="space-y-3 border-t border-sidebar-border px-3 py-4">
-        {!emailVerified && !isSidebarCollapsed ? (
+        {user !== null && !emailVerified && !isSidebarCollapsed ? (
           <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-700 dark:text-amber-100">
             Verify your email to unlock the rest of the app.
+          </div>
+        ) : null}
+
+        {user === null && !isSidebarCollapsed ? (
+          <div className="rounded-lg border border-indigo-500/25 bg-indigo-500/10 px-3 py-2 text-xs leading-5 text-indigo-700 dark:text-indigo-200">
+            You are using MoMoney locally. Your data is stored in your browser.
           </div>
         ) : null}
 
@@ -219,24 +229,40 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
             </div>
             {!isSidebarCollapsed && (
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+                <p className="truncate text-xs text-muted-foreground">{displayEmail}</p>
               </div>
             )}
           </div>
 
-          <Button
-            type="button"
-            variant="ghost"
-            className={cn(
-              "w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
-              isSidebarCollapsed && "justify-center px-0"
-            )}
-            onClick={() => void logout()}
-          >
-            <LogOut size={16} className="text-muted-foreground flex-shrink-0" />
-            {!isSidebarCollapsed && <span>Logout</span>}
-          </Button>
+          {user ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className={cn(
+                "w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
+                isSidebarCollapsed && "justify-center px-0"
+              )}
+              onClick={() => void logout()}
+            >
+              <LogOut size={16} className="text-muted-foreground flex-shrink-0" />
+              {!isSidebarCollapsed && <span>Logout</span>}
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-indigo-500 hover:bg-indigo-500/10 hover:text-indigo-600",
+                isSidebarCollapsed && "justify-center px-0"
+              )}
+              render={
+                <Link href="/login">
+                  <LogOut size={16} className="flex-shrink-0 rotate-180" />
+                  {!isSidebarCollapsed && <span>Sign In to Sync</span>}
+                </Link>
+              }
+            />
+          )}
 
           <Button
             type="button"

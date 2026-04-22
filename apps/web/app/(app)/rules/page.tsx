@@ -20,7 +20,7 @@ import {
   SelectTrigger, SelectValue
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { apiClient } from '@/lib/api'
+import { useStorageMode } from '@/lib/store/storage-mode'
 import { cn } from '@/lib/utils'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -200,6 +200,7 @@ export default function RulesPage() {
   const [editingRule, setEditingRule] = useState<Rule | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Rule | null>(null)
   const [reapplyLoading, setReapplyLoading] = useState(false)
+  const { adapter } = useStorageMode()
 
   // Category form state
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
@@ -233,12 +234,10 @@ export default function RulesPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [rulesData, categoriesData] = await Promise.all([
-        apiClient.fetch<Rule[]>('/v1/rules'),
-        apiClient.fetch<Category[]>('/v1/categories'),
-      ])
-      setRules(rulesData)
-      setCategories(categoriesData)
+      const rulesData = await adapter.getRules()
+      const categoriesData = await adapter.getCategories()
+      setRules(rulesData as any as Rule[])
+      setCategories(categoriesData as any as Category[])
     } catch (err) {
       console.error('Failed to fetch data:', err)
       toast.error('Failed to load rules')
@@ -283,16 +282,23 @@ export default function RulesPage() {
     const timer = setTimeout(async () => {
       setPreviewLoading(true)
       try {
-        const result = await apiClient.fetch<PreviewResult>('/v1/rules/preview', {
-          method: 'POST',
-          body: JSON.stringify({
-            matchField: formMatchField,
-            matchType: formMatchType,
-            matchValue: formMatchValue,
-            categoryId: formCategoryId,
-          }),
+        // Backend Preview uses an endpoint to sample. For local mode, we'll
+        // fetch existing transactions and filter them locally.
+        const txnsResult = await adapter.getTransactions()
+        const allTxns = txnsResult.transactions || []
+        
+        let filtered = allTxns
+        const searchVal = formMatchValue.toLowerCase()
+        if (formMatchType === 'contains') {
+           filtered = allTxns.filter((t: any) => t[formMatchField]?.toLowerCase()?.includes(searchVal))
+        } else if (formMatchType === 'equals') {
+           filtered = allTxns.filter((t: any) => t[formMatchField]?.toLowerCase() === searchVal)
+        }
+        
+        setPreview({
+          count: filtered.length,
+          samples: filtered
         })
-        setPreview(result)
       } catch (err) {
         console.error('Preview error:', err)
         setPreview(null)
@@ -311,7 +317,7 @@ export default function RulesPage() {
     setFormCategoryId(value)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const data = {
       matchField: formMatchField,
       matchType: formMatchType,
@@ -320,28 +326,18 @@ export default function RulesPage() {
       priority: formPriority,
     }
 
-    if (editingRule) {
-      apiClient.fetch(`/v1/rules/${editingRule.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }).then(() => {
+    try {
+      if (editingRule) {
+        await adapter.updateRule(editingRule.id, data)
         toast.success('Rule updated')
-        fetchData()
-      }).catch(err => {
-        console.error('Failed to update rule:', err)
-        toast.error('Failed to update rule')
-      })
-    } else {
-      apiClient.fetch('/v1/rules', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }).then(() => {
+      } else {
+        await adapter.createRule(data)
         toast.success('Rule created')
-        fetchData()
-      }).catch(err => {
-        console.error('Failed to create rule:', err)
-        toast.error('Failed to create rule')
-      })
+      }
+      fetchData()
+    } catch (err) {
+      console.error('Failed to save rule:', err)
+      toast.error('Failed to save rule')
     }
     setDialogOpen(false)
     setEditingRule(null)
@@ -352,13 +348,10 @@ export default function RulesPage() {
 
     setCategoryLoading(true)
     try {
-      await apiClient.fetch('/v1/categories', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: categoryName.trim(),
-          color: categoryColor,
-          icon: categoryIcon,
-        }),
+      await adapter.createCategory({
+        name: categoryName.trim(),
+        color: categoryColor,
+        icon: categoryIcon,
       })
       toast.success('Category created')
       setCategoryName('')
@@ -375,9 +368,7 @@ export default function RulesPage() {
   const handleDeleteCategory = async (cat: Category) => {
     if (cat.isSystem) return
     try {
-      await apiClient.fetch(`/v1/categories/${cat.id}`, {
-        method: 'DELETE',
-      })
+      await adapter.deleteCategory(cat.id)
       toast.success('Category deleted')
       fetchData()
     } catch (err) {
@@ -390,9 +381,7 @@ export default function RulesPage() {
   const handleDeleteRule = async () => {
     if (!deleteTarget) return
     try {
-      await apiClient.fetch(`/v1/rules/${deleteTarget.id}`, {
-        method: 'DELETE',
-      })
+      await adapter.deleteRule(deleteTarget.id)
       toast.success('Rule deleted')
       setDeleteTarget(null)
       fetchData()
@@ -404,10 +393,7 @@ export default function RulesPage() {
 
   const handleToggleRule = async (rule: Rule, active: boolean) => {
     try {
-      await apiClient.fetch(`/v1/rules/${rule.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isActive: active }),
-      })
+      await adapter.updateRule(rule.id, { isActive: active })
       fetchData()
     } catch (err) {
       console.error('Failed to toggle rule:', err)
@@ -418,10 +404,9 @@ export default function RulesPage() {
   const handleReapply = async () => {
     setReapplyLoading(true)
     try {
-      const result = await apiClient.fetch<{ updatedCount: number }>('/v1/rules/reapply', {
-        method: 'POST',
-      })
-      toast.success(`Updated ${result.updatedCount} transactions`)
+      const result = await adapter.reapplyRules()
+      toast.success(`Updated ${(result as any)?.updatedCount || 0} transactions`)
+      fetchData()
     } catch (err) {
       console.error('Failed to reapply rules:', err)
       toast.error('Failed to reapply rules')

@@ -1,21 +1,27 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   FileText,
-  Filter,
   Plus,
   Receipt,
-  Save,
-  Search,
   Sparkles,
-  Tag,
   Trash2,
-  User,
+  ChevronRight,
+  Loader2,
+  Calendar,
+  CreditCard,
+  History,
+  LayoutDashboard,
+  CheckCircle2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { format, parseISO } from 'date-fns'
+
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -24,50 +30,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { CategoryBadge } from '@/components/ui/custom/CategoryBadge'
-import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
-import { OwnerAvatars } from '@/components/ui/custom/OwnerAvatars'
-import { SplitOwnerModal } from '@/components/transactions/split-owner-modal'
-import { CategoryPicker } from '@/components/transactions/category-picker'
-import { apiClient } from '@/lib/api'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Separator } from '@/components/ui/separator'
+import { useStorageMode } from '@/lib/store/storage-mode'
 import { cn } from '@/lib/utils'
+
+// Import components for editing
+import { CategoryPicker } from '@/components/transactions/category-picker'
+import { SplitOwnerModal } from '@/components/transactions/split-owner-modal'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Statement {
   id: string
-  statementMonth: string
-  importedCount: number
-  account: {
-    accountName: string
-    accountType: string
-    bankName: string
-  }
-}
-
-interface Owner {
-  id: string
-  name: string
-  color: string
-  isDefault?: boolean
-}
-
-interface InvoiceStatement {
-  id: string
-  statementId: string | null
-  accountId: string | null
+  statementId: string
+  accountId: string
   statementMonth: string
   accountName: string
   accountType: string
@@ -81,51 +60,41 @@ interface InvoiceSummary {
   generatedAt: string | null
   createdAt: string
   updatedAt: string
-  statements: InvoiceStatement[]
+  statements: Statement[]
 }
 
-interface InvoiceOwnerShare {
+interface OwnerSummary {
   ownerId: string | null
   name: string
   color: string | null
-  amount: string
-  percentage: string
+  total: number
+}
+
+interface CategoryTotal {
+  categoryId: string | null
+  category: string
+  total: number
+}
+
+interface OwnerCategoryBreakdown extends OwnerSummary {
+  categories: CategoryTotal[]
+}
+
+interface InvoiceAnalysis {
+  ownerTotals: OwnerSummary[]
+  ownerCategoryTotals: OwnerCategoryBreakdown[]
 }
 
 interface InvoiceTransaction {
   id: string
-  statementId: string | null
   date: string
   description: string
   amount: string
   type: 'debit' | 'credit'
   categoryId: string | null
-  category: {
-    id: string | null
-    name: string
-    color: string | null
-  } | null
-  owners: InvoiceOwnerShare[]
-}
-
-interface InvoiceAnalysis {
-  ownerTotals: Array<{
-    ownerId: string | null
-    name: string
-    color: string | null
-    total: number
-  }>
-  ownerCategoryTotals: Array<{
-    ownerId: string | null
-    name: string
-    color: string | null
-    total: number
-    categories: Array<{
-      categoryId: string | null
-      category: string
-      total: number
-    }>
-  }>
+  category: { id: string | null; name: string; color: string | null } | null
+  owners: { ownerId: string | null; name: string; color: string | null; amount: string; percentage: string }[]
+  transactionOwners?: any[] // Support both API shapes
 }
 
 interface InvoiceDetail extends InvoiceSummary {
@@ -133,1461 +102,716 @@ interface InvoiceDetail extends InvoiceSummary {
   analysis: InvoiceAnalysis | null
 }
 
-const formatINR = (value: string | number) =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
-    Math.abs(parseFloat(String(value)))
-  )
-
-const monthFromDate = (value: string) => value.slice(0, 7)
-
-const formatMonth = (value: string) => {
-  const month = monthFromDate(value)
-  const [year, monthIndex] = month.split('-')
-  const date = new Date(parseInt(year, 10), parseInt(monthIndex, 10) - 1)
-  return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+interface AvailableStatement {
+  id: string
+  bankId: string
+  accountId: string
+  statementMonth: string
+  account: { accountName: string; accountType: string; bankName: string }
 }
 
-const formatShortDate = (value: string) =>
-  new Date(value).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: '2-digit',
-  })
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function InvoiceListSection({
-  title,
-  invoices,
-  activeInvoiceId,
-  onSelect,
-}: {
-  title: string
-  invoices: InvoiceSummary[]
-  activeInvoiceId: string | null
-  onSelect: (invoiceId: string) => void
-}) {
+const formatINR = (value: number | string) =>
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(typeof value === 'string' ? parseFloat(value) : value)
+
+const formatMonth = (monthStr: string) => {
+  try {
+    return format(parseISO(monthStr), 'MMMM yyyy')
+  } catch {
+    return monthStr
+  }
+}
+
+// ─── Components ────────────────────────────────────────────────────────────
+
+function AnalysisCard({ analysis }: { analysis: InvoiceAnalysis }) {
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{title}</h2>
-        <span className="text-xs text-muted-foreground/70">{invoices.length}</span>
-      </div>
-
-      {invoices.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground/70">
-          Nothing here yet.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {invoices.map((invoice) => {
-            const active = invoice.id === activeInvoiceId
-
-            return (
-              <button
-                key={invoice.id}
-                onClick={() => onSelect(invoice.id)}
-                className={cn(
-                  'w-full rounded-xl border px-4 py-3 text-left transition-colors',
-                  active
-                    ? 'border-indigo-500/60 bg-indigo-500/10'
-                    : 'border-border bg-card/50 hover:bg-card'
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{invoice.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{formatMonth(invoice.invoiceMonth)}</p>
-                  </div>
-                  <span
-                    className={cn(
-                      'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                      invoice.status === 'draft'
-                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                        : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                    )}
-                  >
-                    {invoice.status}
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {invoice.statements.map((statement) => (
-                    <span
-                      key={statement.id}
-                      className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[11px] text-muted-foreground"
-                    >
-                      {statement.accountName}
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {analysis.ownerCategoryTotals.map((owner) => (
+        <Card key={owner.ownerId || owner.name} className="overflow-hidden border-border bg-card">
+          <CardHeader className="bg-muted/30 pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-3 w-3 rounded-full"
+                  style={{ backgroundColor: owner.color || '#6366f1' }}
+                />
+                <CardTitle className="text-base">{owner.name}</CardTitle>
+              </div>
+              <span className="text-lg font-bold text-foreground">
+                {formatINR(owner.total)}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="space-y-3">
+              {owner.categories.map((cat) => (
+                <div key={cat.categoryId || cat.category} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{cat.category}</span>
+                    <span className="font-medium text-foreground/90">
+                      {formatINR(cat.total)}
                     </span>
-                  ))}
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full bg-indigo-500/60"
+                      style={{ width: `${(cat.total / owner.total) * 100}%` }}
+                    />
+                  </div>
                 </div>
-              </button>
-            )
-          })}
-        </div>
-      )}
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   )
 }
 
+function TransactionsTable({ 
+  transactions, 
+  onCategoryUpdate, 
+  onSplitClick,
+  isDraft
+}: { 
+  transactions: InvoiceTransaction[],
+  onCategoryUpdate: (id: string, categoryId: string | null) => void,
+  onSplitClick: (txn: InvoiceTransaction) => void,
+  isDraft: boolean
+}) {
+  return (
+    <div className="rounded-xl border border-border overflow-hidden bg-card">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Description</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Splits</th>
+              <th className="px-4 py-3 text-right font-medium text-muted-foreground">Amount</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-800">
+            {transactions.map((txn) => (
+              <tr key={txn.id} className="hover:bg-muted/20 transition-colors h-12">
+                <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                  {format(parseISO(txn.date), 'dd MMM')}
+                </td>
+                <td className="px-4 py-3 text-foreground/90 max-w-xs truncate" title={txn.description}>
+                  {txn.description}
+                </td>
+                <td className="px-4 py-3">
+                  {isDraft ? (
+                    <CategoryPicker
+                      categoryId={txn.categoryId}
+                      category={txn.category as any}
+                      onUpdate={(catId) => onCategoryUpdate(txn.id, catId)}
+                    />
+                  ) : (
+                    txn.category ? (
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: txn.category.color || '#ccc' }}
+                        />
+                        <span className="text-xs text-foreground/80">{txn.category.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/60 italic">Uncategorized</span>
+                    )
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div 
+                    className={cn("flex -space-x-2", isDraft && "cursor-pointer hover:opacity-80")}
+                    onClick={() => isDraft && onSplitClick(txn)}
+                  >
+                    {txn.owners.map((owner, i) => (
+                      <div
+                        key={i}
+                        className="h-6 w-6 rounded-full border-2 border-card flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
+                        style={{ backgroundColor: owner.color || '#6366f1' }}
+                        title={`${owner.name}: ${formatINR(owner.amount)} (${owner.percentage}%)`}
+                      >
+                        {owner.name.substring(0, 1).toUpperCase()}
+                      </div>
+                    ))}
+                    {txn.owners.length === 0 && isDraft && (
+                      <div className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-[10px] text-muted-foreground">
+                        +
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-foreground/90">
+                  <span className={txn.type === 'debit' ? 'text-rose-400' : 'text-emerald-400'}>
+                    {txn.type === 'debit' ? '−' : '+'}{formatINR(txn.amount)}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────
+
 export default function InvoicesPage() {
+  const { adapter } = useStorageMode()
   const searchParams = useSearchParams()
-  const requestedMonth = searchParams.get('month')?.slice(0, 7) ?? ''
+  const filterMonth = searchParams.get('month') // YYYY-MM
 
-  const [statements, setStatements] = useState<Statement[]>([])
-  const [owners, setOwners] = useState<Owner[]>([])
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([])
-  const [activeInvoiceId, setActiveInvoiceId] = useState<string | null>(null)
-  const [activeInvoice, setActiveInvoice] = useState<InvoiceDetail | null>(null)
-  const [composerOpen, setComposerOpen] = useState(true)
   const [loading, setLoading] = useState(true)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [savingDraft, setSavingDraft] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [deletingInvoice, setDeletingInvoice] = useState(false)
-  const [applyingCategoryChange, setApplyingCategoryChange] = useState(false)
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [splitTarget, setSplitTarget] = useState<InvoiceTransaction | null>(null)
-  const [pendingCategoryChange, setPendingCategoryChange] = useState<{
-    transactionId: string
-    categoryId: string | null
-    selectedIds: string[]
-  } | null>(null)
-  const [pendingOwnerChange, setPendingOwnerChange] = useState<{
-    transactionId: string
-    ownerIds: string[]
-    selectedIds: string[]
-  } | null>(null)
-  const [applyingOwnerChange, setApplyingOwnerChange] = useState(false)
-  const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set())
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDetail | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [activeTab, setActiveTab] = useState('overview')
 
-  const [newInvoiceName, setNewInvoiceName] = useState('')
-  const [newInvoiceMonth, setNewInvoiceMonth] = useState('')
-  const [newStatementIds, setNewStatementIds] = useState<string[]>([])
+  // Creation/Edit Dialog State
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [availableStatements, setAvailableStatements] = useState<AvailableStatement[]>([])
+  const [loadingStatements, setLoadingStatements] = useState(false)
+  
+  // Transaction Editing State
+  const [owners, setOwners] = useState<any[]>([])
+  const [splitTarget, setSplitTarget] = useState<any | null>(null)
 
-  const [draftName, setDraftName] = useState('')
-  const [draftStatementIds, setDraftStatementIds] = useState<string[]>([])
+  // Form State
+  const [formName, setFormName] = useState('')
+  const [formMonth, setFormMonth] = useState(filterMonth || format(new Date(), 'yyyy-MM'))
+  const [selectedStatementIds, setSelectedStatementIds] = useState<Set<string>>(new Set())
+  const [isSaving, setIsEditSaving] = useState(false)
 
-  const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
-  const [typeFilter, setTypeFilter] = useState<'all' | 'debit' | 'credit'>('all')
-
-  const drafts = useMemo(
-    () => invoices.filter((invoice) => invoice.status === 'draft'),
-    [invoices]
-  )
-  const generatedInvoices = useMemo(
-    () => invoices.filter((invoice) => invoice.status === 'generated'),
-    [invoices]
-  )
-
-  const newMonthStatements = useMemo(
-    () =>
-      statements.filter((statement) => monthFromDate(statement.statementMonth) === newInvoiceMonth),
-    [newInvoiceMonth, statements]
-  )
-
-  const activeInvoiceMonth = monthFromDate(activeInvoice?.invoiceMonth ?? '')
-  const activeInvoiceAvailableStatements = useMemo(
-    () =>
-      statements.filter((statement) => monthFromDate(statement.statementMonth) === activeInvoiceMonth),
-    [activeInvoiceMonth, statements]
-  )
-
-  const statementLabels = useMemo(() => {
-    return new Map(
-      (activeInvoice?.statements ?? []).map((statement) => [
-        statement.statementId,
-        statement.accountName,
-      ])
-    )
-  }, [activeInvoice])
-
-  const categoryOptions = useMemo(() => {
-    const options = new Map<string, { value: string; label: string }>()
-
-    for (const transaction of activeInvoice?.transactions ?? []) {
-      const value = transaction.categoryId ?? 'uncategorized'
-      const label = transaction.category?.name ?? 'Uncategorized'
-      options.set(value, { value, label })
-    }
-
-    return Array.from(options.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [activeInvoice])
-
-  const ownerOptions = useMemo(() => {
-    const options = new Map<string, { value: string; label: string }>([
-      ['unassigned', { value: 'unassigned', label: 'Unassigned' }],
-    ])
-
-    for (const transaction of activeInvoice?.transactions ?? []) {
-      if (transaction.owners.length === 0) {
-        // Already handled by initial map entry
-      } else {
-        for (const owner of transaction.owners) {
-          if (owner.ownerId) {
-            options.set(owner.ownerId, { value: owner.ownerId, label: owner.name })
-          }
-        }
-      }
-    }
-
-    const sorted = Array.from(options.values())
-      .filter((o) => o.value !== 'unassigned')
-      .sort((a, b) => a.label.localeCompare(b.label))
-
-    return [{ value: 'unassigned', label: 'Unassigned' }, ...sorted]
-  }, [activeInvoice])
-
-  const filteredTransactions = useMemo(() => {
-    return (activeInvoice?.transactions ?? []).filter((transaction) => {
-      const matchesSearch = transaction.description
-        .toLowerCase()
-        .includes(search.trim().toLowerCase())
-      const transactionCategory = transaction.categoryId ?? 'uncategorized'
-      const matchesCategory = categoryFilter === 'all' || transactionCategory === categoryFilter
-      const matchesType = typeFilter === 'all' || transaction.type === typeFilter
-      const matchesOwner =
-        ownerFilter.length === 0 ||
-        (ownerFilter.length === 1 && ownerFilter[0] === 'unassigned'
-          ? transaction.owners.length === 0
-          : transaction.owners.length === ownerFilter.length &&
-          transaction.owners.every((o) => o.ownerId && ownerFilter.includes(o.ownerId)))
-
-      return matchesSearch && matchesCategory && matchesType && matchesOwner
-    })
-  }, [activeInvoice, categoryFilter, search, typeFilter, ownerFilter])
-
-  const filteredTransactionIds = useMemo(
-    () => filteredTransactions.map((transaction) => transaction.id),
-    [filteredTransactions]
-  )
-
-  const selectedFilteredCount = useMemo(
-    () => filteredTransactionIds.filter((id) => selectedTransactionIds.has(id)).length,
-    [filteredTransactionIds, selectedTransactionIds]
-  )
-
-  const filteredTotal = useMemo(() => {
-    return filteredTransactions.reduce((acc, t) => {
-      const amount = parseFloat(t.amount);
-      console.log("Amount Parsed: ", amount)
-      return acc + amount;
-    }, 0)
-  }, [filteredTransactions])
-
-  const allFilteredSelected =
-    filteredTransactionIds.length > 0 && selectedFilteredCount === filteredTransactionIds.length
-
-  const draftHasChanges = useMemo(() => {
-    if (!activeInvoice || activeInvoice.status !== 'draft') return false
-
-    const originalIds = (activeInvoice.statements ?? [])
-      .map((statement) => statement.statementId)
-      .filter((statementId): statementId is string => Boolean(statementId))
-      .sort()
-
-    const nextIds = [...draftStatementIds].sort()
-
-    return draftName.trim() !== activeInvoice.name || originalIds.join('|') !== nextIds.join('|')
-  }, [activeInvoice, draftName, draftStatementIds])
-
-  const loadInvoiceDetail = useCallback(async (invoiceId: string, backgroundRefresh = false) => {
-    if (!backgroundRefresh) {
-      setDetailLoading(true)
-    }
-
-    try {
-      const detail = await apiClient.fetch<InvoiceDetail>(`/v1/invoices/${invoiceId}`)
-      setActiveInvoice(detail)
-      setSelectedTransactionIds(new Set())
-      setPendingCategoryChange(null)
-
-      if (detail.status === 'draft') {
-        setDraftName(detail.name)
-        setDraftStatementIds(
-          detail.statements
-            .map((statement) => statement.statementId)
-            .filter((statementId): statementId is string => Boolean(statementId))
-        )
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to load invoice')
-    } finally {
-      if (!backgroundRefresh) {
-        setDetailLoading(false)
-      }
-    }
-  }, [])
-
-  const loadInitialData = useCallback(async () => {
+  const fetchInvoices = useCallback(async () => {
     setLoading(true)
-
     try {
-      const [invoiceList, statementList, ownerList] = await Promise.all([
-        apiClient.fetch<InvoiceSummary[]>('/v1/invoices'),
-        apiClient.fetch<Statement[]>('/v1/statements'),
-        apiClient.fetch<Owner[]>('/v1/owners'),
-      ])
-
-      setInvoices(invoiceList)
-      setStatements(statementList)
-      setOwners(ownerList)
-
-      const fallbackMonth =
-        requestedMonth && statementList.some((statement) => monthFromDate(statement.statementMonth) === requestedMonth)
-          ? requestedMonth
-          : statementList.length > 0
-            ? monthFromDate(
-              [...statementList]
-                .sort((a, b) => b.statementMonth.localeCompare(a.statementMonth))[0]!.statementMonth
-            )
-            : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
-
-      setNewInvoiceMonth(fallbackMonth)
-      setNewInvoiceName(
-        fallbackMonth ? `${formatMonth(fallbackMonth)} household invoice` : 'New invoice'
-      )
-
-      if (requestedMonth) {
-        setComposerOpen(true)
-        setActiveInvoiceId(null)
-        setActiveInvoice(null)
-        return
-      }
-
-      if (invoiceList.length === 0) {
-        setComposerOpen(true)
-        setActiveInvoiceId(null)
-        setActiveInvoice(null)
-        return
-      }
-
-      const preferredInvoice = invoiceList.find((invoice) => invoice.status === 'draft') ?? invoiceList[0]
-      setComposerOpen(false)
-      setActiveInvoiceId(preferredInvoice.id)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to load invoices')
+      const data = await adapter.getInvoices()
+      setInvoices(data)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load invoices')
     } finally {
       setLoading(false)
     }
-  }, [requestedMonth])
+  }, [adapter])
 
   useEffect(() => {
-    void loadInitialData()
-  }, [loadInitialData])
+    fetchInvoices()
+    adapter.getOwners().then(setOwners).catch(console.error)
+  }, [fetchInvoices, adapter])
+
+  const handleSelectInvoice = async (id: string) => {
+    setLoadingDetail(true)
+    try {
+      const data = await adapter.getInvoiceDetail(id)
+      setSelectedInvoice(data)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load invoice details')
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  const loadStatementsForMonth = useCallback(async (month: string) => {
+    setLoadingStatements(true)
+    try {
+      const data = await adapter.getStatements()
+      const filtered = (data as any[]).filter(
+        (s) => s.statementMonth.startsWith(month)
+      )
+      setAvailableStatements(filtered as any)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load statements')
+    } finally {
+      setLoadingStatements(false)
+    }
+  }, [adapter])
+
+  // Auto-open create if month is provided but no invoices exist for it
+  useEffect(() => {
+    if (filterMonth && !loading && invoices.length === 0) {
+      setFormMonth(filterMonth)
+      setIsCreateOpen(true)
+    }
+  }, [filterMonth, loading, invoices.length])
 
   useEffect(() => {
-    if (!composerOpen) return
+    if (isCreateOpen || isEditOpen) {
+      loadStatementsForMonth(formMonth)
+    }
+  }, [isCreateOpen, isEditOpen, formMonth, loadStatementsForMonth])
 
-    setNewStatementIds(newMonthStatements.map((statement) => statement.id))
-  }, [composerOpen, newMonthStatements])
-
-  useEffect(() => {
-    if (!activeInvoiceId || composerOpen) return
-    void loadInvoiceDetail(activeInvoiceId)
-  }, [activeInvoiceId, composerOpen, loadInvoiceDetail])
-
-  const refreshInvoiceList = useCallback(
-    async (nextActiveInvoiceId?: string | null) => {
-      const invoiceList = await apiClient.fetch<InvoiceSummary[]>('/v1/invoices')
-      setInvoices(invoiceList)
-
-      if (nextActiveInvoiceId === null) {
-        setActiveInvoiceId(null)
-        setActiveInvoice(null)
-        return null
-      }
-
-      const resolvedId =
-        nextActiveInvoiceId ??
-        (activeInvoiceId && invoiceList.some((invoice) => invoice.id === activeInvoiceId)
-          ? activeInvoiceId
-          : invoiceList.find((invoice) => invoice.status === 'draft')?.id ?? invoiceList[0]?.id ?? null)
-
-      setActiveInvoiceId(resolvedId)
-      if (!resolvedId) {
-        setActiveInvoice(null)
-      }
-
-      return resolvedId
-    },
-    [activeInvoiceId]
-  )
-
-  const handleCreateInvoice = async () => {
-    if (!newInvoiceName.trim()) {
-      toast.error('Please name the invoice')
+  const handleCreate = async () => {
+    if (!formName || selectedStatementIds.size === 0) {
+      toast.error('Please provide a name and select at least one statement')
       return
     }
 
-    if (newStatementIds.length === 0) {
-      toast.error('Select at least one statement')
-      return
-    }
-
-    setCreating(true)
-
+    setIsEditSaving(true)
     try {
-      const created = await apiClient.fetch<InvoiceSummary>('/v1/invoices', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: newInvoiceName.trim(),
-          invoiceMonth: newInvoiceMonth,
-          statementIds: newStatementIds,
-        }),
+      await adapter.createInvoice({
+        name: formName,
+        invoiceMonth: formMonth + '-01',
+        statementIds: Array.from(selectedStatementIds),
       })
-
-      toast.success('Draft invoice created')
-      await refreshInvoiceList(created.id)
-      setComposerOpen(false)
-      setActiveInvoiceId(created.id)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create invoice')
+      toast.success('Invoice draft created')
+      setIsCreateOpen(false)
+      setFormName('')
+      setSelectedStatementIds(new Set())
+      fetchInvoices()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create invoice')
     } finally {
-      setCreating(false)
+      setIsEditSaving(false)
     }
   }
 
-  const handleSaveDraft = async () => {
-    if (!activeInvoice || activeInvoice.status !== 'draft') return
-
-    setSavingDraft(true)
-
+  const handleUpdate = async () => {
+    if (!selectedInvoice) return
+    setIsEditSaving(true)
     try {
-      await apiClient.fetch<InvoiceSummary>(`/v1/invoices/${activeInvoice.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: draftName.trim(),
-          statementIds: draftStatementIds,
-        }),
+      await adapter.updateInvoice(selectedInvoice.id, {
+        name: formName,
+        statementIds: Array.from(selectedStatementIds),
       })
-
-      toast.success('Draft saved')
-      await refreshInvoiceList(activeInvoice.id)
-      await loadInvoiceDetail(activeInvoice.id)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save draft')
+      toast.success('Invoice updated')
+      setIsEditOpen(false)
+      handleSelectInvoice(selectedInvoice.id)
+      fetchInvoices()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update invoice')
     } finally {
-      setSavingDraft(false)
+      setIsEditSaving(false)
     }
   }
 
-  const handleGenerateInvoice = async () => {
-    if (!activeInvoice || activeInvoice.status !== 'draft') return
-
-    setGenerating(true)
-
+  const handleGenerate = async (id: string) => {
+    setIsGenerating(true)
     try {
-      await apiClient.fetch<InvoiceSummary>(`/v1/invoices/${activeInvoice.id}/generate`, {
-        method: 'POST',
-      })
-
-      toast.success('Invoice generated')
-      await refreshInvoiceList(activeInvoice.id)
-      await loadInvoiceDetail(activeInvoice.id)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to generate invoice')
+      await adapter.generateInvoice(id)
+      toast.success('Invoice generated successfully')
+      handleSelectInvoice(id)
+      fetchInvoices()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to generate invoice')
     } finally {
-      setGenerating(false)
+      setIsGenerating(false)
     }
   }
 
-  const handleDeleteInvoice = async () => {
-    if (!activeInvoice) return
-
-    setDeletingInvoice(true)
-
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this invoice?')) return
     try {
-      await apiClient.fetch(`/v1/invoices/${activeInvoice.id}`, {
-        method: 'DELETE',
-      })
-
+      await adapter.deleteInvoice(id)
       toast.success('Invoice deleted')
-      const nextInvoiceId = await refreshInvoiceList()
-
-      if (nextInvoiceId) {
-        setComposerOpen(false)
-      } else {
-        setComposerOpen(true)
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete invoice')
-    } finally {
-      setDeletingInvoice(false)
+      if (selectedInvoice?.id === id) setSelectedInvoice(null)
+      fetchInvoices()
+    } catch (err) {
+      toast.error('Failed to delete invoice')
     }
   }
 
-  const applyOwnerChange = useCallback(
-    async (transactionIds: string[], ownerIds: string[]) => {
-      if (!activeInvoice || activeInvoice.status !== 'draft' || transactionIds.length === 0) {
-        return
-      }
+  const toggleStatement = (id: string) => {
+    const next = new Set(selectedStatementIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedStatementIds(next)
+  }
 
-      if (transactionIds.length === 1) {
-        await apiClient.fetch(`/v1/transactions/${transactionIds[0]}/owners`, {
-          method: 'PUT',
-          body: JSON.stringify({ ownerIds }),
-        })
-      } else {
-        await apiClient.fetch('/v1/transactions/bulk/owners', {
-          method: 'PATCH',
-          body: JSON.stringify({ transactionIds, ownerIds }),
-        })
-      }
+  const openEdit = () => {
+    if (!selectedInvoice) return
+    setFormName(selectedInvoice.name)
+    setFormMonth(selectedInvoice.invoiceMonth.slice(0, 7))
+    setSelectedStatementIds(new Set(selectedInvoice.statements.map((s) => s.statementId)))
+    setIsEditOpen(true)
+  }
 
-      await loadInvoiceDetail(activeInvoice.id, true)
-    },
-    [activeInvoice, loadInvoiceDetail]
-  )
+  // --- Editing Handlers ---
+  
+  const handleCategoryUpdate = async (txnId: string, categoryId: string | null) => {
+    try {
+      await adapter.updateTransactionCategory(txnId, categoryId)
+      // Refresh details to show update
+      if (selectedInvoice) handleSelectInvoice(selectedInvoice.id)
+    } catch {
+      toast.error('Failed to update category')
+    }
+  }
 
   const handleOwnerSave = async (ownerIds: string[]) => {
-    if (!splitTarget || !activeInvoice || activeInvoice.status !== 'draft') return
-
+    if (!splitTarget) return
     try {
-      const selectedIds = filteredTransactionIds.filter((id) => selectedTransactionIds.has(id))
-      const shouldPrompt = selectedIds.length > 1 && selectedTransactionIds.has(splitTarget.id)
-
-      if (shouldPrompt) {
-        setPendingOwnerChange({
-          transactionId: splitTarget.id,
-          ownerIds,
-          selectedIds,
-        })
-        return
-      }
-
-      await applyOwnerChange([splitTarget.id], ownerIds)
+      await adapter.updateTransactionOwners(splitTarget.id, ownerIds)
       toast.success('Owners updated')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update owners')
+      setSplitTarget(null)
+      // Refresh details to show update
+      if (selectedInvoice) handleSelectInvoice(selectedInvoice.id)
+    } catch {
+      toast.error('Failed to update owners')
     }
-  }
-
-  const applyCategoryChange = useCallback(
-    async (transactionIds: string[], categoryId: string | null) => {
-      if (!activeInvoice || activeInvoice.status !== 'draft' || transactionIds.length === 0) {
-        return
-      }
-
-      if (transactionIds.length === 1) {
-        await apiClient.fetch(`/v1/transactions/${transactionIds[0]}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ categoryId }),
-        })
-      } else {
-        await apiClient.fetch('/v1/transactions/bulk/category', {
-          method: 'PATCH',
-          body: JSON.stringify({ transactionIds, categoryId }),
-        })
-      }
-
-      await loadInvoiceDetail(activeInvoice.id, true)
-    },
-    [activeInvoice, loadInvoiceDetail]
-  )
-
-  const handleCategoryUpdate = async (transactionId: string, categoryId: string | null) => {
-    if (!activeInvoice || activeInvoice.status !== 'draft') return
-
-    try {
-      const selectedIds = filteredTransactionIds.filter((id) => selectedTransactionIds.has(id))
-      const shouldPrompt = selectedIds.length > 1 && selectedTransactionIds.has(transactionId)
-
-      if (shouldPrompt) {
-        setPendingCategoryChange({
-          transactionId,
-          categoryId,
-          selectedIds,
-        })
-        return
-      }
-
-      await applyCategoryChange([transactionId], categoryId)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update category')
-    }
-  }
-
-  const toggleFilteredSelection = (checked: boolean) => {
-    setSelectedTransactionIds((prev) => {
-      const next = new Set(prev)
-
-      for (const transactionId of filteredTransactionIds) {
-        if (checked) next.add(transactionId)
-        else next.delete(transactionId)
-      }
-
-      return next
-    })
-  }
-
-  const toggleTransactionSelection = (transactionId: string, checked: boolean) => {
-    setSelectedTransactionIds((prev) => {
-      const next = new Set(prev)
-      if (checked) next.add(transactionId)
-      else next.delete(transactionId)
-      return next
-    })
-  }
-
-  const handleApplyToSelectedRows = async () => {
-    if (!pendingCategoryChange) return
-
-    setApplyingCategoryChange(true)
-
-    try {
-      await applyCategoryChange(pendingCategoryChange.selectedIds, pendingCategoryChange.categoryId)
-      toast.success(
-        `Updated category for ${pendingCategoryChange.selectedIds.length} selected transaction${pendingCategoryChange.selectedIds.length === 1 ? '' : 's'
-        }`
-      )
-      setPendingCategoryChange(null)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update categories')
-    } finally {
-      setApplyingCategoryChange(false)
-    }
-  }
-
-  const handleApplyOnlyThisRow = async () => {
-    if (!pendingCategoryChange) return
-
-    setApplyingCategoryChange(true)
-
-    try {
-      await applyCategoryChange([pendingCategoryChange.transactionId], pendingCategoryChange.categoryId)
-      toast.success('Updated category for this row')
-      setPendingCategoryChange(null)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update category')
-    } finally {
-      setApplyingCategoryChange(false)
-    }
-  }
-
-  const handleApplyOwnersToSelectedRows = async () => {
-    if (!pendingOwnerChange) return
-
-    setApplyingOwnerChange(true)
-
-    try {
-      await applyOwnerChange(pendingOwnerChange.selectedIds, pendingOwnerChange.ownerIds)
-      toast.success(
-        `Updated owners for ${pendingOwnerChange.selectedIds.length} selected transaction${pendingOwnerChange.selectedIds.length === 1 ? '' : 's'
-        }`
-      )
-      setPendingOwnerChange(null)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update owners')
-    } finally {
-      setApplyingOwnerChange(false)
-    }
-  }
-
-  const handleApplyOwnersOnlyThisRow = async () => {
-    if (!pendingOwnerChange) return
-
-    setApplyingOwnerChange(true)
-
-    try {
-      await applyOwnerChange([pendingOwnerChange.transactionId], pendingOwnerChange.ownerIds)
-      toast.success('Updated owners for this row')
-      setPendingOwnerChange(null)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update owners')
-    } finally {
-      setApplyingOwnerChange(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="text-muted-foreground">Loading invoices...</div>
-      </div>
-    )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="h-full flex flex-col space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Invoices</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Build invoice drafts from monthly statements, then generate a stored snapshot.
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Summarize monthly spending and split across household members
           </p>
         </div>
         <Button
           onClick={() => {
-            setComposerOpen(true)
-            setActiveInvoiceId(null)
-            setActiveInvoice(null)
+            setFormName(`Invoice ${format(new Date(), 'MMM yyyy')}`)
+            setIsCreateOpen(true)
           }}
-          className="gap-2 bg-indigo-600 text-white hover:bg-indigo-500"
+          className="bg-indigo-600 hover:bg-indigo-500 text-white gap-2"
         >
           <Plus size={16} />
           Create Invoice
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-5 rounded-2xl border border-border bg-card/40 p-4">
-          <InvoiceListSection
-            title="Drafts"
-            invoices={drafts}
-            activeInvoiceId={composerOpen ? null : activeInvoiceId}
-            onSelect={(invoiceId) => {
-              setComposerOpen(false)
-              setActiveInvoiceId(invoiceId)
-            }}
-          />
-          <InvoiceListSection
-            title="Generated"
-            invoices={generatedInvoices}
-            activeInvoiceId={composerOpen ? null : activeInvoiceId}
-            onSelect={(invoiceId) => {
-              setComposerOpen(false)
-              setActiveInvoiceId(invoiceId)
-            }}
-          />
-        </aside>
-
-        <section className="space-y-6">
-          {composerOpen ? (
-            <div className="rounded-2xl border border-border bg-card/50 p-6">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-300">
-                  <Receipt size={22} />
-                </div>
-                <div className="space-y-1">
-                  <h2 className="text-xl font-semibold text-foreground">Create invoice draft</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Pick a tagged month, select the statements to include, and start editing the
-                    invoice before you generate it.
-                  </p>
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
+        {/* Left: Sidebar / List */}
+        <Card className="lg:col-span-4 border-border bg-card flex flex-col overflow-hidden">
+          <CardHeader className="py-4 px-4 border-b border-border bg-muted/20">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                History
+              </CardTitle>
+              <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                {invoices.length} Total
+              </Badge>
+            </div>
+          </CardHeader>
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="animate-spin text-muted-foreground" size={24} />
               </div>
-
-              <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                      Invoice Name
-                    </label>
-                    <Input
-                      value={newInvoiceName}
-                      onChange={(e) => setNewInvoiceName(e.target.value)}
-                      className="border-border bg-background text-foreground"
-                      placeholder="March 2026 household invoice"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                      Invoice Month
-                    </label>
-                    <Input
-                      type="month"
-                      value={newInvoiceMonth}
-                      onChange={(e) => setNewInvoiceMonth(e.target.value)}
-                      className="border-border bg-background text-foreground"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                        Statements For {newInvoiceMonth ? formatMonth(newInvoiceMonth) : 'This Month'}
-                      </label>
-                      <span className="text-xs text-muted-foreground/70">
-                        {newStatementIds.length} selected
-                      </span>
-                    </div>
-
-                    {newMonthStatements.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground/70">
-                        Upload and tag statements for this month first.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {newMonthStatements.map((statement) => {
-                          const checked = newStatementIds.includes(statement.id)
-
-                          return (
-                            <label
-                              key={statement.id}
-                              className={cn(
-                                'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
-                                checked
-                                  ? 'border-indigo-500/50 bg-indigo-500/10'
-                                  : 'border-border bg-background/70 hover:bg-card'
-                              )}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => {
-                                  setNewStatementIds((prev) =>
-                                    e.target.checked
-                                      ? [...prev, statement.id]
-                                      : prev.filter((value) => value !== statement.id)
-                                  )
-                                }}
-                                className="mt-1 h-4 w-4 rounded border-border bg-card text-indigo-500"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-foreground">
-                                  {statement.account.accountName}
-                                </p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {statement.account.bankName} · {statement.importedCount} transactions
-                                </p>
-                              </div>
-                            </label>
-                          )
-                        })}
-                      </div>
+            ) : invoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 p-6 text-center text-muted-foreground">
+                <History className="mb-4 opacity-20" size={48} />
+                <p className="text-sm font-medium">No invoices yet</p>
+                <p className="text-xs mt-1">Start by creating your first invoice summary</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {invoices.map((inv) => (
+                  <button
+                    key={inv.id}
+                    onClick={() => handleSelectInvoice(inv.id)}
+                    className={cn(
+                      'w-full text-left p-4 hover:bg-muted/30 transition-colors group relative outline-none',
+                      selectedInvoice?.id === inv.id && 'bg-primary/5'
                     )}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-border bg-background/70 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    What happens next
-                  </p>
-                  <div className="mt-4 space-y-4 text-sm text-muted-foreground">
-                    <div>
-                      <p className="font-medium text-foreground/90">1. Draft is created</p>
-                      <p className="mt-1">
-                        The draft appears in the Drafts section so you can come back to it anytime.
-                      </p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground/90">2. Edit transactions</p>
-                      <p className="mt-1">
-                        Categorize rows, assign owners, and filter down by description, category, or
-                        debit versus credit.
-                      </p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground/90">3. Generate snapshot</p>
-                      <p className="mt-1">
-                        Generation stores a copy of the invoice data so the analysis stays stable.
-                      </p>
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={() => void handleCreateInvoice()}
-                    disabled={creating || !newInvoiceName.trim() || newStatementIds.length === 0}
-                    className="mt-6 w-full gap-2 bg-indigo-600 text-white hover:bg-indigo-500"
                   >
-                    <Plus size={16} />
-                    {creating ? 'Creating Draft...' : 'Create Invoice'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : detailLoading ? (
-            <div className="flex h-64 items-center justify-center rounded-2xl border border-border bg-card/40">
-              <div className="text-muted-foreground">Loading invoice...</div>
-            </div>
-          ) : !activeInvoice ? (
-            <div className="flex h-64 items-center justify-center rounded-2xl border border-border bg-card/40">
-              <div className="text-muted-foreground">Select an invoice to continue.</div>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-2xl border border-border bg-card/50 p-6">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-3">
-                    {activeInvoice.status === 'draft' ? (
-                      <Input
-                        value={draftName}
-                        onChange={(e) => setDraftName(e.target.value)}
-                        className="h-11 max-w-xl border-border bg-background text-xl font-semibold text-foreground"
-                      />
-                    ) : (
-                      <div>
-                        <h2 className="text-2xl font-semibold text-foreground">{activeInvoice.name}</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Generated on{' '}
-                          {activeInvoice.generatedAt
-                            ? new Date(activeInvoice.generatedAt).toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })
-                            : '—'}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-border bg-background/80 px-3 py-1 text-xs font-semibold text-foreground/80">
-                        {formatMonth(activeInvoice.invoiceMonth)}
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="font-semibold text-foreground/90 group-hover:text-primary transition-colors truncate pr-2">
+                        {inv.name}
                       </span>
-                      <span
+                      <Badge
+                        variant={inv.status === 'generated' ? 'default' : 'secondary'}
                         className={cn(
-                          'rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide',
-                          activeInvoice.status === 'draft'
-                            ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                          'text-[10px] px-1.5 h-4 uppercase font-bold shrink-0',
+                          inv.status === 'generated' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border-amber-500/20'
                         )}
                       >
-                        {activeInvoice.status}
-                      </span>
+                        {inv.status}
+                      </Badge>
                     </div>
-                  </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Calendar size={12} />
+                      {formatMonth(inv.invoiceMonth)}
+                      <Separator orientation="vertical" className="h-3 mx-1" />
+                      <CreditCard size={12} />
+                      {inv.statements.length} statements
+                    </div>
+                    {selectedInvoice?.id === inv.id && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
+                    )}
+                    <ChevronRight size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-all" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
 
-                  {activeInvoice.status === 'draft' ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setDeleteConfirmOpen(true)}
-                        disabled={deletingInvoice}
-                        className="gap-2 border-rose-500/40 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
-                      >
-                        <Trash2 size={15} />
-                        Delete Invoice
+        {/* Right: Detail View */}
+        <div className="lg:col-span-8 h-full min-h-0">
+          {!selectedInvoice ? (
+            <div className="h-full flex flex-col items-center justify-center border border-dashed border-border rounded-xl bg-muted/5 p-12 text-center">
+              <Receipt size={64} className="text-muted-foreground opacity-10 mb-6" />
+              <h3 className="text-lg font-medium text-foreground/60">No Invoice Selected</h3>
+              <p className="text-sm text-muted-foreground max-w-xs mt-2">
+                Select an invoice from the history or create a new one to see detailed analysis.
+              </p>
+            </div>
+          ) : loadingDetail ? (
+            <div className="h-full flex items-center justify-center border border-border rounded-xl bg-card">
+              <Loader2 className="animate-spin text-primary" size={32} />
+            </div>
+          ) : (
+            <div className="h-full flex flex-col space-y-6 overflow-y-auto pr-1">
+              {/* Detail Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <h2 className="text-xl font-bold text-foreground">{selectedInvoice.name}</h2>
+                    <Badge variant="outline" className="bg-muted/50 border-border text-muted-foreground font-mono">
+                      {selectedInvoice.id.slice(0, 8)}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Created on {format(parseISO(selectedInvoice.createdAt), 'PP')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedInvoice.status === 'draft' ? (
+                    <>
+                      <Button variant="outline" size="sm" className="h-9 px-3 border-border gap-2" onClick={openEdit}>
+                        <Sparkles size={14} /> Edit Configuration
                       </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => void handleSaveDraft()}
-                        disabled={savingDraft || !draftHasChanges || draftStatementIds.length === 0}
-                        className="gap-2 border-border text-foreground/90"
+                      <Button 
+                        size="sm" 
+                        className="h-9 px-3 bg-indigo-600 hover:bg-indigo-500 text-white gap-2 shadow-lg shadow-indigo-500/20"
+                        onClick={() => handleGenerate(selectedInvoice.id)}
+                        disabled={isGenerating}
                       >
-                        <Save size={15} />
-                        {savingDraft ? 'Saving...' : 'Save Draft'}
+                        {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                        Generate Invoice
                       </Button>
-                      <Button
-                        onClick={() => void handleGenerateInvoice()}
-                        disabled={generating || draftStatementIds.length === 0}
-                        className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
-                      >
-                        <Sparkles size={15} />
-                        {generating ? 'Generating...' : 'Generate Invoice'}
-                      </Button>
-                    </div>
+                    </>
                   ) : (
-                    <Button
-                      variant="outline"
-                      onClick={() => setDeleteConfirmOpen(true)}
-                      disabled={deletingInvoice}
-                      className="gap-2 border-rose-500/40 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
-                    >
-                      <Trash2 size={15} />
-                      Delete Invoice
+                    <Button variant="outline" size="sm" className="h-9 px-3 border-border text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 gap-2" onClick={() => handleDelete(selectedInvoice.id)}>
+                      <Trash2 size={14} /> Delete
                     </Button>
                   )}
                 </div>
-
-                <div className="mt-5 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    <FileText size={14} />
-                    Statements
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {activeInvoice.statements.map((statement) => (
-                      <span
-                        key={statement.id}
-                        className="rounded-full border border-border bg-background/80 px-3 py-1 text-xs text-foreground/80"
-                      >
-                        {statement.accountName}
-                      </span>
-                    ))}
-                  </div>
-
-                  {activeInvoice.status === 'draft' ? (
-                    <div className="grid gap-2 pt-2 md:grid-cols-2">
-                      {activeInvoiceAvailableStatements.map((statement) => {
-                        const checked = draftStatementIds.includes(statement.id)
-
-                        return (
-                          <label
-                            key={statement.id}
-                            className={cn(
-                              'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
-                              checked
-                                ? 'border-indigo-500/50 bg-indigo-500/10'
-                                : 'border-border bg-background/70 hover:bg-card'
-                            )}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                setDraftStatementIds((prev) => {
-                                  if (e.target.checked) return [...prev, statement.id]
-                                  return prev.filter((value) => value !== statement.id)
-                                })
-                              }}
-                              className="mt-1 h-4 w-4 rounded border-border bg-card text-indigo-500"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-foreground">
-                                {statement.account.accountName}
-                              </p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {statement.account.bankName} · {statement.importedCount} transactions
-                              </p>
-                            </div>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  ) : null}
-                </div>
               </div>
 
-              {activeInvoice.status === 'generated' && activeInvoice.analysis ? (
-                <div className="rounded-2xl border border-border bg-card/50 p-6">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} className="text-emerald-400" />
-                    <h3 className="text-lg font-semibold text-foreground">Analysis</h3>
+              {/* Status Info (if draft) */}
+              {selectedInvoice.status === 'draft' && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 flex gap-4">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+                    <History size={20} />
                   </div>
-
-                  <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                    <div className="rounded-2xl border border-border bg-background/70 p-5">
-                      <div className="flex items-center gap-2">
-                        <User size={15} className="text-muted-foreground" />
-                        <p className="text-sm font-semibold text-foreground/90">Who spent how much?</p>
-                      </div>
-                      <div className="mt-4 space-y-3">
-                        {activeInvoice.analysis.ownerTotals.map((owner) => (
-                          <div
-                            key={`${owner.ownerId ?? owner.name}-total`}
-                            className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="h-3 w-3 rounded-full"
-                                style={{ backgroundColor: owner.color ?? '#71717a' }}
-                              />
-                              <span className="font-medium text-foreground">{owner.name}</span>
-                            </div>
-                            <span className="font-mono text-rose-400">{formatINR(owner.total)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-border bg-background/70 p-5">
-                      <div className="flex items-center gap-2">
-                        <Tag size={15} className="text-muted-foreground" />
-                        <p className="text-sm font-semibold text-foreground/90">
-                          Who spent how much in each category?
-                        </p>
-                      </div>
-                      <div className="mt-4 space-y-4">
-                        {activeInvoice.analysis.ownerCategoryTotals.map((owner) => (
-                          <div key={`${owner.ownerId ?? owner.name}-categories`} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-foreground">{owner.name}</span>
-                              <span className="font-mono text-foreground/80">{formatINR(owner.total)}</span>
-                            </div>
-                            <div className="space-y-2">
-                              {owner.categories.map((category) => (
-                                <div
-                                  key={`${owner.ownerId ?? owner.name}-${category.category}`}
-                                  className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-2.5"
-                                >
-                                  <span className="text-sm text-foreground/80">{category.category}</span>
-                                  <span className="font-mono text-foreground">
-                                    {formatINR(category.total)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="rounded-2xl border border-border bg-card/50 p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-foreground">Transactions</h3>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      {filteredTransactions.length} of {activeInvoice.transactions.length} transactions
+                    <h4 className="text-sm font-semibold text-amber-500">Draft Status</h4>
+                    <p className="text-xs text-amber-700/80 dark:text-amber-200/60 mt-1 leading-relaxed">
+                      This invoice is currently showing <strong>live data</strong> from your transactions. Generate the invoice to capture a permanent snapshot and see a complete summary of splits.
                     </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="relative min-w-56">
-                      <Search
-                        size={15}
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                      />
-                      <Input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Filter by description"
-                        className="border-border bg-background pl-8 text-foreground"
-                      />
-                    </div>
-
-                    <Select
-                      value={categoryFilter}
-                      onValueChange={(value) => setCategoryFilter(value ?? 'all')}
-                    >
-                      <SelectTrigger className="w-[180px] border-border bg-background text-foreground/90">
-                        <div className="flex items-center gap-2">
-                          <Filter size={14} className="text-muted-foreground" />
-                          <SelectValue placeholder="Category" />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent className="border-border bg-card">
-                        <SelectItem value="all">All categories</SelectItem>
-                        {categoryOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="outline"
-                            className="w-[180px] justify-start border-border bg-background text-foreground/90 hover:bg-background hover:text-foreground"
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              <User size={14} className="text-muted-foreground" />
-                              <span className="truncate">
-                                {ownerFilter.length === 0
-                                  ? 'All assignees'
-                                  : ownerFilter.length === 1
-                                    ? ownerOptions.find((o) => o.value === ownerFilter[0])?.label ??
-                                    '1 selected'
-                                    : `${ownerFilter.length} selected`}
-                              </span>
-                            </div>
-                          </Button>
-                        }
-                      />
-                      <DropdownMenuContent className="w-[180px] border-border bg-card">
-                        {ownerOptions.map((option) => (
-                          <DropdownMenuCheckboxItem
-                            key={option.value}
-                            checked={ownerFilter.includes(option.value)}
-                            onCheckedChange={(checked) => {
-                              setOwnerFilter((prev) => {
-                                if (checked) return [...prev, option.value]
-                                return prev.filter((v) => v !== option.value)
-                              })
-                            }}
-                          >
-                            {option.label}
-                          </DropdownMenuCheckboxItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <Select
-                      value={typeFilter}
-                      onValueChange={(value) => setTypeFilter(value as 'all' | 'debit' | 'credit')}
-                    >
-                      <SelectTrigger className="w-[170px] border-border bg-background text-foreground/90">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="border-border bg-card">
-                        <SelectItem value="all">All amounts</SelectItem>
-                        <SelectItem value="debit">Debit only</SelectItem>
-                        <SelectItem value="credit">Credit only</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
+              )}
 
-                {filteredTransactions.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-                      <Receipt size={24} className="text-muted-foreground/70" />
+              {/* Content Tabs */}
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="bg-muted p-1 rounded-lg">
+                  <TabsTrigger value="overview" className="flex-1 rounded-md py-1.5 text-xs font-semibold data-[state=active]:bg-card shadow-sm">
+                    Analysis
+                  </TabsTrigger>
+                  <TabsTrigger value="transactions" className="flex-1 rounded-md py-1.5 text-xs font-semibold data-[state=active]:bg-card shadow-sm">
+                    Transactions ({selectedInvoice.transactions.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="configuration" className="flex-1 rounded-md py-1.5 text-xs font-semibold data-[state=active]:bg-card shadow-sm">
+                    Configuration
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview" className="mt-6">
+                  {selectedInvoice.analysis ? (
+                    <AnalysisCard analysis={selectedInvoice.analysis} />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center border border-dashed border-border rounded-xl p-12 text-center text-muted-foreground bg-muted/5">
+                      <LayoutDashboard className="mb-4 opacity-10" size={48} />
+                      <p className="text-sm font-medium">Analysis is only available for generated invoices.</p>
+                      <p className="text-xs mt-2 max-w-xs">
+                        Generate this invoice to see category breakdowns and total splits per person.
+                      </p>
                     </div>
-                    <p className="text-sm font-semibold text-muted-foreground">No matching transactions</p>
-                    <p className="mt-1 text-xs text-muted-foreground/70">
-                      Adjust the filters or add more statements to this invoice.
-                    </p>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="transactions" className="mt-6">
+                  <TransactionsTable 
+                    transactions={selectedInvoice.transactions} 
+                    isDraft={selectedInvoice.status === 'draft'}
+                    onCategoryUpdate={handleCategoryUpdate}
+                    onSplitClick={(txn) => setSplitTarget(txn)}
+                  />
+                </TabsContent>
+
+                <TabsContent value="configuration" className="mt-6">
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <Card className="bg-muted/10 border-border">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold">General Info</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Invoice Name</p>
+                          <p className="text-sm font-medium">{selectedInvoice.name}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Invoice Month</p>
+                          <p className="text-sm font-medium">{formatMonth(selectedInvoice.invoiceMonth)}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-muted/10 border-border">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold">Sources</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Statements included</p>
+                        <div className="space-y-2">
+                          {selectedInvoice.statements.map((s) => (
+                            <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg bg-card border border-border">
+                              <FileText size={14} className="text-indigo-500" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold truncate">{s.accountName}</p>
+                                <p className="text-[10px] text-muted-foreground truncate">{s.accountType}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                ) : (
-                  <div className="mt-5 overflow-x-auto rounded-2xl border border-border">
-                    <table className="w-full text-sm">
-                      <thead className="bg-background/80">
-                        <tr className="border-b border-border">
-                          {activeInvoice.status === 'draft' ? (
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              <input
-                                type="checkbox"
-                                checked={allFilteredSelected}
-                                onChange={(e) => toggleFilteredSelection(e.target.checked)}
-                                className="h-4 w-4 rounded border-border bg-card text-indigo-500"
-                                aria-label="Select all filtered transactions"
-                              />
-                            </th>
-                          ) : null}
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Date
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Description
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Statement
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Category
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Owners
-                          </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Amount
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-800">
-                        {filteredTransactions.map((transaction) => (
-                          <tr key={transaction.id} className="hover:bg-muted/30">
-                            {activeInvoice.status === 'draft' ? (
-                              <td className="px-4 py-3 align-top">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedTransactionIds.has(transaction.id)}
-                                  onChange={(e) =>
-                                    toggleTransactionSelection(transaction.id, e.target.checked)
-                                  }
-                                  className="mt-0.5 h-4 w-4 rounded border-border bg-card text-indigo-500"
-                                  aria-label={`Select transaction ${transaction.description}`}
-                                />
-                              </td>
-                            ) : null}
-                            <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                              {formatShortDate(transaction.date)}
-                            </td>
-                            <td className="px-4 py-3">
-                              <p className="max-w-md truncate text-foreground">
-                                {transaction.description}
-                              </p>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">
-                              {statementLabels.get(transaction.statementId) ?? 'Statement removed'}
-                            </td>
-                            <td className="px-4 py-3">
-                              {activeInvoice.status === 'draft' ? (
-                                <CategoryPicker
-                                  categoryId={transaction.categoryId}
-                                  category={transaction.category}
-                                  onUpdate={(categoryId) =>
-                                    handleCategoryUpdate(transaction.id, categoryId)
-                                  }
-                                />
-                              ) : transaction.category ? (
-                                <CategoryBadge
-                                  name={transaction.category.name}
-                                  color={transaction.category.color ?? '#6366f1'}
-                                />
-                              ) : (
-                                <span className="text-xs text-muted-foreground">— Uncategorized</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              <button
-                                type="button"
-                                disabled={activeInvoice.status !== 'draft'}
-                                onClick={() => {
-                                  if (activeInvoice.status === 'draft') {
-                                    setSplitTarget(transaction)
-                                  }
-                                }}
-                                className={cn(
-                                  'rounded-lg transition-colors',
-                                  activeInvoice.status === 'draft'
-                                    ? 'cursor-pointer hover:bg-muted/60'
-                                    : 'cursor-default'
-                                )}
-                              >
-                                <OwnerAvatars
-                                  owners={transaction.owners.map((owner) => ({
-                                    name: owner.name,
-                                    color: owner.color ?? 'indigo',
-                                  }))}
-                                />
-                              </button>
-                            </td>
-                            <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
-                              <span
-                                className={
-                                  transaction.type === 'debit'
-                                    ? 'text-rose-400'
-                                    : 'text-emerald-400'
-                                }
-                              >
-                                {transaction.type === 'debit' ? '−' : '+'}
-                                {formatINR(transaction.amount)}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-background/50 border-t border-border">
-                        <tr>
-                          <td
-                            className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                            colSpan={activeInvoice.status === 'draft' ? 6 : 5}
-                          >
-                            Sub-total
-                          </td>
-                          <td className="px-4 py-4 text-right font-mono whitespace-nowrap">
-                            <span
-                              className={cn(
-                                'text-base font-bold',
-                                filteredTotal < 0 ? 'text-rose-400' : 'text-emerald-400'
-                              )}
-                            >
-                              {filteredTotal < 0 ? '−' : '+'}
-                              {formatINR(Math.abs(filteredTotal))}
-                            </span>
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </>
+                </TabsContent>
+              </Tabs>
+            </div>
           )}
-        </section>
+        </div>
       </div>
 
+      {/* Creation/Edit Dialog */}
+      <Dialog open={isCreateOpen || isEditOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsCreateOpen(false)
+          setIsEditOpen(false)
+        }
+      }}>
+        <DialogContent className="max-w-lg bg-card border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle>{isCreateOpen ? 'Create Invoice Draft' : 'Edit Configuration'}</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">
+              Group bank statements for a given month to summarize spending and splits.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-4">
+            {/* Name */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Invoice Name</label>
+              <Input
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="e.g. April 2026 Household"
+                className="bg-muted border-border focus-visible:ring-indigo-500"
+              />
+            </div>
+
+            {/* Month Selector (only for Create) */}
+            {isCreateOpen && (
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">For Month</label>
+                <Input
+                  type="month"
+                  value={formMonth}
+                  onChange={(e) => setFormMonth(e.target.value)}
+                  className="bg-muted border-border w-full"
+                />
+              </div>
+            )}
+
+            {/* Statement Picker */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Select Statements ({selectedStatementIds.size})
+                </label>
+                {loadingStatements && <Loader2 size={12} className="animate-spin" />}
+              </div>
+              
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                {availableStatements.length === 0 && !loadingStatements ? (
+                  <div className="p-8 text-center border-2 border-dashed border-border rounded-xl">
+                    <p className="text-xs text-muted-foreground">No statements found for this month.</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-1">Upload statements first to include them here.</p>
+                  </div>
+                ) : (
+                  availableStatements.map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => toggleStatement(s.id)}
+                      className={cn(
+                        'flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer',
+                        selectedStatementIds.has(s.id)
+                          ? 'border-indigo-500/50 bg-indigo-500/5'
+                          : 'border-border bg-muted/20 hover:bg-muted/40'
+                      )}
+                    >
+                      <Checkbox checked={selectedStatementIds.has(s.id)} onCheckedChange={() => toggleStatement(s.id)} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate text-foreground/90">{s.account?.accountName || 'Unknown'}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">
+                          {s.account?.bankName || 'Unknown'} · {s.account?.accountType || 'Unknown'}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="ghost" onClick={() => { setIsCreateOpen(false); setIsEditOpen(false) }}>Cancel</Button>
+            <Button
+              onClick={isCreateOpen ? handleCreate : handleUpdate}
+              disabled={isSaving || selectedStatementIds.size === 0}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white min-w-24 shadow-lg shadow-indigo-500/20"
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : (isCreateOpen ? 'Create Draft' : 'Save Changes')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Split Owner Modal */}
       <SplitOwnerModal
         open={!!splitTarget}
         onClose={() => setSplitTarget(null)}
-        transaction={
-          splitTarget
-            ? {
-              id: splitTarget.id,
-              description: splitTarget.description,
-              amount: splitTarget.amount,
-              transactionOwners: splitTarget.owners
-                .filter((owner) => owner.ownerId)
-                .map((owner) => ({ ownerId: owner.ownerId! })),
-            }
-            : null
-        }
+        transaction={splitTarget ? {
+          ...splitTarget,
+          transactionOwners: (splitTarget.owners || splitTarget.transactionOwners || []).map((o: any) => ({
+             ...o,
+             owner: owners.find(ow => ow.id === o.ownerId)
+          }))
+        } : null}
         owners={owners}
         onSave={handleOwnerSave}
       />
-
-      <ConfirmDialog
-        open={deleteConfirmOpen}
-        onOpenChange={setDeleteConfirmOpen}
-        title="Delete invoice"
-        description={
-          activeInvoice
-            ? `Delete "${activeInvoice.name}"? This removes the invoice snapshot and draft metadata, but keeps the original transactions and statements.`
-            : undefined
-        }
-        confirmLabel="Delete invoice"
-        destructive={true}
-        loading={deletingInvoice}
-        onConfirm={handleDeleteInvoice}
-      />
-
-      <Dialog
-        open={!!pendingCategoryChange}
-        onOpenChange={(open) => {
-          if (!open && !applyingCategoryChange) {
-            setPendingCategoryChange(null)
-          }
-        }}
-      >
-        <DialogContent className="border-border bg-card text-foreground sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">Apply category to selected rows?</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              {pendingCategoryChange
-                ? `You have ${pendingCategoryChange.selectedIds.length} selected filtered rows. Do you want to apply this category change to all of them?`
-                : ''}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="border-border bg-background/60">
-            <Button
-              variant="ghost"
-              onClick={() => setPendingCategoryChange(null)}
-              disabled={applyingCategoryChange}
-              className="text-muted-foreground hover:bg-muted hover:text-foreground/90"
-            >
-              No
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => void handleApplyOnlyThisRow()}
-              disabled={applyingCategoryChange}
-              className="border-border text-foreground/90 hover:bg-muted"
-            >
-              No, only this row
-            </Button>
-            <Button
-              onClick={() => void handleApplyToSelectedRows()}
-              disabled={applyingCategoryChange}
-              className="bg-indigo-600 text-white hover:bg-indigo-500"
-            >
-              {applyingCategoryChange ? 'Applying...' : 'Yes'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={!!pendingOwnerChange}
-        onOpenChange={(open) => {
-          if (!open && !applyingOwnerChange) {
-            setPendingOwnerChange(null)
-          }
-        }}
-      >
-        <DialogContent className="border-border bg-card text-foreground sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">Apply owners to selected rows?</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              {pendingOwnerChange
-                ? `You have ${pendingOwnerChange.selectedIds.length} selected filtered rows. Do you want to apply this ownership change to all of them?`
-                : ''}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="border-border bg-background/60">
-            <Button
-              variant="ghost"
-              onClick={() => setPendingOwnerChange(null)}
-              disabled={applyingOwnerChange}
-              className="text-muted-foreground hover:bg-muted hover:text-foreground/90"
-            >
-              No
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => void handleApplyOwnersOnlyThisRow()}
-              disabled={applyingOwnerChange}
-              className="border-border text-foreground/90 hover:bg-muted"
-            >
-              No, only this row
-            </Button>
-            <Button
-              onClick={() => void handleApplyOwnersToSelectedRows()}
-              disabled={applyingOwnerChange}
-              className="bg-indigo-600 text-white hover:bg-indigo-500"
-            >
-              {applyingOwnerChange ? 'Applying...' : 'Yes'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

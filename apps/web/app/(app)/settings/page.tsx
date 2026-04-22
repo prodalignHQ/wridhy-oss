@@ -22,8 +22,8 @@ export default function SettingsPage() {
       title: "Data & Storage",
       description: "Cloud vs Local SQLite, Export/Import data.",
       icon: Database,
-      href: "#",
-      status: "Coming soon"
+      href: "/settings/data",
+      status: "Available"
     }
   ]
 

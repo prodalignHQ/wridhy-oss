@@ -1,7 +1,7 @@
-import type { BankParser, ParsedTransaction } from '../base.parser.js'
-import { iciciSavingsCsvParser } from './icici-savings-csv.parser.js'
-import { iciciSavingsPdfParser } from './icici-savings-pdf.parser.js'
-import { iciciSavingsXlsParser } from './icici-savings-xls.parser.js'
+import type { BankParser, ParsedTransaction } from '../base.parser'
+import { iciciSavingsCsvParser } from './icici-savings-csv.parser'
+import { iciciSavingsPdfParser } from './icici-savings-pdf.parser'
+import { iciciSavingsXlsParser } from './icici-savings-xls.parser'
 
 /**
  * Composite ICICI Bank Savings Account Statement Parser

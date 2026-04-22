@@ -28,11 +28,20 @@ export default function HomePage() {
           >
             Open Dashboard
           </Link>
+          <Link
+            href="/login"
+            className="px-6 py-3 rounded-lg bg-secondary hover:bg-muted text-foreground font-medium transition-colors duration-150"
+          >
+            Sign In to Sync
+          </Link>
         </div>
 
-        <p className="text-xs text-muted-foreground/70 pt-4">
-          Running in session mode — your data never leaves this browser.
-        </p>
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground font-medium">No account required to get started.</p>
+          <p className="text-xs text-muted-foreground/60">
+            By default, everything runs locally in your browser.
+          </p>
+        </div>
       </div>
     </div>
   )

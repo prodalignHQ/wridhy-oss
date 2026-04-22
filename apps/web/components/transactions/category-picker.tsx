@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import { CategoryBadge } from '@/components/ui/custom/CategoryBadge'
-import { apiClient } from '@/lib/api'
+import { useStorageMode } from '@/lib/store/storage-mode'
 import { cn } from '@/lib/utils'
 
 interface Category {
@@ -22,15 +22,16 @@ interface CategoryPickerProps {
 }
 
 export function CategoryPicker({ categoryId, category, onUpdate }: CategoryPickerProps) {
+  const { adapter } = useStorageMode()
   const [open, setOpen] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [search, setSearch] = useState('')
 
   useEffect(() => {
     if (open && categories.length === 0) {
-      apiClient.fetch<Category[]>('/v1/categories').then(setCategories).catch(console.error)
+      adapter.getCategories().then(setCategories as any).catch(console.error)
     }
-  }, [open, categories.length])
+  }, [open, categories.length, adapter])
 
   const filtered = categories.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase())
@@ -55,7 +56,7 @@ export function CategoryPicker({ categoryId, category, onUpdate }: CategoryPicke
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="cursor-pointer hover:opacity-80 transition-opacity">
+      <PopoverTrigger className="cursor-pointer hover:opacity-80 transition-opacity outline-none">
         {category ? (
           <CategoryBadge name={category.name} color={category.color ?? '#6366f1'} />
         ) : (
@@ -75,7 +76,7 @@ export function CategoryPicker({ categoryId, category, onUpdate }: CategoryPicke
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="max-h-56 overflow-y-auto space-y-0.5">
+        <div className="max-h-56 overflow-y-auto space-y-0.5 custom-scrollbar">
           <button
             onClick={() => void handleSelect(null)}
             className="w-full text-left px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted rounded transition-colors"

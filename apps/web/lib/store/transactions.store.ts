@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { apiClient } from '../api'
+import { DataAdapter } from './storage-mode'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,9 +64,9 @@ interface TransactionsState {
   error: string | null
   filters: TransactionFilters
   setFilters: (filters: Partial<TransactionFilters>) => void
-  fetchTransactions: () => Promise<void>
-  updateTransactionOwners: (txnId: string, ownerIds: string[]) => Promise<void>
-  updateTransactionCategory: (txnId: string, categoryId: string | null) => Promise<void>
+  fetchTransactions: (adapter: DataAdapter) => Promise<void>
+  updateTransactionOwners: (adapter: DataAdapter, txnId: string, ownerIds: string[]) => Promise<void>
+  updateTransactionCategory: (adapter: DataAdapter, txnId: string, categoryId: string | null) => Promise<void>
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -93,27 +93,12 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
     }))
   },
 
-  fetchTransactions: async () => {
+  fetchTransactions: async (adapter: DataAdapter) => {
     const { filters } = get()
     set({ isLoading: true, error: null })
 
-    // Build query string from filters
-    const params = new URLSearchParams()
-    if (filters.accountId) params.set('accountId', filters.accountId)
-    if (filters.startDate) params.set('startDate', filters.startDate)
-    if (filters.endDate) params.set('endDate', filters.endDate)
-    if (filters.categoryId) params.set('categoryId', filters.categoryId)
-    if (filters.ownerId) params.set('ownerId', filters.ownerId)
-    if (filters.search) params.set('search', filters.search)
-    params.set('page', String(filters.page))
-    params.set('limit', String(filters.limit))
-
     try {
-      const data = await apiClient.fetch<{
-        transactions: Transaction[]
-        total: number
-        totalPages: number
-      }>(`/v1/transactions?${params.toString()}`)
+      const data = await adapter.getTransactions(filters)
 
       set({
         transactions: data.transactions,
@@ -126,25 +111,23 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
     }
   },
 
-  updateTransactionOwners: async (txnId, ownerIds) => {
-    const updated = await apiClient.fetch<Transaction>(`/v1/transactions/${txnId}/owners`, {
-      method: 'PUT',
-      body: JSON.stringify({ ownerIds }),
-    })
+  updateTransactionOwners: async (adapter, txnId, ownerIds) => {
+    const updated = await adapter.updateTransactionOwners(txnId, ownerIds)
 
-    set((state) => ({
-      transactions: state.transactions.map((t) => (t.id === txnId ? updated : t)),
-    }))
+    if (updated) {
+      set((state) => ({
+        transactions: state.transactions.map((t) => (t.id === txnId ? updated : t)),
+      }))
+    }
   },
 
-  updateTransactionCategory: async (txnId, categoryId) => {
-    const updated = await apiClient.fetch<Transaction>(`/v1/transactions/${txnId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ categoryId }),
-    })
+  updateTransactionCategory: async (adapter, txnId, categoryId) => {
+    const updated = await adapter.updateTransactionCategory(txnId, categoryId)
 
-    set((state) => ({
-      transactions: state.transactions.map((t) => (t.id === txnId ? updated : t)),
-    }))
+    if (updated) {
+      set((state) => ({
+        transactions: state.transactions.map((t) => (t.id === txnId ? updated : t)),
+      }))
+    }
   },
 }))

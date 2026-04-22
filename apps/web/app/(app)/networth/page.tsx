@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { apiClient } from '@/lib/api'
 import { formatINR } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useStorageMode } from '@/lib/store/storage-mode'
 import { StatCard } from '@/components/ui/custom/StatCard'
 import { Button } from '@/components/ui/button'
 import { AssetLayout } from '@/components/networth/AssetLayout'
@@ -28,7 +29,7 @@ interface NetWorthData {
 
 interface Snapshot {
   id: string
-  snapshotDate: string
+  snapshotDate: string | Date
   totalAssets: string
   totalLiabilities: string
   netWorth: string
@@ -41,6 +42,7 @@ interface Draft {
 }
 
 export default function NetWorthPage() {
+  const { adapter } = useStorageMode()
   const [mode, setMode] = useState<Mode>('detailed')
   const [data, setData] = useState<NetWorthData | null>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
@@ -57,9 +59,9 @@ export default function NetWorthPage() {
   const fetchAll = useCallback(async () => {
     try {
       const [nw, hist, dr] = await Promise.all([
-        apiClient.fetch<NetWorthData>('/v1/networth'),
-        apiClient.fetch<Snapshot[]>('/v1/networth/history'),
-        apiClient.fetch<Draft | null>('/v1/networth/draft').catch(() => null),
+        adapter.getNetworthOverview(),
+        adapter.getSnapshots(),
+        adapter.getDraft(),
       ])
       setData(nw)
       setSnapshots(hist)
@@ -69,7 +71,7 @@ export default function NetWorthPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [adapter])
 
   useEffect(() => {
     fetchAll()
@@ -80,7 +82,7 @@ export default function NetWorthPage() {
   const handleSaveSnapshot = async () => {
     setSavingSnapshot(true)
     try {
-      await apiClient.fetch('/v1/networth/snapshot', { method: 'POST' })
+      await adapter.createSnapshot()
       const dateLabel = format(new Date(), 'dd MMM yyyy')
       toast.success(`Snapshot saved for ${dateLabel}`)
       setDraft(null)
@@ -94,51 +96,37 @@ export default function NetWorthPage() {
   }
 
   const handleQuickSnapshot = async (totalAssets: number, totalLiabilities: number) => {
-    // For quick entry mode, we don't have individual asset/liability rows — 
-    // instead POST directly to snapshot with a synthetic single-asset representation.
-    // We create one asset + one liability server-side before snapshotting:
-    // Delete existing, create synthetic rows, then snapshot.
     setSavingSnapshot(true)
     try {
       // Clear existing rows
       if (data?.assets) {
         await Promise.all(
-          data.assets.map((a) =>
-            apiClient.fetch(`/v1/networth/assets/${a.id}`, { method: 'DELETE' })
-          )
+          data.assets.map((a) => adapter.deleteAsset(a.id))
         )
       }
       if (data?.liabilities) {
         await Promise.all(
-          data.liabilities.map((l) =>
-            apiClient.fetch(`/v1/networth/liabilities/${l.id}`, { method: 'DELETE' })
-          )
+          data.liabilities.map((l) => adapter.deleteLiability(l.id))
         )
       }
       // Create synthetic rows
       if (totalAssets > 0) {
-        await apiClient.fetch('/v1/networth/assets', {
-          method: 'POST',
-          body: JSON.stringify({
+        await adapter.createAsset({
             name: 'Total Assets (Quick Entry)',
             type: 'other',
             value: totalAssets,
             currency: 'INR',
             valuationDate: new Date().toISOString().split('T')[0],
-          }),
         })
       }
       if (totalLiabilities > 0) {
-        await apiClient.fetch('/v1/networth/liabilities', {
-          method: 'POST',
-          body: JSON.stringify({
+        await adapter.createLiability({
             name: 'Total Liabilities (Quick Entry)',
             type: 'other',
             outstandingAmount: totalLiabilities,
-          }),
         })
       }
-      await apiClient.fetch('/v1/networth/snapshot', { method: 'POST' })
+      await adapter.createSnapshot()
       const dateLabel = format(new Date(), 'dd MMM yyyy')
       toast.success(`Snapshot saved for ${dateLabel}`)
       await fetchAll()
@@ -154,7 +142,7 @@ export default function NetWorthPage() {
   const handleSaveDraft = async () => {
     setSavingDraft(true)
     try {
-      await apiClient.fetch('/v1/networth/draft', { method: 'PUT', body: JSON.stringify({}) })
+      await adapter.saveDraft({})
       toast.success('Draft saved')
       await fetchAll()
     } catch (e: any) {
@@ -166,7 +154,7 @@ export default function NetWorthPage() {
 
   const handleDiscardDraft = async () => {
     try {
-      await apiClient.fetch('/v1/networth/draft', { method: 'DELETE' })
+      await adapter.deleteDraft()
       setDraft(null)
       setDraftDismissed(true)
     } catch {
@@ -178,23 +166,17 @@ export default function NetWorthPage() {
 
   const handleSaveAsset = async (formData: any, id?: string) => {
     if (id) {
-      await apiClient.fetch(`/v1/networth/assets/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(formData),
-      })
+      await adapter.updateAsset(id, formData)
       toast.success('Asset updated')
     } else {
-      await apiClient.fetch('/v1/networth/assets', {
-        method: 'POST',
-        body: JSON.stringify(formData),
-      })
+      await adapter.createAsset(formData)
       toast.success('Asset added')
     }
     await fetchAll()
   }
 
   const handleDeleteAsset = async (id: string) => {
-    await apiClient.fetch(`/v1/networth/assets/${id}`, { method: 'DELETE' })
+    await adapter.deleteAsset(id)
     toast.success('Asset removed')
     await fetchAll()
   }
@@ -203,23 +185,17 @@ export default function NetWorthPage() {
 
   const handleSaveLiability = async (formData: any, id?: string) => {
     if (id) {
-      await apiClient.fetch(`/v1/networth/liabilities/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(formData),
-      })
+      await adapter.updateLiability(id, formData)
       toast.success('Liability updated')
     } else {
-      await apiClient.fetch('/v1/networth/liabilities', {
-        method: 'POST',
-        body: JSON.stringify(formData),
-      })
+      await adapter.createLiability(formData)
       toast.success('Liability added')
     }
     await fetchAll()
   }
 
   const handleDeleteLiability = async (id: string) => {
-    await apiClient.fetch(`/v1/networth/liabilities/${id}`, { method: 'DELETE' })
+    await adapter.deleteLiability(id)
     toast.success('Liability removed')
     await fetchAll()
   }
@@ -228,7 +204,7 @@ export default function NetWorthPage() {
 
   const handleCopySnapshot = async (snapshotId: string) => {
     try {
-      await apiClient.fetch(`/v1/networth/snapshot/${snapshotId}/copy`, { method: 'POST' })
+      await adapter.copySnapshot(snapshotId)
       const snap = snapshots.find((s) => s.id === snapshotId)
       const label = snap ? format(new Date(snap.snapshotDate), 'MMMM yyyy') : 'previous snapshot'
       toast.success(`Loaded values from ${label}. Review and save when ready.`)

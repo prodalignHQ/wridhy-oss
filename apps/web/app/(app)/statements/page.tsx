@@ -7,9 +7,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { UploadDropzone } from '@/components/statements/upload-dropzone'
-import { apiClient } from '@/lib/api'
+import { useStorageMode } from '@/lib/store/storage-mode'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
-import { AmountBadge } from '@/components/ui/custom/AmountBadge'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -216,7 +215,7 @@ function StatementHistory({
                   <tbody className="divide-y divide-zinc-800">
                     {monthStatements.map((s) => (
                       <tr key={s.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 text-foreground/90 font-medium">{s.account.accountName}</td>
+                        <td className="px-4 py-3 text-foreground/90 font-medium">{s.account?.accountName || 'Unknown'}</td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {BANKS.find((b) => b.id === s.bankId)?.label ?? s.bankId}
                         </td>
@@ -269,6 +268,7 @@ function StatementHistory({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StatementsPage() {
+  const { adapter } = useStorageMode()
   const [accounts, setAccounts] = useState<FinancialAccount[]>([])
   const [statements, setStatements] = useState<Statement[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState('')
@@ -285,11 +285,11 @@ export default function StatementsPage() {
 
   // Load accounts and statements on mount
   useEffect(() => {
-    apiClient.fetch<FinancialAccount[]>('/v1/accounts').then(setAccounts).catch(console.error)
-    apiClient.fetch<Statement[]>('/v1/statements').then(setStatements).catch(console.error)
-  }, [])
+    adapter.getAccounts().then(setAccounts as any).catch(console.error)
+    adapter.getStatements().then(setStatements as any).catch(console.error)
+  }, [adapter])
 
-  // Backend preview parsing when file + bankId are selected
+  // Backend/Local preview parsing when file + bankId are selected
   useEffect(() => {
     if (!selectedFile || !selectedBankId) {
       setPreviewRows([])
@@ -300,20 +300,7 @@ export default function StatementsPage() {
     const fetchPreview = async () => {
       setIsParsing(true)
       try {
-        const formData = new FormData()
-        formData.append('file', selectedFile)
-        formData.append('bankId', selectedBankId)
-
-        const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-        const res = await fetch(`${baseURL}/v1/statements/preview`, {
-          method: 'POST',
-          body: formData,
-          credentials: 'include',
-        })
-        const result = await res.json()
-        if (!res.ok || !result.success) throw new Error(result?.error?.message || 'Preview failed')
-
-        const rows: PreviewRow[] = result.data
+        const rows = await adapter.previewStatement(selectedFile, selectedBankId)
 
         // Derive default month from earliest transaction
         if (rows.length > 0) {
@@ -334,7 +321,7 @@ export default function StatementsPage() {
     }
 
     fetchPreview()
-  }, [selectedFile, selectedBankId])
+  }, [selectedFile, selectedBankId, adapter])
 
   const handleImport = async () => {
     if (!selectedFile || !selectedBankId || !selectedAccountId) {
@@ -349,22 +336,14 @@ export default function StatementsPage() {
 
     setIsImporting(true)
     try {
-      const formData = new FormData()
-      formData.append('file', selectedFile)
-      formData.append('bankId', selectedBankId)
-      formData.append('accountId', selectedAccountId)
-      formData.append('statementMonth', selectedMonth + '-01')
+      const result = await adapter.importStatement(
+        selectedFile,
+        selectedBankId,
+        selectedAccountId,
+        selectedMonth + '-01'
+      )
 
-      const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-      const res = await fetch(`${baseURL}/v1/statements/upload`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      })
-      const result = await res.json()
-      if (!res.ok || !result.success) throw new Error(result?.error?.message || 'Upload failed')
-
-      const { importedCount, duplicatesSkipped } = result.data
+      const { importedCount, duplicatesSkipped } = result
       toast.success(
         `Imported ${importedCount} transaction${importedCount !== 1 ? 's' : ''}` +
           (duplicatesSkipped > 0 ? ` · ${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? 's' : ''} skipped` : '')
@@ -374,8 +353,8 @@ export default function StatementsPage() {
       setSelectedFile(null)
       setPreviewRows([])
       setTotalParsed(0)
-      const updated = await apiClient.fetch<Statement[]>('/v1/statements')
-      setStatements(updated)
+      const updated = await adapter.getStatements()
+      setStatements(updated as any)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Import failed')
     } finally {
@@ -385,7 +364,7 @@ export default function StatementsPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await apiClient.fetch(`/v1/statements/${id}`, { method: 'DELETE' })
+      await adapter.deleteStatement(id)
       setStatements((prev) => prev.filter((s) => s.id !== id))
       toast.success('Statement deleted')
     } catch {

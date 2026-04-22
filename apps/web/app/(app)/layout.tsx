@@ -7,15 +7,11 @@ import { getServerSession } from '@/lib/auth.server'
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession()
 
-  if (!session) {
-    redirect('/login')
-  }
-
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar user={session.user} emailVerified={session.user.emailVerified} />
+      <Sidebar user={session?.user || null} emailVerified={session?.user?.emailVerified ?? false} />
       <LayoutWrapper>
-        <AppAccessGuard emailVerified={session.user.emailVerified}>
+        <AppAccessGuard emailVerified={session?.user?.emailVerified ?? true}>
           {children}
         </AppAccessGuard>
       </LayoutWrapper>

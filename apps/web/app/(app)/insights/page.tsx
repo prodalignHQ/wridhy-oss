@@ -51,8 +51,8 @@ export default function InsightsPage() {
 
   // Initial load
   useEffect(() => {
-    apiClient.fetch<Owner[]>('/v1/owners').then(setOwners).catch(console.error)
-  }, [])
+    adapter.getOwners().then(setOwners).catch(console.error)
+  }, [adapter])
 
   // Fetch all insights when filters change
   useEffect(() => {

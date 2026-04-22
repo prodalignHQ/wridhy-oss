@@ -1,3 +1,3 @@
-export * from './types.js'
-export * from './categorize.js'
-export * from './normalize-merchant.js'
+export * from './types'
+export * from './categorize'
+export * from './normalize-merchant'

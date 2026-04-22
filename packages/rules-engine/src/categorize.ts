@@ -1,5 +1,5 @@
-import type { Rule, ParsedTransaction, CategorizeResult, Category, MerchantRecord } from './types.js'
-import { normalizeMerchant, getDefaultMerchants } from './normalize-merchant.js'
+import type { Rule, ParsedTransaction, CategorizeResult, Category, MerchantRecord } from './types'
+import { normalizeMerchant, getDefaultMerchants } from './normalize-merchant'
 
 const DEFAULT_CATEGORY = 'Uncategorized'
 

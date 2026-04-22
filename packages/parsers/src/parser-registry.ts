@@ -1,6 +1,6 @@
-import type { BankParser } from './base.parser.js'
-import { iciciSavingsParser } from './banks/icici-savings.parser.js'
-import { iciciCreditParser } from './banks/icici-credit.parser.js'
+import type { BankParser } from './base.parser'
+import { iciciSavingsParser } from './banks/icici-savings.parser'
+import { iciciCreditParser } from './banks/icici-credit.parser'
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
