@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -242,6 +243,7 @@ export default function InvoicesPage() {
   const [creating, setCreating] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [movingToDraft, setMovingToDraft] = useState(false)
   const [deletingInvoice, setDeletingInvoice] = useState(false)
   const [applyingCategoryChange, setApplyingCategoryChange] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -589,6 +591,26 @@ export default function InvoicesPage() {
       toast.error(error instanceof Error ? error.message : 'Failed to generate invoice')
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const handleMoveToDraft = async () => {
+    if (!activeInvoice || activeInvoice.status !== 'generated') return
+
+    setMovingToDraft(true)
+
+    try {
+      await apiClient.fetch<InvoiceSummary>(`/v1/invoices/${activeInvoice.id}/draft`, {
+        method: 'POST',
+      })
+
+      toast.success('Invoice moved back to draft')
+      await refreshInvoiceList(activeInvoice.id)
+      await loadInvoiceDetail(activeInvoice.id)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to move invoice to draft')
+    } finally {
+      setMovingToDraft(false)
     }
   }
 
@@ -1070,15 +1092,26 @@ export default function InvoicesPage() {
                       </Button>
                     </div>
                   ) : (
-                    <Button
-                      variant="outline"
-                      onClick={() => setDeleteConfirmOpen(true)}
-                      disabled={deletingInvoice}
-                      className="gap-2 border-rose-500/40 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
-                    >
-                      <Trash2 size={15} />
-                      Delete Invoice
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setDeleteConfirmOpen(true)}
+                        disabled={deletingInvoice}
+                        className="gap-2 border-rose-500/40 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
+                      >
+                        <Trash2 size={15} />
+                        Delete Invoice
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => void handleMoveToDraft()}
+                        disabled={movingToDraft}
+                        className="gap-2 border-border text-foreground/90 hover:bg-muted"
+                      >
+                        <FileText size={15} />
+                        {movingToDraft ? 'Moving to Draft...' : 'Move to Draft'}
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -1140,326 +1173,347 @@ export default function InvoicesPage() {
                 </div>
               </div>
 
-              {activeInvoice.status === 'generated' && activeInvoice.analysis ? (
-                <div className="rounded-2xl border border-border bg-card/50 p-6">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} className="text-emerald-400" />
-                    <h3 className="text-lg font-semibold text-foreground">Analysis</h3>
-                  </div>
+              <Tabs defaultValue="transactions" className="w-full space-y-4">
+                <TabsList className="bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+                  <TabsTrigger value="transactions" className="flex items-center gap-2">
+                    <Receipt size={14} />
+                    Transactions
+                  </TabsTrigger>
+                  <TabsTrigger value="analysis" className="flex items-center gap-2">
+                    <Sparkles size={14} />
+                    Analysis (Who spent what)
+                  </TabsTrigger>
+                </TabsList>
 
-                  <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                    <div className="rounded-2xl border border-border bg-background/70 p-5">
-                      <div className="flex items-center gap-2">
-                        <User size={15} className="text-muted-foreground" />
-                        <p className="text-sm font-semibold text-foreground/90">Who spent how much?</p>
-                      </div>
-                      <div className="mt-4 space-y-3">
-                        {activeInvoice.analysis.ownerTotals.map((owner) => (
-                          <div
-                            key={`${owner.ownerId ?? owner.name}-total`}
-                            className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="h-3 w-3 rounded-full"
-                                style={{ backgroundColor: owner.color ?? '#71717a' }}
-                              />
-                              <span className="font-medium text-foreground">{owner.name}</span>
-                            </div>
-                            <span className="font-mono text-rose-400">{formatINR(owner.total)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-border bg-background/70 p-5">
-                      <div className="flex items-center gap-2">
-                        <Tag size={15} className="text-muted-foreground" />
-                        <p className="text-sm font-semibold text-foreground/90">
-                          Who spent how much in each category?
+                <TabsContent value="transactions" className="space-y-4 outline-none">
+                  <div className="rounded-2xl border border-border bg-card/50 p-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-foreground">Transactions</h3>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          {filteredTransactions.length} of {activeInvoice.transactions.length} transactions
                         </p>
                       </div>
-                      <div className="mt-4 space-y-4">
-                        {activeInvoice.analysis.ownerCategoryTotals.map((owner) => (
-                          <div key={`${owner.ownerId ?? owner.name}-categories`} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-foreground">{owner.name}</span>
-                              <span className="font-mono text-foreground/80">{formatINR(owner.total)}</span>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative min-w-56">
+                          <Search
+                            size={15}
+                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                          />
+                          <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Filter by description"
+                            className="border-border bg-background pl-8 text-foreground"
+                          />
+                        </div>
+
+                        <Select
+                          value={categoryFilter}
+                          onValueChange={(value) => setCategoryFilter(value ?? 'all')}
+                        >
+                          <SelectTrigger className="w-[180px] border-border bg-background text-foreground/90">
+                            <div className="flex items-center gap-2">
+                              <Filter size={14} className="text-muted-foreground" />
+                              <SelectValue placeholder="Category" />
                             </div>
-                            <div className="space-y-2">
-                              {owner.categories.map((category) => (
-                                <div
-                                  key={`${owner.ownerId ?? owner.name}-${category.category}`}
-                                  className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-2.5"
-                                >
-                                  <span className="text-sm text-foreground/80">{category.category}</span>
-                                  <span className="font-mono text-foreground">
-                                    {formatINR(category.total)}
+                          </SelectTrigger>
+                          <SelectContent className="border-border bg-card">
+                            <SelectItem value="all">All categories</SelectItem>
+                            {categoryOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                variant="outline"
+                                className="w-[180px] justify-start border-border bg-background text-foreground/90 hover:bg-background hover:text-foreground"
+                              >
+                                <div className="flex items-center gap-2 truncate">
+                                  <User size={14} className="text-muted-foreground" />
+                                  <span className="truncate">
+                                    {ownerFilter.length === 0
+                                      ? 'All assignees'
+                                      : ownerFilter.length === 1
+                                        ? ownerOptions.find((o) => o.value === ownerFilter[0])?.label ??
+                                        '1 selected'
+                                        : `${ownerFilter.length} selected`}
                                   </span>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                              </Button>
+                            }
+                          />
+                          <DropdownMenuContent className="w-[180px] border-border bg-card">
+                            {ownerOptions.map((option) => (
+                              <DropdownMenuCheckboxItem
+                                key={option.value}
+                                checked={ownerFilter.includes(option.value)}
+                                onCheckedChange={(checked) => {
+                                  setOwnerFilter((prev) => {
+                                    if (checked) return [...prev, option.value]
+                                    return prev.filter((v) => v !== option.value)
+                                  })
+                                }}
+                              >
+                                {option.label}
+                              </DropdownMenuCheckboxItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <Select
+                          value={typeFilter}
+                          onValueChange={(value) => setTypeFilter(value as 'all' | 'debit' | 'credit')}
+                        >
+                          <SelectTrigger className="w-[170px] border-border bg-background text-foreground/90">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="border-border bg-card">
+                            <SelectItem value="all">All amounts</SelectItem>
+                            <SelectItem value="debit">Debit only</SelectItem>
+                            <SelectItem value="credit">Credit only</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
-                  </div>
-                </div>
-              ) : null}
 
-              <div className="rounded-2xl border border-border bg-card/50 p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">Transactions</h3>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      {filteredTransactions.length} of {activeInvoice.transactions.length} transactions
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="relative min-w-56">
-                      <Search
-                        size={15}
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                      />
-                      <Input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Filter by description"
-                        className="border-border bg-background pl-8 text-foreground"
-                      />
-                    </div>
-
-                    <Select
-                      value={categoryFilter}
-                      onValueChange={(value) => setCategoryFilter(value ?? 'all')}
-                    >
-                      <SelectTrigger className="w-[180px] border-border bg-background text-foreground/90">
-                        <div className="flex items-center gap-2">
-                          <Filter size={14} className="text-muted-foreground" />
-                          <SelectValue placeholder="Category" />
+                    {filteredTransactions.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+                          <Receipt size={24} className="text-muted-foreground/70" />
                         </div>
-                      </SelectTrigger>
-                      <SelectContent className="border-border bg-card">
-                        <SelectItem value="all">All categories</SelectItem>
-                        {categoryOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="outline"
-                            className="w-[180px] justify-start border-border bg-background text-foreground/90 hover:bg-background hover:text-foreground"
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              <User size={14} className="text-muted-foreground" />
-                              <span className="truncate">
-                                {ownerFilter.length === 0
-                                  ? 'All assignees'
-                                  : ownerFilter.length === 1
-                                    ? ownerOptions.find((o) => o.value === ownerFilter[0])?.label ??
-                                    '1 selected'
-                                    : `${ownerFilter.length} selected`}
-                              </span>
-                            </div>
-                          </Button>
-                        }
-                      />
-                      <DropdownMenuContent className="w-[180px] border-border bg-card">
-                        {ownerOptions.map((option) => (
-                          <DropdownMenuCheckboxItem
-                            key={option.value}
-                            checked={ownerFilter.includes(option.value)}
-                            onCheckedChange={(checked) => {
-                              setOwnerFilter((prev) => {
-                                if (checked) return [...prev, option.value]
-                                return prev.filter((v) => v !== option.value)
-                              })
-                            }}
-                          >
-                            {option.label}
-                          </DropdownMenuCheckboxItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <Select
-                      value={typeFilter}
-                      onValueChange={(value) => setTypeFilter(value as 'all' | 'debit' | 'credit')}
-                    >
-                      <SelectTrigger className="w-[170px] border-border bg-background text-foreground/90">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="border-border bg-card">
-                        <SelectItem value="all">All amounts</SelectItem>
-                        <SelectItem value="debit">Debit only</SelectItem>
-                        <SelectItem value="credit">Credit only</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {filteredTransactions.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-                      <Receipt size={24} className="text-muted-foreground/70" />
-                    </div>
-                    <p className="text-sm font-semibold text-muted-foreground">No matching transactions</p>
-                    <p className="mt-1 text-xs text-muted-foreground/70">
-                      Adjust the filters or add more statements to this invoice.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-5 overflow-x-auto rounded-2xl border border-border">
-                    <table className="w-full text-sm">
-                      <thead className="bg-background/80">
-                        <tr className="border-b border-border">
-                          {activeInvoice.status === 'draft' ? (
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              <input
-                                type="checkbox"
-                                checked={allFilteredSelected}
-                                onChange={(e) => toggleFilteredSelection(e.target.checked)}
-                                className="h-4 w-4 rounded border-border bg-card text-indigo-500"
-                                aria-label="Select all filtered transactions"
-                              />
-                            </th>
-                          ) : null}
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Date
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Description
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Statement
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Category
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Owners
-                          </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Amount
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-800">
-                        {filteredTransactions.map((transaction) => (
-                          <tr key={transaction.id} className="hover:bg-muted/30">
-                            {activeInvoice.status === 'draft' ? (
-                              <td className="px-4 py-3 align-top">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedTransactionIds.has(transaction.id)}
-                                  onChange={(e) =>
-                                    toggleTransactionSelection(transaction.id, e.target.checked)
-                                  }
-                                  className="mt-0.5 h-4 w-4 rounded border-border bg-card text-indigo-500"
-                                  aria-label={`Select transaction ${transaction.description}`}
-                                />
-                              </td>
-                            ) : null}
-                            <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                              {formatShortDate(transaction.date)}
-                            </td>
-                            <td className="px-4 py-3">
-                              <p className="max-w-md truncate text-foreground">
-                                {transaction.description}
-                              </p>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">
-                              {statementLabels.get(transaction.statementId) ?? 'Statement removed'}
-                            </td>
-                            <td className="px-4 py-3">
+                        <p className="text-sm font-semibold text-muted-foreground">No matching transactions</p>
+                        <p className="mt-1 text-xs text-muted-foreground/70">
+                          Adjust the filters or add more statements to this invoice.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-5 overflow-x-auto rounded-2xl border border-border">
+                        <table className="w-full text-sm">
+                          <thead className="bg-background/80">
+                            <tr className="border-b border-border">
                               {activeInvoice.status === 'draft' ? (
-                                <CategoryPicker
-                                  categoryId={transaction.categoryId}
-                                  category={transaction.category}
-                                  onUpdate={(categoryId) =>
-                                    handleCategoryUpdate(transaction.id, categoryId)
-                                  }
-                                />
-                              ) : transaction.category ? (
-                                <CategoryBadge
-                                  name={transaction.category.name}
-                                  color={transaction.category.color ?? '#6366f1'}
-                                />
-                              ) : (
-                                <span className="text-xs text-muted-foreground">— Uncategorized</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              <button
-                                type="button"
-                                disabled={activeInvoice.status !== 'draft'}
-                                onClick={() => {
-                                  if (activeInvoice.status === 'draft') {
-                                    setSplitTarget(transaction)
-                                  }
-                                }}
-                                className={cn(
-                                  'rounded-lg transition-colors',
-                                  activeInvoice.status === 'draft'
-                                    ? 'cursor-pointer hover:bg-muted/60'
-                                    : 'cursor-default'
-                                )}
+                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  <input
+                                    type="checkbox"
+                                    checked={allFilteredSelected}
+                                    onChange={(e) => toggleFilteredSelection(e.target.checked)}
+                                    className="h-4 w-4 rounded border-border bg-card text-indigo-500"
+                                    aria-label="Select all filtered transactions"
+                                  />
+                                </th>
+                              ) : null}
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Date
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Description
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Statement
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Category
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Owners
+                              </th>
+                              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Amount
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-800">
+                            {filteredTransactions.map((transaction) => (
+                              <tr key={transaction.id} className="hover:bg-muted/30">
+                                {activeInvoice.status === 'draft' ? (
+                                  <td className="px-4 py-3 align-top">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedTransactionIds.has(transaction.id)}
+                                      onChange={(e) =>
+                                        toggleTransactionSelection(transaction.id, e.target.checked)
+                                      }
+                                      className="mt-0.5 h-4 w-4 rounded border-border bg-card text-indigo-500"
+                                      aria-label={`Select transaction ${transaction.description}`}
+                                    />
+                                  </td>
+                                ) : null}
+                                <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                                  {formatShortDate(transaction.date)}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <p className="max-w-md truncate text-foreground">
+                                    {transaction.description}
+                                  </p>
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {statementLabels.get(transaction.statementId) ?? 'Statement removed'}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {activeInvoice.status === 'draft' ? (
+                                    <CategoryPicker
+                                      categoryId={transaction.categoryId}
+                                      category={transaction.category}
+                                      onUpdate={(categoryId) =>
+                                        handleCategoryUpdate(transaction.id, categoryId)
+                                      }
+                                    />
+                                  ) : transaction.category ? (
+                                    <CategoryBadge
+                                      name={transaction.category.name}
+                                      color={transaction.category.color ?? '#6366f1'}
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">— Uncategorized</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <button
+                                    type="button"
+                                    disabled={activeInvoice.status !== 'draft'}
+                                    onClick={() => {
+                                      if (activeInvoice.status === 'draft') {
+                                        setSplitTarget(transaction)
+                                      }
+                                    }}
+                                    className={cn(
+                                      'rounded-lg transition-colors',
+                                      activeInvoice.status === 'draft'
+                                        ? 'cursor-pointer hover:bg-muted/60'
+                                        : 'cursor-default'
+                                    )}
+                                  >
+                                    <OwnerAvatars
+                                      owners={transaction.owners.map((owner) => ({
+                                        name: owner.name,
+                                        color: owner.color ?? 'indigo',
+                                      }))}
+                                    />
+                                  </button>
+                                </td>
+                                <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
+                                  <span
+                                    className={
+                                      transaction.type === 'debit'
+                                        ? 'text-rose-400'
+                                        : 'text-emerald-400'
+                                    }
+                                  >
+                                    {transaction.type === 'debit' ? '−' : '+'}
+                                    {formatINR(transaction.amount)}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-background/50 border-t border-border">
+                            <tr>
+                              <td
+                                className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                                colSpan={activeInvoice.status === 'draft' ? 6 : 5}
                               >
-                                <OwnerAvatars
-                                  owners={transaction.owners.map((owner) => ({
-                                    name: owner.name,
-                                    color: owner.color ?? 'indigo',
-                                  }))}
-                                />
-                              </button>
-                            </td>
-                            <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
-                              <span
-                                className={
-                                  transaction.type === 'debit'
-                                    ? 'text-rose-400'
-                                    : 'text-emerald-400'
-                                }
-                              >
-                                {transaction.type === 'debit' ? '−' : '+'}
-                                {formatINR(transaction.amount)}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-background/50 border-t border-border">
-                        <tr>
-                          <td
-                            className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                            colSpan={activeInvoice.status === 'draft' ? 6 : 5}
-                          >
-                            Sub-total
-                          </td>
-                          <td className="px-4 py-4 text-right font-mono whitespace-nowrap">
-                            <span
-                              className={cn(
-                                'text-base font-bold',
-                                filteredTotal < 0 ? 'text-rose-400' : 'text-emerald-400'
-                              )}
-                            >
-                              {filteredTotal < 0 ? '−' : '+'}
-                              {formatINR(Math.abs(filteredTotal))}
-                            </span>
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                                Sub-total
+                              </td>
+                              <td className="px-4 py-4 text-right font-mono whitespace-nowrap">
+                                <span
+                                  className={cn(
+                                    'text-base font-bold',
+                                    filteredTotal < 0 ? 'text-rose-400' : 'text-emerald-400'
+                                  )}
+                                >
+                                  {filteredTotal < 0 ? '−' : '+'}
+                                  {formatINR(Math.abs(filteredTotal))}
+                                </span>
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </TabsContent>
+
+                <TabsContent value="analysis" className="space-y-4 outline-none">
+                  {activeInvoice.analysis ? (
+                    <div className="rounded-2xl border border-border bg-card/50 p-6">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={16} className="text-emerald-400" />
+                        <h3 className="text-lg font-semibold text-foreground">Analysis</h3>
+                      </div>
+
+                      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-border bg-background/70 p-5">
+                          <div className="flex items-center gap-2">
+                            <User size={15} className="text-muted-foreground" />
+                            <p className="text-sm font-semibold text-foreground/90">Who spent how much?</p>
+                          </div>
+                          <div className="mt-4 space-y-3">
+                            {activeInvoice.analysis.ownerTotals.map((owner) => (
+                              <div
+                                key={`${owner.ownerId ?? owner.name}-total`}
+                                className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className="h-3 w-3 rounded-full"
+                                    style={{ backgroundColor: owner.color ?? '#71717a' }}
+                                  />
+                                  <span className="font-medium text-foreground">{owner.name}</span>
+                                </div>
+                                <span className="font-mono text-rose-400">{formatINR(owner.total)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-border bg-background/70 p-5">
+                          <div className="flex items-center gap-2">
+                            <Tag size={15} className="text-muted-foreground" />
+                            <p className="text-sm font-semibold text-foreground/90">
+                              Who spent how much in each category?
+                            </p>
+                          </div>
+                          <div className="mt-4 space-y-4">
+                            {activeInvoice.analysis.ownerCategoryTotals.map((owner) => (
+                              <div key={`${owner.ownerId ?? owner.name}-categories`} className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-foreground">{owner.name}</span>
+                                  <span className="font-mono text-foreground/80">{formatINR(owner.total)}</span>
+                                </div>
+                                <div className="space-y-2">
+                                  {owner.categories.map((category) => (
+                                    <div
+                                      key={`${owner.ownerId ?? owner.name}-${category.category}`}
+                                      className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-2.5"
+                                    >
+                                      <span className="text-sm text-foreground/80">{category.category}</span>
+                                      <span className="font-mono text-foreground">
+                                        {formatINR(category.total)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-border bg-card/50 p-8 text-center text-muted-foreground">
+                      No analysis data available. Add some statements first.
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
             </>
           )}
         </section>

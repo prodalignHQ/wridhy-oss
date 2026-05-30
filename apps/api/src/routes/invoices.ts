@@ -96,6 +96,7 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
     for (const owner of transaction.owners) {
       const ownerKey = owner.ownerId ?? owner.name
       const amount = parseFloat(owner.amount)
+      const adjustedAmount = isCredit ? -amount : amount
 
       if (!ownerTotals.has(ownerKey)) {
         ownerTotals.set(ownerKey, {
@@ -108,7 +109,7 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
       }
 
       const ownerBucket = ownerTotals.get(ownerKey)!
-      ownerBucket.total += amount
+      ownerBucket.total += adjustedAmount
 
       const categoryKey = `${categoryId ?? 'uncategorized'}:${categoryName}`
       if (!ownerBucket.categories.has(categoryKey)) {
@@ -119,7 +120,7 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
         })
       }
 
-      ownerBucket.categories.get(categoryKey)!.total += amount
+      ownerBucket.categories.get(categoryKey)!.total += adjustedAmount
     }
   }
 
@@ -499,6 +500,52 @@ invoicesRoute.post('/:id/generate', async (c) => {
   return c.json({ success: true, data: serializeInvoiceSummary(generated) })
 })
 
+invoicesRoute.post('/:id/draft', async (c) => {
+  const userId = c.get('userId')
+  const invoiceId = c.req.param('id')
+
+  const invoice = await loadInvoice(userId, invoiceId)
+  if (!invoice) {
+    return c.json(
+      { success: false, error: { code: 'NOT_FOUND', message: 'Invoice not found' } },
+      404
+    )
+  }
+
+  if (invoice.status !== 'generated') {
+    return c.json(
+      { success: false, error: { code: 'BAD_REQUEST', message: 'Invoice is already in draft status' } },
+      400
+    )
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId))
+
+    await tx
+      .update(invoices)
+      .set({
+        status: 'draft',
+        generatedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(invoices.id, invoiceId), eq(invoices.userId, userId)))
+  })
+
+  const updated = await loadInvoice(userId, invoiceId)
+  if (!updated) {
+    return c.json(
+      {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to load updated invoice' },
+      },
+      500
+    )
+  }
+
+  return c.json({ success: true, data: serializeInvoiceSummary(updated) })
+})
+
 invoicesRoute.get('/:id', async (c) => {
   const userId = c.get('userId')
   const invoiceId = c.req.param('id')
@@ -522,7 +569,7 @@ invoicesRoute.get('/:id', async (c) => {
       data: {
         ...serializeInvoiceSummary(invoice),
         transactions: liveTransactions,
-        analysis: null,
+        analysis: buildAnalysis(liveTransactions),
       },
     })
   }
