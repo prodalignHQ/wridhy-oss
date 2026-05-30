@@ -56,7 +56,6 @@ export const auth = betterAuth({
           await db.insert(owners).values({
             userId: user.id,
             name: 'Self',
-            type: 'person',
             color: 'indigo',
             isDefault: true,
           })
