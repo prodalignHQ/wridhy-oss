@@ -73,7 +73,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 0 — Monorepo Bootstrap
+## Phase 0 — Monorepo Bootstrap ✅
 
 > **Goal:** Get a running dev environment with Turborepo, a "hello world" API, and a Next.js shell. No features, but every tool in the stack is wired up correctly and the design system is established.
 
@@ -213,7 +213,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 2 — Statement Upload, Month Tagging & Owner Assignment 🟡
+## Phase 2 — Statement Upload, Month Tagging & Owner Assignment ✅
 
 > **Goal:** The core value prop. Upload a real CSV from your bank, tag the statement to a month, and see your transactions appear in a table. Every transaction can immediately be assigned to one or more owners and split equally between them. Month tagging is the foundation for invoice creation in Phase 4.
 
@@ -415,7 +415,7 @@ Since there are no mockups, the LLM should establish and maintain a consistent d
 
 ---
 
-## Phase 4 — Invoices, Dashboard & Insights 🟡
+## Phase 4 — Invoices, Dashboard & Insights ✅
 
 > **Goal:** Turn categorized, owner-attributed transaction data into saved monthly invoices and meaningful visualizations. Users can draft an invoice from tagged statements, generate it into a frozen snapshot with analysis, and still use the broader dashboard/insights views for trends over time.
 
