@@ -1286,9 +1286,13 @@ export default function InvoicesPage() {
                           onValueChange={(value) => setCategoryFilter(value ?? 'all')}
                         >
                           <SelectTrigger className="w-[180px] border-border bg-background text-foreground/90">
-                            <div className="flex items-center gap-2">
-                              <Filter size={14} className="text-muted-foreground" />
-                              <SelectValue placeholder="Category" />
+                            <div className="flex items-center gap-2 truncate">
+                              <Filter size={14} className="text-muted-foreground shrink-0" />
+                              <SelectValue placeholder="Category">
+                                {categoryFilter === 'all'
+                                  ? 'All categories'
+                                  : categoryOptions.find((o) => o.value === categoryFilter)?.label ?? 'Category'}
+                              </SelectValue>
                             </div>
                           </SelectTrigger>
                           <SelectContent className="border-border bg-card">
