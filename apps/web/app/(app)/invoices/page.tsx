@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   ChevronDown,
   FileText,
   Filter,
+  Layers,
   Plus,
   Receipt,
   Save,
@@ -128,6 +132,12 @@ interface InvoiceAnalysis {
       total: number
     }>
   }>
+  categoryTotals: Array<{
+    categoryId: string | null
+    category: string
+    color: string | null
+    total: number
+  }>
 }
 
 interface InvoiceDetail extends InvoiceSummary {
@@ -247,6 +257,7 @@ export default function InvoicesPage() {
   const [movingToDraft, setMovingToDraft] = useState(false)
   const [deletingInvoice, setDeletingInvoice] = useState(false)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+  const [collapsedOwners, setCollapsedOwners] = useState<Set<string>>(new Set())
   const [applyingCategoryChange, setApplyingCategoryChange] = useState(false)
 
   const toggleCategoryExpand = (ownerKey: string, categoryId: string | null, categoryName: string) => {
@@ -257,6 +268,31 @@ export default function InvoicesPage() {
       else next.add(key)
       return next
     })
+  }
+
+  const toggleOwnerCollapse = (ownerKey: string) => {
+    setCollapsedOwners((prev) => {
+      const next = new Set(prev)
+      if (next.has(ownerKey)) next.delete(ownerKey)
+      else next.add(ownerKey)
+      return next
+    })
+  }
+
+  const [sortField, setSortField] = useState<'date' | 'amount' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (field: 'date' | 'amount') => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc')
+      } else {
+        setSortField(null)
+      }
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
   }
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [splitTarget, setSplitTarget] = useState<InvoiceTransaction | null>(null)
@@ -353,7 +389,7 @@ export default function InvoicesPage() {
   }, [activeInvoice])
 
   const filteredTransactions = useMemo(() => {
-    return (activeInvoice?.transactions ?? []).filter((transaction) => {
+    const filtered = (activeInvoice?.transactions ?? []).filter((transaction) => {
       const matchesSearch = transaction.description
         .toLowerCase()
         .includes(search.trim().toLowerCase())
@@ -369,7 +405,26 @@ export default function InvoicesPage() {
 
       return matchesSearch && matchesCategory && matchesType && matchesOwner
     })
-  }, [activeInvoice, categoryFilter, search, typeFilter, ownerFilter])
+
+    if (!sortField) {
+      return filtered
+    }
+
+    return [...filtered].sort((a, b) => {
+      let comparison = 0
+      if (sortField === 'amount') {
+        const valA = parseFloat(a.amount)
+        const valB = parseFloat(b.amount)
+        comparison = valA - valB
+      } else if (sortField === 'date') {
+        const valA = new Date(a.date).getTime()
+        const valB = new Date(b.date).getTime()
+        comparison = valA - valB
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+  }, [activeInvoice, categoryFilter, search, typeFilter, ownerFilter, sortField, sortDirection])
 
   const filteredTransactionIds = useMemo(
     () => filteredTransactions.map((transaction) => transaction.id),
@@ -388,6 +443,11 @@ export default function InvoicesPage() {
       return acc + amount;
     }, 0)
   }, [filteredTransactions])
+
+  const filteredAverage = useMemo(() => {
+    if (filteredTransactions.length === 0) return 0
+    return filteredTotal / filteredTransactions.length
+  }, [filteredTotal, filteredTransactions])
 
   const allFilteredSelected =
     filteredTransactionIds.length > 0 && selectedFilteredCount === filteredTransactionIds.length
@@ -1322,8 +1382,18 @@ export default function InvoicesPage() {
                                   />
                                 </th>
                               ) : null}
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Date
+                              <th
+                                onClick={() => handleSort('date')}
+                                className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/50 select-none"
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <span>Date</span>
+                                  {sortField === 'date' ? (
+                                    sortDirection === 'asc' ? <ArrowUp size={12} className="text-indigo-400" /> : <ArrowDown size={12} className="text-indigo-400" />
+                                  ) : (
+                                    <ArrowUpDown size={12} className="opacity-40" />
+                                  )}
+                                </div>
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                 Description
@@ -1337,8 +1407,18 @@ export default function InvoicesPage() {
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                 Owners
                               </th>
-                              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Amount
+                              <th
+                                onClick={() => handleSort('amount')}
+                                className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/50 select-none"
+                              >
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <span>Amount</span>
+                                  {sortField === 'amount' ? (
+                                    sortDirection === 'asc' ? <ArrowUp size={12} className="text-indigo-400" /> : <ArrowDown size={12} className="text-indigo-400" />
+                                  ) : (
+                                    <ArrowUpDown size={12} className="opacity-40" />
+                                  )}
+                                </div>
                               </th>
                             </tr>
                           </thead>
@@ -1432,7 +1512,7 @@ export default function InvoicesPage() {
                                 className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                                 colSpan={activeInvoice.status === 'draft' ? 6 : 5}
                               >
-                                Sub-total
+                                Sub-total <span className="normal-case font-normal text-muted-foreground/75 ml-1.5">(Avg: {formatINR(filteredAverage)})</span>
                               </td>
                               <td className="px-4 py-4 text-right font-mono whitespace-nowrap">
                                 <span
@@ -1461,7 +1541,7 @@ export default function InvoicesPage() {
                         <h3 className="text-lg font-semibold text-foreground">Analysis</h3>
                       </div>
 
-                      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                      <div className="mt-6 grid gap-6 md:grid-cols-2">
                         <div className="rounded-2xl border border-border bg-background/70 p-5">
                           <div className="flex items-center gap-2">
                             <User size={15} className="text-muted-foreground" />
@@ -1488,109 +1568,169 @@ export default function InvoicesPage() {
 
                         <div className="rounded-2xl border border-border bg-background/70 p-5">
                           <div className="flex items-center gap-2">
-                            <Tag size={15} className="text-muted-foreground" />
-                            <p className="text-sm font-semibold text-foreground/90">
-                              Who spent how much in each category?
-                            </p>
+                            <Layers size={15} className="text-muted-foreground" />
+                            <p className="text-sm font-semibold text-foreground/90">Category-wise spends (in total)</p>
                           </div>
-                          <div className="mt-4 space-y-4">
-                            {activeInvoice.analysis.ownerCategoryTotals.map((owner) => (
-                              <div key={`${owner.ownerId ?? owner.name}-categories`} className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium text-foreground">{owner.name}</span>
-                                  <span className="font-mono text-foreground/80">{formatINR(owner.total)}</span>
+                          <div className="mt-4 space-y-3">
+                            {activeInvoice.analysis.categoryTotals && activeInvoice.analysis.categoryTotals.length > 0 ? (
+                              activeInvoice.analysis.categoryTotals.map((category) => (
+                                <div
+                                  key={`${category.categoryId ?? 'uncategorized'}:${category.category}-total`}
+                                  className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div
+                                      className="h-3 w-3 rounded-full"
+                                      style={{ backgroundColor: category.color ?? '#71717a' }}
+                                    />
+                                    <span className="font-medium text-foreground">{category.category}</span>
+                                  </div>
+                                  <span className="font-mono text-rose-400">{formatINR(category.total)}</span>
                                 </div>
-                                <div className="space-y-2">
-                                  {owner.categories.map((category) => {
-                                    const ownerKey = owner.ownerId ?? owner.name
-                                    const expandKey = `${ownerKey}:${category.categoryId ?? 'uncategorized'}:${category.category}`
-                                    const isExpanded = expandedCategories.has(expandKey)
+                              ))
+                            ) : (
+                              <p className="text-xs text-muted-foreground text-center py-4">No category data available.</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
 
-                                    const matchingTxns = activeInvoice.transactions.filter((t) => {
-                                      const catMatch = category.categoryId 
-                                        ? t.categoryId === category.categoryId 
-                                        : !t.categoryId
+                      <div className="mt-6 rounded-2xl border border-border bg-background/70 p-5">
+                        <div className="flex items-center gap-2">
+                          <Tag size={15} className="text-muted-foreground" />
+                          <p className="text-sm font-semibold text-foreground/90">
+                            Who spent how much in each category?
+                          </p>
+                        </div>
+                        <div className="mt-5 space-y-4">
+                          {activeInvoice.analysis.ownerCategoryTotals.map((owner) => {
+                            const ownerKey = owner.ownerId ?? owner.name
+                            const isOwnerExpanded = !collapsedOwners.has(ownerKey)
 
-                                      if (!catMatch) return false
+                            return (
+                              <div
+                                key={`${ownerKey}-section`}
+                                className="rounded-xl border border-border bg-card/40 overflow-hidden"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => toggleOwnerCollapse(ownerKey)}
+                                  className="flex w-full items-center justify-between bg-card/65 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div
+                                      className="h-3 w-3 rounded-full"
+                                      style={{ backgroundColor: owner.color ?? '#71717a' }}
+                                    />
+                                    <span className="font-semibold text-foreground">{owner.name}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      ({owner.categories.length} categories)
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="font-mono font-bold text-foreground">{formatINR(owner.total)}</span>
+                                    <ChevronDown
+                                      size={16}
+                                      className={cn(
+                                        "text-muted-foreground transition-transform duration-200",
+                                        isOwnerExpanded && "rotate-180"
+                                      )}
+                                    />
+                                  </div>
+                                </button>
 
-                                      return t.owners.some((o) => 
-                                        owner.ownerId ? o.ownerId === owner.ownerId : o.name === owner.name
-                                      )
-                                    })
+                                {isOwnerExpanded && (
+                                  <div className="p-4 bg-background/30 border-t border-border/60 space-y-3">
+                                    {owner.categories.map((category) => {
+                                      const expandKey = `${ownerKey}:${category.categoryId ?? 'uncategorized'}:${category.category}`
+                                      const isExpanded = expandedCategories.has(expandKey)
 
-                                    return (
-                                      <div
-                                        key={expandKey}
-                                        className="rounded-xl border border-border bg-card/60 overflow-hidden"
-                                      >
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleCategoryExpand(ownerKey, category.categoryId, category.category)}
-                                          className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
+                                      const matchingTxns = activeInvoice.transactions.filter((t) => {
+                                        const catMatch = category.categoryId 
+                                          ? t.categoryId === category.categoryId 
+                                          : !t.categoryId
+
+                                        if (!catMatch) return false
+
+                                        return t.owners.some((o) => 
+                                          owner.ownerId ? o.ownerId === owner.ownerId : o.name === owner.name
+                                        )
+                                      })
+
+                                      return (
+                                        <div
+                                          key={expandKey}
+                                          className="rounded-xl border border-border bg-card/60 overflow-hidden"
                                         >
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-sm font-medium text-foreground">{category.category}</span>
-                                            <span className="text-xs text-muted-foreground">({matchingTxns.length} items)</span>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-mono text-sm text-foreground">
-                                              {formatINR(category.total)}
-                                            </span>
-                                            <ChevronDown
-                                              size={15}
-                                              className={cn(
-                                                "text-muted-foreground transition-transform duration-200",
-                                                isExpanded && "rotate-180"
-                                              )}
-                                            />
-                                          </div>
-                                        </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleCategoryExpand(ownerKey, category.categoryId, category.category)}
+                                            className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-sm font-medium text-foreground">{category.category}</span>
+                                              <span className="text-xs text-muted-foreground">({matchingTxns.length} items)</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-mono text-sm text-foreground">
+                                                {formatINR(category.total)}
+                                              </span>
+                                              <ChevronDown
+                                                size={15}
+                                                className={cn(
+                                                  "text-muted-foreground transition-transform duration-200",
+                                                  isExpanded && "rotate-180"
+                                                )}
+                                              />
+                                            </div>
+                                          </button>
 
-                                        {isExpanded && (
-                                          <div className="border-t border-border bg-background/50 divide-y divide-border/60 px-3 py-1">
-                                            {matchingTxns.length === 0 ? (
-                                              <p className="p-3 text-xs text-muted-foreground text-center">No items found</p>
-                                            ) : (
-                                              matchingTxns.map((txn) => {
-                                                const ownerShare = txn.owners.find((o) => 
-                                                  owner.ownerId ? o.ownerId === owner.ownerId : o.name === owner.name
-                                                )
-                                                const shareAmount = ownerShare ? parseFloat(ownerShare.amount) : 0
-                                                const signedAmount = txn.type === 'credit' ? -shareAmount : shareAmount
+                                          {isExpanded && (
+                                            <div className="border-t border-border bg-background/50 divide-y divide-border/60 px-3 py-1">
+                                              {matchingTxns.length === 0 ? (
+                                                <p className="p-3 text-xs text-muted-foreground text-center">No items found</p>
+                                              ) : (
+                                                matchingTxns.map((txn) => {
+                                                  const ownerShare = txn.owners.find((o) => 
+                                                    owner.ownerId ? o.ownerId === owner.ownerId : o.name === owner.name
+                                                  )
+                                                  const shareAmount = ownerShare ? parseFloat(ownerShare.amount) : 0
+                                                  const signedAmount = txn.type === 'credit' ? -shareAmount : shareAmount
 
-                                                return (
-                                                  <div key={txn.id} className="flex items-center justify-between p-2.5 text-xs">
-                                                    <div className="min-w-0 flex-1 pr-3">
-                                                      <p className="truncate font-medium text-foreground">{txn.description}</p>
-                                                      <p className="mt-0.5 text-[10px] text-muted-foreground">
-                                                        {formatShortDate(txn.date)}
-                                                        {ownerShare && (
-                                                          <span className="ml-1.5 font-mono">
-                                                            ({ownerShare.percentage}% of {formatINR(txn.amount)})
-                                                          </span>
-                                                        )}
-                                                      </p>
+                                                  return (
+                                                    <div key={txn.id} className="flex items-center justify-between p-2.5 text-xs">
+                                                      <div className="min-w-0 flex-1 pr-3">
+                                                        <p className="truncate font-medium text-foreground">{txn.description}</p>
+                                                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                                          {formatShortDate(txn.date)}
+                                                          {ownerShare && (
+                                                            <span className="ml-1.5 font-mono">
+                                                              ({ownerShare.percentage}% of {formatINR(txn.amount)})
+                                                            </span>
+                                                          )}
+                                                        </p>
+                                                      </div>
+                                                      <span className={cn(
+                                                        "font-mono whitespace-nowrap font-semibold",
+                                                        signedAmount < 0 ? "text-emerald-400" : "text-rose-400"
+                                                      )}>
+                                                        {signedAmount < 0 ? '−' : '+'}
+                                                        {formatINR(Math.abs(signedAmount))}
+                                                      </span>
                                                     </div>
-                                                    <span className={cn(
-                                                      "font-mono whitespace-nowrap font-semibold",
-                                                      signedAmount < 0 ? "text-emerald-400" : "text-rose-400"
-                                                    )}>
-                                                      {signedAmount < 0 ? '−' : '+'}
-                                                      {formatINR(Math.abs(signedAmount))}
-                                                    </span>
-                                                  </div>
-                                                )
-                                              })
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
+                                                  )
+                                                })
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
                               </div>
-                            ))}
-                          </div>
+                            )
+                          })}
                         </div>
                       </div>
                     </div>

@@ -86,12 +86,23 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
     }
   >()
 
+  const categoryTotalsMap = new Map<
+    string,
+    {
+      categoryId: string | null
+      category: string
+      color: string | null
+      total: number
+    }
+  >()
+
   for (const transaction of transactionsList) {
     const isCredit = transaction.type === 'credit'
     if (transaction.type !== 'debit' && !isCredit) continue
 
     const categoryName = transaction.category?.name ?? 'Uncategorized'
     const categoryId = transaction.category?.id ?? null
+    const categoryColor = transaction.category?.color ?? null
 
     for (const owner of transaction.owners) {
       const ownerKey = owner.ownerId ?? owner.name
@@ -121,6 +132,17 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
       }
 
       ownerBucket.categories.get(categoryKey)!.total += adjustedAmount
+
+      // Calculate overall category totals from owner-allocated shares
+      if (!categoryTotalsMap.has(categoryKey)) {
+        categoryTotalsMap.set(categoryKey, {
+          categoryId,
+          category: categoryName,
+          color: categoryColor,
+          total: 0,
+        })
+      }
+      categoryTotalsMap.get(categoryKey)!.total += adjustedAmount
     }
   }
 
@@ -134,6 +156,9 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
     }))
     .sort((a, b) => b.total - a.total)
 
+  const categoryTotals = Array.from(categoryTotalsMap.values())
+    .sort((a, b) => b.total - a.total)
+
   return {
     ownerTotals: ownerBreakdown.map((owner) => ({
       ownerId: owner.ownerId,
@@ -142,6 +167,7 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
       total: owner.total,
     })),
     ownerCategoryTotals: ownerBreakdown,
+    categoryTotals,
   }
 }
 
