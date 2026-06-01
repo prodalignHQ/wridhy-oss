@@ -16,6 +16,14 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DepositAsset } from '../tables/DepositsTable'
 
+interface Owner {
+  id: string
+  name: string
+  notes: string | null
+  color: string
+  isDefault: boolean
+}
+
 const schema = z.object({
   type: z.enum(['fixed_deposit', 'recurring_deposit', 'ppf']),
   name: z.string().min(1, 'Name is required'),
@@ -26,6 +34,7 @@ const schema = z.object({
   maturityDate: z.string().optional(),
   maturityAmount: z.union([z.number().nonnegative(), z.nan()]).optional().transform(v => Number.isNaN(v) ? undefined : v),
   comments: z.string().optional(),
+  ownerId: z.string().uuid().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -35,9 +44,11 @@ interface DepositModalProps {
   onClose: () => void
   onSave: (data: any, id?: string) => Promise<void>
   asset?: DepositAsset
+  owners?: Owner[]
+  defaultOwnerId?: string
 }
 
-export function DepositModal({ open, onClose, onSave, asset }: DepositModalProps) {
+export function DepositModal({ open, onClose, onSave, asset, owners, defaultOwnerId }: DepositModalProps) {
   const {
     register,
     handleSubmit,
@@ -56,10 +67,12 @@ export function DepositModal({ open, onClose, onSave, asset }: DepositModalProps
       maturityDate: asset?.metadata?.maturityDate ? new Date(asset.metadata.maturityDate).toISOString().split('T')[0] : '',
       maturityAmount: asset?.metadata?.maturityAmount || undefined,
       comments: asset?.metadata?.comments || '',
+      ownerId: asset?.ownerId || defaultOwnerId || '',
     },
   })
 
   const typeValue = watch('type')
+  const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
     const payload = {
@@ -75,7 +88,8 @@ export function DepositModal({ open, onClose, onSave, asset }: DepositModalProps
         maturityDate: data.maturityDate ? new Date(data.maturityDate).toISOString() : undefined,
         maturityAmount: data.maturityAmount,
         comments: data.comments || undefined,
-      }
+      },
+      ownerId: data.ownerId || undefined,
     }
 
     await onSave(payload, asset?.id)
@@ -153,6 +167,24 @@ export function DepositModal({ open, onClose, onSave, asset }: DepositModalProps
             <Label htmlFor="comments">Comments <span className="text-muted-foreground font-normal">(Optional)</span></Label>
             <Input id="comments" placeholder="e.g. Locked in for 5 years" {...register('comments')} />
           </div>
+
+          {owners && owners.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="ownerId">Owner</Label>
+              <Select value={ownerIdValue} onValueChange={(val: any) => setValue('ownerId', val)}>
+                <SelectTrigger id="ownerId">
+                  <SelectValue placeholder="Select owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {owners.map((owner) => (
+                    <SelectItem key={owner.id} value={owner.id}>
+                      {owner.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </form>
 
         <DialogFooter>

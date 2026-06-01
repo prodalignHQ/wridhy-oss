@@ -16,6 +16,14 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MutualFundAsset } from '../tables/MutualFundsTable'
 
+interface Owner {
+  id: string
+  name: string
+  notes: string | null
+  color: string
+  isDefault: boolean
+}
+
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   folioNumber: z.string().optional(),
@@ -23,6 +31,7 @@ const schema = z.object({
   investedAmount: z.number({ required_error: 'Invested amount is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
   presentAmount: z.number({ required_error: 'Present amount is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
   comments: z.string().optional(),
+  ownerId: z.string().uuid().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -32,9 +41,11 @@ interface MutualFundModalProps {
   onClose: () => void
   onSave: (data: any, id?: string) => Promise<void>
   asset?: MutualFundAsset
+  owners?: Owner[]
+  defaultOwnerId?: string
 }
 
-export function MutualFundModal({ open, onClose, onSave, asset }: MutualFundModalProps) {
+export function MutualFundModal({ open, onClose, onSave, asset, owners, defaultOwnerId }: MutualFundModalProps) {
   const {
     register,
     handleSubmit,
@@ -50,11 +61,13 @@ export function MutualFundModal({ open, onClose, onSave, asset }: MutualFundModa
       investedAmount: asset?.metadata?.investedAmount || undefined,
       presentAmount: asset ? parseFloat(asset.value) : undefined,
       comments: asset?.metadata?.comments || '',
+      ownerId: asset?.ownerId || defaultOwnerId || '',
     },
   })
 
   // Watch for Select changes
   const categoryValue = watch('category')
+  const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
     // Structure for the API
@@ -69,7 +82,8 @@ export function MutualFundModal({ open, onClose, onSave, asset }: MutualFundModa
         investedAmount: data.investedAmount,
         category: data.category,
         comments: data.comments || undefined,
-      }
+      },
+      ownerId: data.ownerId || undefined,
     }
 
     await onSave(payload, asset?.id)
@@ -129,6 +143,24 @@ export function MutualFundModal({ open, onClose, onSave, asset }: MutualFundModa
             <Label htmlFor="comments">Comments <span className="text-muted-foreground font-normal">(Optional)</span></Label>
             <Input id="comments" placeholder="e.g. SIP of ₹5k/mo" {...register('comments')} />
           </div>
+
+          {owners && owners.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="ownerId">Owner</Label>
+              <Select value={ownerIdValue} onValueChange={(val: any) => setValue('ownerId', val)}>
+                <SelectTrigger id="ownerId">
+                  <SelectValue placeholder="Select owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {owners.map((owner) => (
+                    <SelectItem key={owner.id} value={owner.id}>
+                      {owner.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </form>
 
         <DialogFooter>

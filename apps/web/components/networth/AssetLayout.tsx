@@ -10,9 +10,11 @@ interface AssetLayoutProps {
   assets: any[] // From API
   onAdd: (data: any, id?: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  owners?: any[]
+  defaultOwnerId?: string
 }
 
-export function AssetLayout({ assets, onAdd, onDelete }: AssetLayoutProps) {
+export function AssetLayout({ assets, onAdd, onDelete, owners, defaultOwnerId }: AssetLayoutProps) {
   // Partition assets into groups
   const mfAssets = assets.filter(a => a.type === 'mutual_fund') as MutualFundAsset[]
   const stockAssets = assets.filter(a => a.type === 'stock') as StockAsset[]
@@ -32,19 +34,19 @@ export function AssetLayout({ assets, onAdd, onDelete }: AssetLayoutProps) {
 
         <div className="divide-y divide-zinc-800 space-y-4 pb-4">
           <div className="pt-2">
-            <MutualFundsTable assets={mfAssets} onAdd={onAdd} onDelete={onDelete} />
+            <MutualFundsTable assets={mfAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
           </div>
           <div className="pt-2">
-            <StocksTable assets={stockAssets} onAdd={onAdd} onDelete={onDelete} />
+            <StocksTable assets={stockAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
           </div>
           <div className="pt-2">
-            <DepositsTable assets={depositAssets} onAdd={onAdd} onDelete={onDelete} />
+            <DepositsTable assets={depositAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
           </div>
           <div className="pt-2">
-            <SavingsTable assets={savingsAssets} onAdd={onAdd} onDelete={onDelete} />
+            <SavingsTable assets={savingsAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
           </div>
           <div className="pt-2">
-            <GenericAssetTable assets={genericAssets} onAdd={onAdd} onDelete={onDelete} />
+            <GenericAssetTable assets={genericAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
           </div>
         </div>
       </div>

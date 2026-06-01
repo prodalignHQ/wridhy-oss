@@ -15,6 +15,17 @@ import { NetWorthHistoryChart } from '@/components/networth/NetWorthHistoryChart
 import { CopyFromSnapshotMenu } from '@/components/networth/CopyFromSnapshotMenu'
 import { QuickEntryMode } from '@/components/networth/QuickEntryMode'
 import { AddLiabilityModal, type Liability } from '@/components/networth/AddLiabilityModal'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 
 type Mode = 'detailed' | 'quick'
 
@@ -32,6 +43,12 @@ interface Snapshot {
   totalAssets: string
   totalLiabilities: string
   netWorth: string
+  ownerId?: string | null
+  owner?: {
+    id: string
+    name: string
+    color: string
+  } | null
 }
 
 interface Draft {
@@ -40,36 +57,54 @@ interface Draft {
   liabilityBreakdown?: any[]
 }
 
+interface Owner {
+  id: string
+  name: string
+  notes: string | null
+  color: string
+  isDefault: boolean
+}
+
 export default function NetWorthPage() {
   const [mode, setMode] = useState<Mode>('detailed')
   const [data, setData] = useState<NetWorthData | null>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [owners, setOwners] = useState<Owner[]>([])
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [savingSnapshot, setSavingSnapshot] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const [addAsset, setAddAsset] = useState(false)
   const [addLiability, setAddLiability] = useState(false)
   const [draftDismissed, setDraftDismissed] = useState(false)
+  const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false)
+  const [selectedSnapshotDate, setSelectedSnapshotDate] = useState('')
+  const [quickEntryValues, setQuickEntryValues] = useState<{ assets: number; liabilities: number } | null>(null)
+
+  const defaultOwnerId = owners.find(o => o.isDefault)?.id
 
   // ─── Data fetching ─────────────────────────────────────────────────────────
 
   const fetchAll = useCallback(async () => {
     try {
-      const [nw, hist, dr] = await Promise.all([
-        apiClient.fetch<NetWorthData>('/v1/networth'),
-        apiClient.fetch<Snapshot[]>('/v1/networth/history'),
-        apiClient.fetch<Draft | null>('/v1/networth/draft').catch(() => null),
+      const ownerQuery = selectedOwnerId && selectedOwnerId !== 'all' ? `?ownerId=${selectedOwnerId}` : ''
+      const [nw, hist, dr, ownList] = await Promise.all([
+        apiClient.fetch<NetWorthData>(`/v1/networth${ownerQuery}`),
+        apiClient.fetch<Snapshot[]>(`/v1/networth/history${ownerQuery}`),
+        apiClient.fetch<Draft | null>(`/v1/networth/draft${ownerQuery}`).catch(() => null),
+        apiClient.fetch<Owner[]>('/v1/owners'),
       ])
       setData(nw)
       setSnapshots(hist)
       setDraft(dr)
+      setOwners(ownList)
     } catch {
       toast.error('Failed to load net worth data')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedOwnerId])
 
   useEffect(() => {
     fetchAll()
@@ -77,11 +112,15 @@ export default function NetWorthPage() {
 
   // ─── Snapshot ──────────────────────────────────────────────────────────────
 
-  const handleSaveSnapshot = async () => {
+  const handleSaveSnapshot = async (date?: string) => {
     setSavingSnapshot(true)
     try {
-      await apiClient.fetch('/v1/networth/snapshot', { method: 'POST' })
-      const dateLabel = format(new Date(), 'dd MMM yyyy')
+      const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
+      await apiClient.fetch('/v1/networth/snapshot', { 
+        method: 'POST',
+        body: JSON.stringify({ ownerId: targetOwnerId, date })
+      })
+      const dateLabel = format(date ? new Date(date) : new Date(), 'dd MMM yyyy')
       toast.success(`Snapshot saved for ${dateLabel}`)
       setDraft(null)
       setDraftDismissed(true)
@@ -93,13 +132,10 @@ export default function NetWorthPage() {
     }
   }
 
-  const handleQuickSnapshot = async (totalAssets: number, totalLiabilities: number) => {
-    // For quick entry mode, we don't have individual asset/liability rows — 
-    // instead POST directly to snapshot with a synthetic single-asset representation.
-    // We create one asset + one liability server-side before snapshotting:
-    // Delete existing, create synthetic rows, then snapshot.
+  const handleQuickSnapshot = async (totalAssets: number, totalLiabilities: number, date?: string) => {
     setSavingSnapshot(true)
     try {
+      const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
       // Clear existing rows
       if (data?.assets) {
         await Promise.all(
@@ -124,7 +160,8 @@ export default function NetWorthPage() {
             type: 'other',
             value: totalAssets,
             currency: 'INR',
-            valuationDate: new Date().toISOString().split('T')[0],
+            valuationDate: date || new Date().toISOString().split('T')[0],
+            ownerId: targetOwnerId,
           }),
         })
       }
@@ -135,11 +172,15 @@ export default function NetWorthPage() {
             name: 'Total Liabilities (Quick Entry)',
             type: 'other',
             outstandingAmount: totalLiabilities,
+            ownerId: targetOwnerId,
           }),
         })
       }
-      await apiClient.fetch('/v1/networth/snapshot', { method: 'POST' })
-      const dateLabel = format(new Date(), 'dd MMM yyyy')
+      await apiClient.fetch('/v1/networth/snapshot', {
+        method: 'POST',
+        body: JSON.stringify({ ownerId: targetOwnerId, date })
+      })
+      const dateLabel = format(date ? new Date(date) : new Date(), 'dd MMM yyyy')
       toast.success(`Snapshot saved for ${dateLabel}`)
       await fetchAll()
     } catch (e: any) {
@@ -149,12 +190,22 @@ export default function NetWorthPage() {
     }
   }
 
+  const handleConfirmSaveSnapshot = async () => {
+    setSnapshotDialogOpen(false)
+    if (quickEntryValues) {
+      await handleQuickSnapshot(quickEntryValues.assets, quickEntryValues.liabilities, selectedSnapshotDate)
+    } else {
+      await handleSaveSnapshot(selectedSnapshotDate)
+    }
+  }
+
   // ─── Draft ─────────────────────────────────────────────────────────────────
 
   const handleSaveDraft = async () => {
     setSavingDraft(true)
     try {
-      await apiClient.fetch('/v1/networth/draft', { method: 'PUT', body: JSON.stringify({}) })
+      const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
+      await apiClient.fetch(`/v1/networth/draft?ownerId=${targetOwnerId}`, { method: 'PUT', body: JSON.stringify({}) })
       toast.success('Draft saved')
       await fetchAll()
     } catch (e: any) {
@@ -166,7 +217,8 @@ export default function NetWorthPage() {
 
   const handleDiscardDraft = async () => {
     try {
-      await apiClient.fetch('/v1/networth/draft', { method: 'DELETE' })
+      const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
+      await apiClient.fetch(`/v1/networth/draft?ownerId=${targetOwnerId}`, { method: 'DELETE' })
       setDraft(null)
       setDraftDismissed(true)
     } catch {
@@ -177,16 +229,22 @@ export default function NetWorthPage() {
   // ─── Assets ────────────────────────────────────────────────────────────────
 
   const handleSaveAsset = async (formData: any, id?: string) => {
+    const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
+    const payload = {
+      ...formData,
+      ownerId: formData.ownerId || targetOwnerId,
+    }
+
     if (id) {
       await apiClient.fetch(`/v1/networth/assets/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
       toast.success('Asset updated')
     } else {
       await apiClient.fetch('/v1/networth/assets', {
         method: 'POST',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
       toast.success('Asset added')
     }
@@ -202,16 +260,22 @@ export default function NetWorthPage() {
   // ─── Liabilities ───────────────────────────────────────────────────────────
 
   const handleSaveLiability = async (formData: any, id?: string) => {
+    const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
+    const payload = {
+      ...formData,
+      ownerId: formData.ownerId || targetOwnerId,
+    }
+
     if (id) {
       await apiClient.fetch(`/v1/networth/liabilities/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
       toast.success('Liability updated')
     } else {
       await apiClient.fetch('/v1/networth/liabilities', {
         method: 'POST',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
       toast.success('Liability added')
     }
@@ -239,6 +303,9 @@ export default function NetWorthPage() {
   }
 
   // ─── Derived values ────────────────────────────────────────────────────────
+
+  const contextOwners = selectedOwnerId === 'all' ? owners : owners.filter(o => o.id === selectedOwnerId)
+  const contextDefaultOwnerId = selectedOwnerId === 'all' ? defaultOwnerId : selectedOwnerId
 
   const totalAssets = data?.totalAssets ?? 0
   const totalLiabilities = data?.totalLiabilities ?? 0
@@ -302,6 +369,27 @@ export default function NetWorthPage() {
         <h1 className="text-2xl font-semibold text-foreground">Net Worth</h1>
 
         <div className="flex items-center gap-3">
+          {/* Member selector */}
+          {owners.length > 0 && (
+            <Select value={selectedOwnerId} onValueChange={(val) => setSelectedOwnerId(val ?? 'all')}>
+              <SelectTrigger className="w-[180px] bg-secondary border-none rounded-full h-[38px] text-sm focus:ring-0">
+                <SelectValue>
+                  {selectedOwnerId === 'all'
+                    ? 'All Household'
+                    : owners.find((o) => o.id === selectedOwnerId)?.name || 'Select Member'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="all">All Household</SelectItem>
+                {owners.map(owner => (
+                  <SelectItem key={owner.id} value={owner.id}>
+                    {owner.name} {owner.isDefault ? '(Self)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           {/* Copy from previous dropdown */}
           <CopyFromSnapshotMenu snapshots={snapshots} onCopy={handleCopySnapshot} />
 
@@ -326,7 +414,11 @@ export default function NetWorthPage() {
       </div>
 
       {mode === 'quick' ? (
-        <QuickEntryMode onSaveSnapshot={handleQuickSnapshot} />
+        <QuickEntryMode onSaveSnapshot={async (assets, liabilities) => {
+          setQuickEntryValues({ assets, liabilities })
+          setSelectedSnapshotDate(new Date().toISOString().split('T')[0])
+          setSnapshotDialogOpen(true)
+        }} />
       ) : (
         <>
           {/* ─── Section A: Summary cards + Save buttons ──────────────── */}
@@ -370,7 +462,11 @@ export default function NetWorthPage() {
               </Button>
               <Button
                 size="sm"
-                onClick={handleSaveSnapshot}
+                onClick={() => {
+                  setQuickEntryValues(null)
+                  setSelectedSnapshotDate(new Date().toISOString().split('T')[0])
+                  setSnapshotDialogOpen(true)
+                }}
                 disabled={savingSnapshot}
                 className="bg-indigo-600 hover:bg-indigo-500 gap-1.5"
               >
@@ -389,6 +485,8 @@ export default function NetWorthPage() {
             assets={data?.assets ?? []}
             onAdd={handleSaveAsset}
             onDelete={handleDeleteAsset}
+            owners={contextOwners}
+            defaultOwnerId={contextDefaultOwnerId}
           />
 
           {/* ─── Section C: Liabilities ───────────────────────────────── */}
@@ -409,13 +507,15 @@ export default function NetWorthPage() {
               liabilities={data?.liabilities ?? []}
               onAdd={handleSaveLiability}
               onDelete={handleDeleteLiability}
+              owners={contextOwners}
+              defaultOwnerId={contextDefaultOwnerId}
             />
           </div>
 
           {/* ─── Section D: History chart ─────────────────────────────── */}
           <div className="bg-card border border-border rounded-xl p-6">
             <h2 className="text-base font-semibold text-foreground mb-5">Net Worth Over Time</h2>
-            <NetWorthHistoryChart snapshots={snapshots} />
+            <NetWorthHistoryChart snapshots={snapshots} owners={owners} selectedOwnerId={selectedOwnerId} />
           </div>
         </>
       )}
@@ -424,10 +524,47 @@ export default function NetWorthPage() {
       {addLiability && (
         <AddLiabilityModal
           open
+          owners={contextOwners}
+          defaultOwnerId={contextDefaultOwnerId}
           onClose={() => setAddLiability(false)}
           onSave={async (data, id) => { await handleSaveLiability(data, id); setAddLiability(false) }}
         />
       )}
+
+      {/* Save Snapshot Dialog */}
+      <Dialog open={snapshotDialogOpen} onOpenChange={setSnapshotDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Save Snapshot</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Choose the date for this net worth snapshot.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="snapshot-date" className="text-foreground">Snapshot Date</Label>
+              <Input
+                id="snapshot-date"
+                type="date"
+                value={selectedSnapshotDate}
+                onChange={(e) => setSelectedSnapshotDate(e.target.value)}
+                className="bg-background border-border focus-visible:ring-indigo-500 text-foreground"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setSnapshotDialogOpen(false)} className="text-muted-foreground hover:text-foreground">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmSaveSnapshot}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white"
+            >
+              Save Snapshot
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -6,13 +6,26 @@ import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { AddLiabilityModal, Liability } from './AddLiabilityModal'
 import { formatINR } from '@/lib/format'
 
+import { cn } from '@/lib/utils'
+
+const colorMap: Record<string, string> = {
+  indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  rose: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  sky: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+  violet: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+}
+
 interface LiabilityTableProps {
   liabilities: Liability[]
   onAdd: (data: Omit<Liability, 'id' | 'createdAt' | 'updatedAt' | 'userId'>, id?: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  owners?: any[]
+  defaultOwnerId?: string
 }
 
-export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableProps) {
+export function LiabilityTable({ liabilities, onAdd, onDelete, owners, defaultOwnerId }: LiabilityTableProps) {
   const [editLiability, setEditLiability] = useState<Liability | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -32,6 +45,8 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
         {isAdding && (
           <AddLiabilityModal
             open
+            owners={owners}
+            defaultOwnerId={defaultOwnerId}
             onClose={() => setIsAdding(false)}
             onSave={async (data) => { await onAdd(data as any); setIsAdding(false) }}
           />
@@ -63,43 +78,54 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
         <span />
       </div>
 
-      {liabilities.map((liability) => (
-        <div
-          key={liability.id}
-          className="grid grid-cols-[1.5fr_1fr_120px_120px_80px] gap-3 items-center px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors group border-b border-border/30 last:border-0"
-        >
-          <div className="flex flex-col">
-            <span className="text-sm text-foreground/90">{liability.name}</span>
-            <span className="text-[10px] text-muted-foreground capitalize">{liability.type.replace('_', ' ')}</span>
+      {liabilities.map((liability) => {
+        const owner = owners?.find(o => o.id === liability.ownerId)
+
+        return (
+          <div
+            key={liability.id}
+            className="grid grid-cols-[1.5fr_1fr_120px_120px_80px] gap-3 items-center px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors group border-b border-border/30 last:border-0"
+          >
+            <div className="flex flex-col">
+              <span className="text-sm text-foreground/90 flex items-center gap-2">
+                {liability.name}
+                {owner && (
+                  <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full border font-medium shrink-0", colorMap[owner.color] || colorMap['indigo'])}>
+                    {owner.name}
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] text-muted-foreground capitalize">{liability.type.replace('_', ' ')}</span>
+            </div>
+
+            <span className="text-xs text-muted-foreground">
+              {liability.interestRate ? `${liability.interestRate}% APR` : <span className="text-muted-foreground/70 italic">No rate</span>}
+            </span>
+
+            <span className="text-right font-mono text-sm text-muted-foreground">
+              {liability.monthlyPayment ? formatINR(parseFloat(liability.monthlyPayment as any)) : '—'}
+            </span>
+            <span className="text-right font-mono text-sm text-rose-400">
+              {formatINR(parseFloat(liability.outstandingAmount as any))}
+            </span>
+
+            <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+              <button
+                onClick={() => setEditLiability(liability)}
+                className="p-1 text-muted-foreground hover:text-foreground/90 rounded"
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                onClick={() => setDeleteId(liability.id)}
+                className="p-1 text-muted-foreground hover:text-rose-400 rounded"
+              >
+                <Trash2 size={13} />
+              </button>
+            </span>
           </div>
-
-          <span className="text-xs text-muted-foreground">
-            {liability.interestRate ? `${liability.interestRate}% APR` : <span className="text-muted-foreground/70 italic">No rate</span>}
-          </span>
-
-          <span className="text-right font-mono text-sm text-muted-foreground">
-            {liability.monthlyPayment ? formatINR(parseFloat(liability.monthlyPayment as any)) : '—'}
-          </span>
-          <span className="text-right font-mono text-sm text-rose-400">
-            {formatINR(parseFloat(liability.outstandingAmount as any))}
-          </span>
-
-          <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-            <button
-              onClick={() => setEditLiability(liability)}
-              className="p-1 text-muted-foreground hover:text-foreground/90 rounded"
-            >
-              <Pencil size={13} />
-            </button>
-            <button
-              onClick={() => setDeleteId(liability.id)}
-              className="p-1 text-muted-foreground hover:text-rose-400 rounded"
-            >
-              <Trash2 size={13} />
-            </button>
-          </span>
-        </div>
-      ))}
+        )
+      })}
 
       {liabilities.length > 0 && (
         <div className="grid grid-cols-[1.5fr_1fr_120px_120px_80px] gap-3 px-3 py-3 bg-card/50 rounded-b-lg border-t border-border mt-1">
@@ -118,6 +144,8 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
       {isAdding && (
         <AddLiabilityModal
           open
+          owners={owners}
+          defaultOwnerId={defaultOwnerId}
           onClose={() => setIsAdding(false)}
           onSave={async (data) => { await onAdd(data as any); setIsAdding(false) }}
         />
@@ -126,6 +154,8 @@ export function LiabilityTable({ liabilities, onAdd, onDelete }: LiabilityTableP
         <AddLiabilityModal
           open
           liability={editLiability}
+          owners={owners}
+          defaultOwnerId={defaultOwnerId}
           onClose={() => setEditLiability(null)}
           onSave={async (data, id) => { await onAdd(data as any, id); setEditLiability(null) }}
         />

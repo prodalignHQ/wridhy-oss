@@ -16,11 +16,20 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { GenericAsset } from '../tables/GenericAssetTable'
 
+interface Owner {
+  id: string
+  name: string
+  notes: string | null
+  color: string
+  isDefault: boolean
+}
+
 const schema = z.object({
   type: z.enum(['real_estate', 'crypto', 'cash', 'other']),
   name: z.string().min(1, 'Name is required'),
   value: z.number({ required_error: 'Estimated value is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
   comments: z.string().optional(),
+  ownerId: z.string().uuid().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -30,9 +39,11 @@ interface GenericAssetModalProps {
   onClose: () => void
   onSave: (data: any, id?: string) => Promise<void>
   asset?: GenericAsset
+  owners?: Owner[]
+  defaultOwnerId?: string
 }
 
-export function GenericAssetModal({ open, onClose, onSave, asset }: GenericAssetModalProps) {
+export function GenericAssetModal({ open, onClose, onSave, asset, owners, defaultOwnerId }: GenericAssetModalProps) {
   const {
     register,
     handleSubmit,
@@ -46,10 +57,12 @@ export function GenericAssetModal({ open, onClose, onSave, asset }: GenericAsset
       name: asset?.name || '',
       value: asset ? parseFloat(asset.value) : undefined,
       comments: asset?.metadata?.comments || '',
+      ownerId: asset?.ownerId || defaultOwnerId || '',
     },
   })
 
   const typeValue = watch('type')
+  const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
     const payload = {
@@ -60,7 +73,8 @@ export function GenericAssetModal({ open, onClose, onSave, asset }: GenericAsset
       valuationDate: new Date().toISOString(),
       metadata: {
         comments: data.comments || undefined,
-      }
+      },
+      ownerId: data.ownerId || undefined,
     }
 
     await onSave(payload, asset?.id)
@@ -107,6 +121,24 @@ export function GenericAssetModal({ open, onClose, onSave, asset }: GenericAsset
             <Label htmlFor="comments">Comments <span className="text-muted-foreground font-normal">(Optional)</span></Label>
             <Input id="comments" placeholder="e.g. Ancestral Property" {...register('comments')} />
           </div>
+
+          {owners && owners.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="ownerId">Owner</Label>
+              <Select value={ownerIdValue} onValueChange={(val: any) => setValue('ownerId', val)}>
+                <SelectTrigger id="ownerId">
+                  <SelectValue placeholder="Select owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {owners.map((owner) => (
+                    <SelectItem key={owner.id} value={owner.id}>
+                      {owner.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </form>
 
         <DialogFooter>

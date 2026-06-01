@@ -127,6 +127,7 @@ export type AssetType = z.infer<typeof AssetTypeSchema>
 export const AssetSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
+  ownerId: z.string().uuid().nullable().optional(),
   name: z.string().min(1).max(100),
   type: AssetTypeSchema,
   value: z.string(),
@@ -143,6 +144,7 @@ export type LiabilityType = z.infer<typeof LiabilityTypeSchema>
 export const LiabilitySchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
+  ownerId: z.string().uuid().nullable().optional(),
   name: z.string().min(1).max(100),
   type: LiabilityTypeSchema,
   outstandingAmount: z.string(),
@@ -156,6 +158,7 @@ export type Liability = z.infer<typeof LiabilitySchema>
 export const NetWorthSnapshotSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
+  ownerId: z.string().uuid().nullable().optional(),
   snapshotDate: z.date(),
   totalAssets: z.string(),
   totalLiabilities: z.string(),

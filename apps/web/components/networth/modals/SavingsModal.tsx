@@ -13,12 +13,22 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SavingsAsset } from '../tables/SavingsTable'
+
+interface Owner {
+  id: string
+  name: string
+  notes: string | null
+  color: string
+  isDefault: boolean
+}
 
 const schema = z.object({
   name: z.string().min(1, 'Bank name is required'),
   accountNumber: z.string().optional(),
   currentBalance: z.number({ required_error: 'Balance is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
+  ownerId: z.string().uuid().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -28,12 +38,16 @@ interface SavingsModalProps {
   onClose: () => void
   onSave: (data: any, id?: string) => Promise<void>
   asset?: SavingsAsset
+  owners?: Owner[]
+  defaultOwnerId?: string
 }
 
-export function SavingsModal({ open, onClose, onSave, asset }: SavingsModalProps) {
+export function SavingsModal({ open, onClose, onSave, asset, owners, defaultOwnerId }: SavingsModalProps) {
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -41,8 +55,11 @@ export function SavingsModal({ open, onClose, onSave, asset }: SavingsModalProps
       name: asset?.name || '',
       accountNumber: asset?.metadata?.accountNumber || '',
       currentBalance: asset ? parseFloat(asset.value) : undefined,
+      ownerId: asset?.ownerId || defaultOwnerId || '',
     },
   })
+
+  const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
     const payload = {
@@ -53,7 +70,8 @@ export function SavingsModal({ open, onClose, onSave, asset }: SavingsModalProps
       valuationDate: new Date().toISOString(),
       metadata: {
         accountNumber: data.accountNumber || undefined,
-      }
+      },
+      ownerId: data.ownerId || undefined,
     }
 
     await onSave(payload, asset?.id)
@@ -83,6 +101,24 @@ export function SavingsModal({ open, onClose, onSave, asset }: SavingsModalProps
             <Input id="currentBalance" type="number" step="0.01" placeholder="0.00" {...register('currentBalance', { valueAsNumber: true })} />
             {errors.currentBalance && <p className="text-xs text-rose-400">{errors.currentBalance.message}</p>}
           </div>
+
+          {owners && owners.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="ownerId">Owner</Label>
+              <Select value={ownerIdValue} onValueChange={(val: any) => setValue('ownerId', val)}>
+                <SelectTrigger id="ownerId">
+                  <SelectValue placeholder="Select owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {owners.map((owner) => (
+                    <SelectItem key={owner.id} value={owner.id}>
+                      {owner.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </form>
 
         <DialogFooter>

@@ -7,8 +7,20 @@ import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { DepositModal } from '../modals/DepositModal'
 import { formatINR } from '@/lib/format'
 
+import { cn } from '@/lib/utils'
+
+const colorMap: Record<string, string> = {
+  indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  rose: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  sky: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+  violet: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+}
+
 export interface DepositAsset {
   id: string
+  ownerId?: string | null
   name: string
   type: 'fixed_deposit' | 'recurring_deposit' | 'ppf'
   value: string // Present Value
@@ -28,6 +40,8 @@ interface DepositsTableProps {
   assets: DepositAsset[]
   onAdd: (data: any, id?: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  owners?: any[]
+  defaultOwnerId?: string
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -36,7 +50,7 @@ const TYPE_LABELS: Record<string, string> = {
   ppf: 'PPF'
 }
 
-export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
+export function DepositsTable({ assets, onAdd, onDelete, owners, defaultOwnerId }: DepositsTableProps) {
   const [editAsset, setEditAsset] = useState<DepositAsset | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -58,6 +72,8 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
         {isAdding && (
           <DepositModal
             open
+            owners={owners}
+            defaultOwnerId={defaultOwnerId}
             onClose={() => setIsAdding(false)}
             onSave={async (data: any) => { await onAdd(data); setIsAdding(false) }}
           />
@@ -94,6 +110,7 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
         const invested = asset.metadata.investedAmount || 0
         const present = parseFloat(asset.value)
         const earned = present - invested
+        const owner = owners?.find(o => o.id === asset.ownerId)
 
         return (
           <div
@@ -108,7 +125,14 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
                 {TYPE_LABELS[asset.type] || asset.type}
               </Badge>
               <div className="flex flex-col">
-                <span className="text-sm text-foreground/90">{asset.name}</span>
+                <span className="text-sm text-foreground/90 flex items-center gap-2">
+                  {asset.name}
+                  {owner && (
+                    <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full border font-medium shrink-0", colorMap[owner.color] || colorMap['indigo'])}>
+                      {owner.name}
+                    </span>
+                  )}
+                </span>
                 {asset.metadata.comments && (
                   <span className="text-[10px] text-muted-foreground truncate max-w-[150px]">{asset.metadata.comments}</span>
                 )}
@@ -203,6 +227,8 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
       {isAdding && (
         <DepositModal
           open
+          owners={owners}
+          defaultOwnerId={defaultOwnerId}
           onClose={() => setIsAdding(false)}
           onSave={async (data: any) => { await onAdd(data); setIsAdding(false) }}
         />
@@ -211,6 +237,8 @@ export function DepositsTable({ assets, onAdd, onDelete }: DepositsTableProps) {
         <DepositModal
           open
           asset={editAsset}
+          owners={owners}
+          defaultOwnerId={defaultOwnerId}
           onClose={() => setEditAsset(null)}
           onSave={async (data: any, id?: string) => { await onAdd(data, id); setEditAsset(null) }}
         />

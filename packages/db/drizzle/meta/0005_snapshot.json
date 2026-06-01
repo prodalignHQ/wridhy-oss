@@ -1,6 +1,6 @@
 {
-  "id": "e119a5f9-7879-4506-aeac-f93423309894",
-  "prevId": "13d08e04-de05-4741-b6ba-285781345607",
+  "id": "ce82a358-8f9a-4ee8-ad14-3fdeba25e9df",
+  "prevId": "e119a5f9-7879-4506-aeac-f93423309894",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -129,6 +129,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -191,6 +197,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "assets_owner_id_owners_id_fk": {
+          "name": "assets_owner_id_owners_id_fk",
+          "tableFrom": "assets",
+          "tableTo": "owners",
+          "columnsFrom": [
+            "owner_id"
           ],
           "columnsTo": [
             "id"
@@ -840,6 +859,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -893,6 +918,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "liabilities_owner_id_owners_id_fk": {
+          "name": "liabilities_owner_id_owners_id_fk",
+          "tableFrom": "liabilities",
+          "tableTo": "owners",
+          "columnsFrom": [
+            "owner_id"
           ],
           "columnsTo": [
             "id"
@@ -1009,6 +1047,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "asset_breakdown": {
           "name": "asset_breakdown",
           "type": "jsonb",
@@ -1043,15 +1087,28 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "net_worth_drafts_owner_id_owners_id_fk": {
+          "name": "net_worth_drafts_owner_id_owners_id_fk",
+          "tableFrom": "net_worth_drafts",
+          "tableTo": "owners",
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "net_worth_drafts_user_id_unique": {
-          "name": "net_worth_drafts_user_id_unique",
+        "net_worth_drafts_owner_id_unique": {
+          "name": "net_worth_drafts_owner_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "user_id"
+            "owner_id"
           ]
         }
       },
@@ -1075,6 +1132,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "snapshot_date": {
           "name": "snapshot_date",
@@ -1134,6 +1197,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "net_worth_snapshots_owner_id_owners_id_fk": {
+          "name": "net_worth_snapshots_owner_id_owners_id_fk",
+          "tableFrom": "net_worth_snapshots",
+          "tableTo": "owners",
+          "columnsFrom": [
+            "owner_id"
           ],
           "columnsTo": [
             "id"

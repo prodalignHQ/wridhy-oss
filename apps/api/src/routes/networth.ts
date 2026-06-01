@@ -5,10 +5,11 @@ import {
   liabilities,
   netWorthSnapshots,
   netWorthDrafts,
+  owners,
 } from '@momoney/db'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, desc, asc, sum } from 'drizzle-orm'
+import { eq, and, desc, asc, sum, or, isNull } from 'drizzle-orm'
 import { authMiddleware } from '../middleware/auth.js'
 
 export const networthRoute = new Hono<{
@@ -28,6 +29,7 @@ const insertAssetSchema = z.object({
   currency: z.string().default('INR'),
   valuationDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Invalid date'),
   metadata: z.record(z.any()).default({}),
+  ownerId: z.string().uuid().optional().nullable(),
 }).superRefine((data, ctx) => {
   if (data.type === 'stock') {
     if (typeof data.metadata.quantity !== 'number' || typeof data.metadata.ltp !== 'number') {
@@ -53,6 +55,7 @@ const updateAssetSchema = z.object({
   currency: z.string().optional(),
   valuationDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Invalid date').optional(),
   metadata: z.record(z.any()).optional(),
+  ownerId: z.string().uuid().optional().nullable(),
 })
 
 const insertLiabilitySchema = z.object({
@@ -61,6 +64,7 @@ const insertLiabilitySchema = z.object({
   outstandingAmount: z.number().nonnegative('Amount must be non-negative'),
   interestRate: z.number().nonnegative().optional(),
   monthlyPayment: z.number().nonnegative().optional(),
+  ownerId: z.string().uuid().optional().nullable(),
 })
 
 const updateLiabilitySchema = insertLiabilitySchema.partial()
@@ -72,13 +76,39 @@ const draftSchema = z.object({
 
 // ─── Helper: compute live net worth ──────────────────────────────────────────
 
-async function computeLiveNetWorth(userId: string) {
+async function computeLiveNetWorth(userId: string, ownerId?: string | null) {
+  const defaultOwner = await db.query.owners.findFirst({
+    where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+  })
+
+  let assetWhereClause
+  let liabilityWhereClause
+
+  if (ownerId && ownerId !== 'all') {
+    if (defaultOwner && ownerId === defaultOwner.id) {
+      assetWhereClause = and(
+        eq(assets.userId, userId),
+        or(eq(assets.ownerId, ownerId), isNull(assets.ownerId))
+      )
+      liabilityWhereClause = and(
+        eq(liabilities.userId, userId),
+        or(eq(liabilities.ownerId, ownerId), isNull(liabilities.ownerId))
+      )
+    } else {
+      assetWhereClause = and(eq(assets.userId, userId), eq(assets.ownerId, ownerId))
+      liabilityWhereClause = and(eq(liabilities.userId, userId), eq(liabilities.ownerId, ownerId))
+    }
+  } else {
+    assetWhereClause = eq(assets.userId, userId)
+    liabilityWhereClause = eq(liabilities.userId, userId)
+  }
+
   const userAssets = await db.query.assets.findMany({
-    where: eq(assets.userId, userId),
+    where: assetWhereClause,
     orderBy: [asc(assets.type), asc(assets.createdAt)],
   })
   const userLiabilities = await db.query.liabilities.findMany({
-    where: eq(liabilities.userId, userId),
+    where: liabilityWhereClause,
     orderBy: [asc(liabilities.type), asc(liabilities.createdAt)],
   })
 
@@ -101,7 +131,8 @@ async function computeLiveNetWorth(userId: string) {
 
 networthRoute.get('/', async (c) => {
   const userId = c.get('userId')
-  const data = await computeLiveNetWorth(userId)
+  const ownerId = c.req.query('ownerId')
+  const data = await computeLiveNetWorth(userId, ownerId)
   return c.json({ success: true, data })
 })
 
@@ -109,10 +140,47 @@ networthRoute.get('/', async (c) => {
 
 networthRoute.get('/history', async (c) => {
   const userId = c.get('userId')
-  const snapshots = await db.query.netWorthSnapshots.findMany({
-    where: eq(netWorthSnapshots.userId, userId),
-    orderBy: [asc(netWorthSnapshots.snapshotDate)],
-  })
+  const ownerId = c.req.query('ownerId')
+
+  let snapshots
+  if (ownerId && ownerId !== 'all') {
+    const defaultOwner = await db.query.owners.findFirst({
+      where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+    })
+    
+    if (defaultOwner && ownerId === defaultOwner.id) {
+      snapshots = await db.query.netWorthSnapshots.findMany({
+        where: and(
+          eq(netWorthSnapshots.userId, userId),
+          or(eq(netWorthSnapshots.ownerId, ownerId), isNull(netWorthSnapshots.ownerId))
+        ),
+        with: {
+          owner: true,
+        },
+        orderBy: [asc(netWorthSnapshots.snapshotDate)],
+      })
+    } else {
+      snapshots = await db.query.netWorthSnapshots.findMany({
+        where: and(
+          eq(netWorthSnapshots.userId, userId),
+          eq(netWorthSnapshots.ownerId, ownerId)
+        ),
+        with: {
+          owner: true,
+        },
+        orderBy: [asc(netWorthSnapshots.snapshotDate)],
+      })
+    }
+  } else {
+    // Return all snapshots with their owner relations
+    snapshots = await db.query.netWorthSnapshots.findMany({
+      where: eq(netWorthSnapshots.userId, userId),
+      with: {
+        owner: true,
+      },
+      orderBy: [asc(netWorthSnapshots.snapshotDate)],
+    })
+  }
   return c.json({ success: true, data: snapshots })
 })
 
@@ -120,13 +188,27 @@ networthRoute.get('/history', async (c) => {
 
 networthRoute.post('/snapshot', async (c) => {
   const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+  let ownerId = body.ownerId || c.req.query('ownerId')
+  if (!ownerId) {
+    const defaultOwner = await db.query.owners.findFirst({
+      where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+    })
+    ownerId = defaultOwner?.id
+  }
 
   const { totalAssets, totalLiabilities, netWorth, assets: userAssets, liabilities: userLiabilities } =
-    await computeLiveNetWorth(userId)
+    await computeLiveNetWorth(userId, ownerId)
 
-  // Snapshot date = start of current day
+  // Snapshot date = start of specified day or current day
   const now = new Date()
-  const snapshotDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let snapshotDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  if (body.date) {
+    const parsed = new Date(body.date)
+    if (!isNaN(parsed.getTime())) {
+      snapshotDate = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+    }
+  }
 
   const assetBreakdown = userAssets.map((a) => ({
     name: a.name,
@@ -142,10 +224,11 @@ networthRoute.post('/snapshot', async (c) => {
     monthlyPayment: l.monthlyPayment ? parseFloat(l.monthlyPayment as string) : undefined,
   }))
 
-  // Upsert — if snapshot for this month already exists, replace it
+  // Upsert — if snapshot for this month already exists for this owner, replace it
   const existing = await db.query.netWorthSnapshots.findFirst({
     where: and(
       eq(netWorthSnapshots.userId, userId),
+      eq(netWorthSnapshots.ownerId, ownerId),
       eq(netWorthSnapshots.snapshotDate, snapshotDate)
     ),
   })
@@ -168,6 +251,7 @@ networthRoute.post('/snapshot', async (c) => {
       .insert(netWorthSnapshots)
       .values({
         userId,
+        ownerId,
         snapshotDate,
         totalAssets: totalAssets.toFixed(2),
         totalLiabilities: totalLiabilities.toFixed(2),
@@ -179,7 +263,9 @@ networthRoute.post('/snapshot', async (c) => {
   }
 
   // Auto-clear draft after successful snapshot
-  await db.delete(netWorthDrafts).where(eq(netWorthDrafts.userId, userId))
+  await db.delete(netWorthDrafts).where(
+    and(eq(netWorthDrafts.userId, userId), eq(netWorthDrafts.ownerId, ownerId))
+  )
 
   return c.json({ success: true, data: snapshot }, existing ? 200 : 201)
 })
@@ -198,16 +284,45 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
     return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Snapshot not found' } }, 404)
   }
 
-  // Clear all current assets and liabilities for user
-  await db.delete(assets).where(eq(assets.userId, userId))
-  await db.delete(liabilities).where(eq(liabilities.userId, userId))
+  const ownerId = snapshot.ownerId
+
+  // Clear all current assets and liabilities for user and owner
+  let deleteAssetWhereClause
+  let deleteLiabilityWhereClause
+  
+  const defaultOwner = await db.query.owners.findFirst({
+    where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+  })
+  
+  if (!defaultOwner) {
+    return c.json({ success: false, error: { message: 'Default owner not found' } }, 400)
+  }
+  
+  if (ownerId) {
+    if (ownerId === defaultOwner.id) {
+      deleteAssetWhereClause = and(eq(assets.userId, userId), or(eq(assets.ownerId, ownerId), isNull(assets.ownerId)))
+      deleteLiabilityWhereClause = and(eq(liabilities.userId, userId), or(eq(liabilities.ownerId, ownerId), isNull(liabilities.ownerId)))
+    } else {
+      deleteAssetWhereClause = and(eq(assets.userId, userId), eq(assets.ownerId, ownerId))
+      deleteLiabilityWhereClause = and(eq(liabilities.userId, userId), eq(liabilities.ownerId, ownerId))
+    }
+  } else {
+    const targetOwnerId = defaultOwner.id
+    deleteAssetWhereClause = and(eq(assets.userId, userId), or(eq(assets.ownerId, targetOwnerId), isNull(assets.ownerId)))
+    deleteLiabilityWhereClause = and(eq(liabilities.userId, userId), or(eq(liabilities.ownerId, targetOwnerId), isNull(liabilities.ownerId)))
+  }
+
+  await db.delete(assets).where(deleteAssetWhereClause)
+  await db.delete(liabilities).where(deleteLiabilityWhereClause)
 
   // Re-insert from snapshot breakdown
   const today = new Date()
+  const targetOwnerId = ownerId || defaultOwner.id
 
   if (snapshot.assetBreakdown && snapshot.assetBreakdown.length > 0) {
     const assetValues = snapshot.assetBreakdown.map((a) => ({
       userId,
+      ownerId: targetOwnerId,
       name: a.name,
       type: a.type as any,
       value: a.value.toFixed(2),
@@ -221,6 +336,7 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
   if (snapshot.liabilityBreakdown && snapshot.liabilityBreakdown.length > 0) {
     const liabilityValues = snapshot.liabilityBreakdown.map((l) => ({
       userId,
+      ownerId: targetOwnerId,
       name: l.name,
       type: l.type as any,
       outstandingAmount: (l as any).amount?.toFixed(2) ?? '0',
@@ -231,7 +347,7 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
     await db.insert(liabilities).values(liabilityValues)
   }
 
-  const data = await computeLiveNetWorth(userId)
+  const data = await computeLiveNetWorth(userId, targetOwnerId)
   return c.json({ success: true, data })
 })
 
@@ -239,8 +355,18 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
 
 networthRoute.get('/draft', async (c) => {
   const userId = c.get('userId')
+  let ownerId = c.req.query('ownerId')
+  if (!ownerId) {
+    const defaultOwner = await db.query.owners.findFirst({
+      where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+    })
+    ownerId = defaultOwner?.id
+  }
+  if (!ownerId) {
+    return c.json({ success: false, error: { message: 'Owner ID not found' } }, 400)
+  }
   const draft = await db.query.netWorthDrafts.findFirst({
-    where: eq(netWorthDrafts.userId, userId),
+    where: and(eq(netWorthDrafts.userId, userId), eq(netWorthDrafts.ownerId, ownerId)),
   })
   return c.json({ success: true, data: draft ?? null })
 })
@@ -250,9 +376,19 @@ networthRoute.get('/draft', async (c) => {
 networthRoute.put('/draft', zValidator('json', draftSchema), async (c) => {
   const userId = c.get('userId')
   const body = c.req.valid('json')
+  let ownerId = c.req.query('ownerId')
+  if (!ownerId) {
+    const defaultOwner = await db.query.owners.findFirst({
+      where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+    })
+    ownerId = defaultOwner?.id
+  }
+  if (!ownerId) {
+    return c.json({ success: false, error: { message: 'Owner ID not found' } }, 400)
+  }
 
   // Get current live state if no breakdown provided
-  const { assets: userAssets, liabilities: userLiabilities } = await computeLiveNetWorth(userId)
+  const { assets: userAssets, liabilities: userLiabilities } = await computeLiveNetWorth(userId, ownerId)
 
   const assetBreakdown =
     body.assetBreakdown ??
@@ -287,9 +423,9 @@ networthRoute.put('/draft', zValidator('json', draftSchema), async (c) => {
     return id ? l : rest;
   })
 
-  // Upsert draft (unique on userId)
+  // Upsert draft (unique on ownerId)
   const existing = await db.query.netWorthDrafts.findFirst({
-    where: eq(netWorthDrafts.userId, userId),
+    where: and(eq(netWorthDrafts.userId, userId), eq(netWorthDrafts.ownerId, ownerId)),
   })
 
   let draft
@@ -297,12 +433,12 @@ networthRoute.put('/draft', zValidator('json', draftSchema), async (c) => {
     ;[draft] = await db
       .update(netWorthDrafts)
       .set({ assetBreakdown: cleanAssetBreakdown, liabilityBreakdown: cleanLiabilityBreakdown, savedAt: new Date() })
-      .where(eq(netWorthDrafts.userId, userId))
+      .where(and(eq(netWorthDrafts.userId, userId), eq(netWorthDrafts.ownerId, ownerId)))
       .returning()
   } else {
     ;[draft] = await db
       .insert(netWorthDrafts)
-      .values({ userId, assetBreakdown: cleanAssetBreakdown, liabilityBreakdown: cleanLiabilityBreakdown })
+      .values({ userId, ownerId, assetBreakdown: cleanAssetBreakdown, liabilityBreakdown: cleanLiabilityBreakdown })
       .returning()
   }
 
@@ -313,7 +449,19 @@ networthRoute.put('/draft', zValidator('json', draftSchema), async (c) => {
 
 networthRoute.delete('/draft', async (c) => {
   const userId = c.get('userId')
-  await db.delete(netWorthDrafts).where(eq(netWorthDrafts.userId, userId))
+  let ownerId = c.req.query('ownerId')
+  if (!ownerId) {
+    const defaultOwner = await db.query.owners.findFirst({
+      where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+    })
+    ownerId = defaultOwner?.id
+  }
+  if (!ownerId) {
+    return c.json({ success: false, error: { message: 'Owner ID not found' } }, 400)
+  }
+  await db.delete(netWorthDrafts).where(
+    and(eq(netWorthDrafts.userId, userId), eq(netWorthDrafts.ownerId, ownerId))
+  )
   return c.json({ success: true, data: null })
 })
 
@@ -321,8 +469,24 @@ networthRoute.delete('/draft', async (c) => {
 
 networthRoute.get('/assets', async (c) => {
   const userId = c.get('userId')
+  const ownerId = c.req.query('ownerId')
+  
+  let assetWhereClause
+  if (ownerId && ownerId !== 'all') {
+    const defaultOwner = await db.query.owners.findFirst({
+      where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+    })
+    if (defaultOwner && ownerId === defaultOwner.id) {
+      assetWhereClause = and(eq(assets.userId, userId), or(eq(assets.ownerId, ownerId), isNull(assets.ownerId)))
+    } else {
+      assetWhereClause = and(eq(assets.userId, userId), eq(assets.ownerId, ownerId))
+    }
+  } else {
+    assetWhereClause = eq(assets.userId, userId)
+  }
+
   const data = await db.query.assets.findMany({
-    where: eq(assets.userId, userId),
+    where: assetWhereClause,
     orderBy: [asc(assets.type), asc(assets.createdAt)],
   })
   return c.json({ success: true, data })
@@ -336,6 +500,7 @@ networthRoute.post('/assets', zValidator('json', insertAssetSchema), async (c) =
     .insert(assets)
     .values({
       userId,
+      ownerId: body.ownerId,
       name: body.name,
       type: body.type,
       value: body.value.toFixed(2),
@@ -360,6 +525,7 @@ networthRoute.patch('/assets/:id', zValidator('json', updateAssetSchema), async 
   if (body.currency !== undefined) updateData.currency = body.currency
   if (body.metadata !== undefined) updateData.metadata = body.metadata
   if (body.valuationDate !== undefined) updateData.valuationDate = new Date(body.valuationDate)
+  if (body.ownerId !== undefined) updateData.ownerId = body.ownerId
 
   const [asset] = await db
     .update(assets)
@@ -394,8 +560,24 @@ networthRoute.delete('/assets/:id', async (c) => {
 
 networthRoute.get('/liabilities', async (c) => {
   const userId = c.get('userId')
+  const ownerId = c.req.query('ownerId')
+
+  let liabilityWhereClause
+  if (ownerId && ownerId !== 'all') {
+    const defaultOwner = await db.query.owners.findFirst({
+      where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+    })
+    if (defaultOwner && ownerId === defaultOwner.id) {
+      liabilityWhereClause = and(eq(liabilities.userId, userId), or(eq(liabilities.ownerId, ownerId), isNull(liabilities.ownerId)))
+    } else {
+      liabilityWhereClause = and(eq(liabilities.userId, userId), eq(liabilities.ownerId, ownerId))
+    }
+  } else {
+    liabilityWhereClause = eq(liabilities.userId, userId)
+  }
+
   const data = await db.query.liabilities.findMany({
-    where: eq(liabilities.userId, userId),
+    where: liabilityWhereClause,
     orderBy: [asc(liabilities.type), asc(liabilities.createdAt)],
   })
   return c.json({ success: true, data })
@@ -409,6 +591,7 @@ networthRoute.post('/liabilities', zValidator('json', insertLiabilitySchema), as
     .insert(liabilities)
     .values({
       userId,
+      ownerId: body.ownerId,
       name: body.name,
       type: body.type,
       outstandingAmount: body.outstandingAmount.toFixed(2),
@@ -432,6 +615,7 @@ networthRoute.patch('/liabilities/:id', zValidator('json', updateLiabilitySchema
   if (body.outstandingAmount !== undefined) updateData.outstandingAmount = body.outstandingAmount.toFixed(2)
   if (body.interestRate !== undefined) updateData.interestRate = body.interestRate.toFixed(2)
   if (body.monthlyPayment !== undefined) updateData.monthlyPayment = body.monthlyPayment.toFixed(2)
+  if (body.ownerId !== undefined) updateData.ownerId = body.ownerId
 
   const [liability] = await db
     .update(liabilities)

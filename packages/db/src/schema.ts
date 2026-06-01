@@ -233,6 +233,7 @@ export const invoiceItems = pgTable('invoice_items', {
 export const assets = pgTable('assets', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ownerId: uuid('owner_id').references(() => owners.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   type: assetTypeEnum('type').notNull(),
   value: numeric('value', { precision: 15, scale: 2 }).notNull(),
@@ -248,6 +249,7 @@ export const assets = pgTable('assets', {
 export const liabilities = pgTable('liabilities', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ownerId: uuid('owner_id').references(() => owners.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   type: liabilityTypeEnum('type').notNull(),
   outstandingAmount: numeric('outstanding_amount', { precision: 15, scale: 2 }).notNull(),
@@ -262,6 +264,7 @@ export const liabilities = pgTable('liabilities', {
 export const netWorthSnapshots = pgTable('net_worth_snapshots', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ownerId: uuid('owner_id').references(() => owners.id, { onDelete: 'cascade' }),
   snapshotDate: timestamp('snapshot_date', { mode: 'date' }).notNull(), // first day of month
   totalAssets: numeric('total_assets', { precision: 15, scale: 2 }).notNull(),
   totalLiabilities: numeric('total_liabilities', { precision: 15, scale: 2 }).notNull(),
@@ -277,7 +280,8 @@ export const netWorthSnapshots = pgTable('net_worth_snapshots', {
 
 export const netWorthDrafts = pgTable('net_worth_drafts', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ownerId: uuid('owner_id').references(() => owners.id, { onDelete: 'cascade' }).unique(),
   assetBreakdown: jsonb('asset_breakdown').$type<Array<Record<string, any>>>(),
   liabilityBreakdown: jsonb('liability_breakdown').$type<Array<Record<string, any>>>(),
   savedAt: timestamp('saved_at').defaultNow().notNull(),
@@ -305,6 +309,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
 export const ownersRelations = relations(owners, ({ one, many }) => ({
   user: one(users, { fields: [owners.userId], references: [users.id] }),
   transactionOwners: many(transactionOwners),
+  assets: many(assets),
+  liabilities: many(liabilities),
+  netWorthSnapshots: many(netWorthSnapshots),
+  netWorthDrafts: many(netWorthDrafts),
 }))
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
@@ -363,18 +371,22 @@ export const merchantsRelations = relations(merchants, ({ one }) => ({
 
 export const assetsRelations = relations(assets, ({ one }) => ({
   user: one(users, { fields: [assets.userId], references: [users.id] }),
+  owner: one(owners, { fields: [assets.ownerId], references: [owners.id] }),
 }))
 
 export const liabilitiesRelations = relations(liabilities, ({ one }) => ({
   user: one(users, { fields: [liabilities.userId], references: [users.id] }),
+  owner: one(owners, { fields: [liabilities.ownerId], references: [owners.id] }),
 }))
 
 export const netWorthSnapshotsRelations = relations(netWorthSnapshots, ({ one }) => ({
   user: one(users, { fields: [netWorthSnapshots.userId], references: [users.id] }),
+  owner: one(owners, { fields: [netWorthSnapshots.ownerId], references: [owners.id] }),
 }))
 
 export const netWorthDraftsRelations = relations(netWorthDrafts, ({ one }) => ({
   user: one(users, { fields: [netWorthDrafts.userId], references: [users.id] }),
+  owner: one(owners, { fields: [netWorthDrafts.ownerId], references: [owners.id] }),
 }))
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({

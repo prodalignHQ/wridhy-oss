@@ -13,13 +13,23 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StockAsset } from '../tables/StocksTable'
+
+interface Owner {
+  id: string
+  name: string
+  notes: string | null
+  color: string
+  isDefault: boolean
+}
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   quantity: z.number({ required_error: 'Qty required', invalid_type_error: 'Must be a number' }).nonnegative(),
   averageBuyPrice: z.number({ required_error: 'Avg price required', invalid_type_error: 'Must be a number' }).nonnegative(),
   ltp: z.number({ required_error: 'LTP required', invalid_type_error: 'Must be a number' }).nonnegative(),
+  ownerId: z.string().uuid().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -29,12 +39,15 @@ interface StockModalProps {
   onClose: () => void
   onSave: (data: any, id?: string) => Promise<void>
   asset?: StockAsset
+  owners?: Owner[]
+  defaultOwnerId?: string
 }
 
-export function StockModal({ open, onClose, onSave, asset }: StockModalProps) {
+export function StockModal({ open, onClose, onSave, asset, owners, defaultOwnerId }: StockModalProps) {
   const {
     register,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
@@ -44,6 +57,7 @@ export function StockModal({ open, onClose, onSave, asset }: StockModalProps) {
       quantity: asset?.metadata?.quantity || undefined,
       averageBuyPrice: asset?.metadata?.averageBuyPrice || undefined,
       ltp: asset?.metadata?.ltp || undefined,
+      ownerId: asset?.ownerId || defaultOwnerId || '',
     },
   })
 
@@ -51,6 +65,7 @@ export function StockModal({ open, onClose, onSave, asset }: StockModalProps) {
   const qty = watch('quantity')
   const avg = watch('averageBuyPrice')
   const ltpVal = watch('ltp')
+  const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
     const investedAmount = data.quantity * data.averageBuyPrice
@@ -67,7 +82,8 @@ export function StockModal({ open, onClose, onSave, asset }: StockModalProps) {
         averageBuyPrice: data.averageBuyPrice,
         ltp: data.ltp,
         investedAmount,
-      }
+      },
+      ownerId: data.ownerId || undefined,
     }
 
     await onSave(payload, asset?.id)
@@ -106,6 +122,24 @@ export function StockModal({ open, onClose, onSave, asset }: StockModalProps) {
               {errors.ltp && <p className="text-xs text-rose-400">{errors.ltp.message}</p>}
             </div>
           </div>
+
+          {owners && owners.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="ownerId">Owner</Label>
+              <Select value={ownerIdValue} onValueChange={(val: any) => setValue('ownerId', val)}>
+                <SelectTrigger id="ownerId">
+                  <SelectValue placeholder="Select owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {owners.map((owner) => (
+                    <SelectItem key={owner.id} value={owner.id}>
+                      {owner.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="pt-2">
             <div className="bg-card/50 rounded-lg p-3 text-sm grid grid-cols-2 gap-2 border border-border">

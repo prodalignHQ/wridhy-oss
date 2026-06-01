@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export interface Liability {
   id: string
   userId: string
+  ownerId?: string | null
   name: string
   type: string
   outstandingAmount: string | number
@@ -27,12 +28,21 @@ export interface Liability {
   updatedAt: string
 }
 
+interface Owner {
+  id: string
+  name: string
+  notes: string | null
+  color: string
+  isDefault: boolean
+}
+
 const schema = z.object({
   type: z.enum(['credit_card', 'home_loan', 'auto_loan', 'personal_loan', 'student_loan', 'other']),
   name: z.string().min(1, 'Name is required'),
   outstandingAmount: z.number({ required_error: 'Amount is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
   interestRate: z.union([z.number().nonnegative(), z.nan()]).optional().transform(v => Number.isNaN(v) ? undefined : v),
   monthlyPayment: z.union([z.number().nonnegative(), z.nan()]).optional().transform(v => Number.isNaN(v) ? undefined : v),
+  ownerId: z.string().uuid().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -42,9 +52,11 @@ interface AddLiabilityModalProps {
   onClose: () => void
   onSave: (data: any, id?: string) => Promise<void>
   liability?: Liability
+  owners?: Owner[]
+  defaultOwnerId?: string
 }
 
-export function AddLiabilityModal({ open, onClose, onSave, liability }: AddLiabilityModalProps) {
+export function AddLiabilityModal({ open, onClose, onSave, liability, owners, defaultOwnerId }: AddLiabilityModalProps) {
   const {
     register,
     handleSubmit,
@@ -59,10 +71,12 @@ export function AddLiabilityModal({ open, onClose, onSave, liability }: AddLiabi
       outstandingAmount: liability ? parseFloat(liability.outstandingAmount as any) : undefined,
       interestRate: liability?.interestRate ? parseFloat(liability.interestRate as any) : undefined,
       monthlyPayment: liability?.monthlyPayment ? parseFloat(liability.monthlyPayment as any) : undefined,
+      ownerId: liability?.ownerId || defaultOwnerId || '',
     },
   })
 
   const typeValue = watch('type')
+  const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
     await onSave(data, liability?.id)
@@ -118,6 +132,24 @@ export function AddLiabilityModal({ open, onClose, onSave, liability }: AddLiabi
               <Input id="monthlyPayment" type="number" step="0.01" placeholder="0.00" {...register('monthlyPayment', { valueAsNumber: true })} />
             </div>
           </div>
+
+          {owners && owners.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="ownerId">Owner</Label>
+              <Select value={ownerIdValue} onValueChange={(val: any) => setValue('ownerId', val)}>
+                <SelectTrigger id="ownerId">
+                  <SelectValue placeholder="Select owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {owners.map((owner) => (
+                    <SelectItem key={owner.id} value={owner.id}>
+                      {owner.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </form>
 
         <DialogFooter>
