@@ -438,9 +438,9 @@ export default function InvoicesPage() {
 
   const filteredTotal = useMemo(() => {
     return filteredTransactions.reduce((acc, t) => {
-      const amount = parseFloat(t.amount);
-      console.log("Amount Parsed: ", amount)
-      return acc + amount;
+      const amount = parseFloat(t.amount)
+      const signedAmount = t.type === 'debit' ? -amount : amount
+      return acc + signedAmount
     }, 0)
   }, [filteredTransactions])
 
