@@ -1376,7 +1376,7 @@ export default function InvoicesPage() {
                           <thead className="bg-background/80">
                             <tr className="border-b border-border">
                               {activeInvoice.status === 'draft' ? (
-                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                <th className="sticky left-0 z-20 bg-card border-r border-border/50 px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                   <input
                                     type="checkbox"
                                     checked={allFilteredSelected}
@@ -1428,9 +1428,9 @@ export default function InvoicesPage() {
                           </thead>
                           <tbody className="divide-y divide-zinc-800">
                             {filteredTransactions.map((transaction) => (
-                              <tr key={transaction.id} className="hover:bg-muted/30">
+                              <tr key={transaction.id} className="group hover:bg-muted/30">
                                 {activeInvoice.status === 'draft' ? (
-                                  <td className="px-4 py-3 align-top">
+                                  <td className="sticky left-0 z-10 bg-card group-hover:bg-muted/30 border-r border-border/50 px-4 py-3 align-top">
                                     <input
                                       type="checkbox"
                                       checked={selectedTransactionIds.has(transaction.id)}
@@ -1512,9 +1512,12 @@ export default function InvoicesPage() {
                           </tbody>
                           <tfoot className="bg-background/50 border-t border-border">
                             <tr>
+                              {activeInvoice.status === 'draft' ? (
+                                <td className="sticky left-0 z-10 bg-card border-r border-border/50 px-4 py-4"></td>
+                              ) : null}
                               <td
                                 className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                                colSpan={activeInvoice.status === 'draft' ? 6 : 5}
+                                colSpan={5}
                               >
                                 Sub-total <span className="normal-case font-normal text-muted-foreground/75 ml-1.5">(Avg: {formatINR(filteredAverage)})</span>
                               </td>
