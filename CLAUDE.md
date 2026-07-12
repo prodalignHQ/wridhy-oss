@@ -22,6 +22,7 @@ lsof -ti :3000,3001 | xargs kill -9
 docker-compose up -d
 
 # Push Drizzle schema to DB (after schema changes)
+# Note: interactive — use arrow keys + Enter to confirm, or pipe: yes | <cmd>
 pnpm --filter @momoney/db exec drizzle-kit push
 
 # Run database seed

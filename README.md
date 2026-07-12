@@ -49,6 +49,11 @@ This project is a Turborepo monorepo using `pnpm` workspaces. It is divided into
    pnpm --filter @momoney/db exec drizzle-kit push
    ```
 
+   > **Note:** `drizzle-kit push` is interactive — it will show pending changes and wait for confirmation. Use arrow keys to select "Yes" and press Enter. If you need a non-interactive alternative, you can pipe the confirmation:
+   > ```bash
+   > yes | pnpm --filter @momoney/db exec drizzle-kit push
+   > ```
+
    *(Optional) If you ever need to apply Better Auth specific migrations directly via their CLI, you can run `DATABASE_URL=... pnpm dlx @better-auth/cli migrate`*.
 
 5. **Start Development Servers**
