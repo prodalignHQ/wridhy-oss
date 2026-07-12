@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { DepositModal } from '../modals/DepositModal'
 import { formatINR } from '@/lib/format'
+import { InlineInput } from './InlineInput'
 
 import { cn } from '@/lib/utils'
 
@@ -42,6 +43,7 @@ interface DepositsTableProps {
   onDelete: (id: string) => Promise<void>
   owners?: any[]
   defaultOwnerId?: string
+  inlineEdit?: boolean
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -50,7 +52,7 @@ const TYPE_LABELS: Record<string, string> = {
   ppf: 'PPF'
 }
 
-export function DepositsTable({ assets, onAdd, onDelete, owners, defaultOwnerId }: DepositsTableProps) {
+export function DepositsTable({ assets, onAdd, onDelete, owners, defaultOwnerId, inlineEdit }: DepositsTableProps) {
   const [editAsset, setEditAsset] = useState<DepositAsset | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -150,19 +152,58 @@ export function DepositsTable({ assets, onAdd, onDelete, owners, defaultOwnerId 
               ) : null}
             </div>
 
-            <span className="text-right font-mono text-sm text-muted-foreground">
-              {formatINR(invested)}
-            </span>
-            <div className="text-right flex flex-col">
-               <span className="font-mono text-sm text-emerald-400">
-                {formatINR(present)}
+            {inlineEdit ? (
+              <InlineInput
+                initialValue={invested}
+                onSave={async (val) => {
+                  await onAdd({
+                    name: asset.name,
+                    type: asset.type,
+                    value: parseFloat(asset.value),
+                    currency: asset.currency,
+                    valuationDate: asset.valuationDate,
+                    metadata: {
+                      ...asset.metadata,
+                      investedAmount: val,
+                    },
+                    ownerId: asset.ownerId,
+                  }, asset.id)
+                }}
+                className="h-7 text-xs bg-background text-foreground border-border text-right max-w-[100px] ml-auto font-mono"
+              />
+            ) : (
+              <span className="text-right font-mono text-sm text-muted-foreground">
+                {formatINR(invested)}
               </span>
-              {earned > 0 && (
-                <span className="text-[10px] text-emerald-500/70">
-                  +{formatINR(earned)}
+            )}
+            {inlineEdit ? (
+              <InlineInput
+                initialValue={present}
+                onSave={async (val) => {
+                  await onAdd({
+                    name: asset.name,
+                    type: asset.type,
+                    value: val,
+                    currency: asset.currency,
+                    valuationDate: asset.valuationDate,
+                    metadata: asset.metadata,
+                    ownerId: asset.ownerId,
+                  }, asset.id)
+                }}
+                className="h-7 text-xs bg-background text-foreground border-border text-right max-w-[100px] ml-auto font-mono"
+              />
+            ) : (
+              <div className="text-right flex flex-col">
+                <span className="font-mono text-sm text-emerald-400">
+                  {formatINR(present)}
                 </span>
-              )}
-            </div>
+                {earned > 0 && (
+                  <span className="text-[10px] text-emerald-500/70">
+                    +{formatINR(earned)}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="text-right flex flex-col items-end">
               {asset.metadata.maturityDate ? (
                 <>

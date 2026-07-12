@@ -5,6 +5,7 @@ import { Pencil, Trash2, Plus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { AddLiabilityModal, Liability } from './AddLiabilityModal'
 import { formatINR } from '@/lib/format'
+import { InlineInput } from './tables/InlineInput'
 
 import { cn } from '@/lib/utils'
 
@@ -23,9 +24,10 @@ interface LiabilityTableProps {
   onDelete: (id: string) => Promise<void>
   owners?: any[]
   defaultOwnerId?: string
+  inlineEdit?: boolean
 }
 
-export function LiabilityTable({ liabilities, onAdd, onDelete, owners, defaultOwnerId }: LiabilityTableProps) {
+export function LiabilityTable({ liabilities, onAdd, onDelete, owners, defaultOwnerId, inlineEdit }: LiabilityTableProps) {
   const [editLiability, setEditLiability] = useState<Liability | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -78,7 +80,7 @@ export function LiabilityTable({ liabilities, onAdd, onDelete, owners, defaultOw
         <span />
       </div>
 
-      {liabilities.map((liability) => {
+      {[...liabilities].sort((a, b) => a.name.localeCompare(b.name)).map((liability) => {
         const owner = owners?.find(o => o.id === liability.ownerId)
 
         return (
@@ -105,9 +107,26 @@ export function LiabilityTable({ liabilities, onAdd, onDelete, owners, defaultOw
             <span className="text-right font-mono text-sm text-muted-foreground">
               {liability.monthlyPayment ? formatINR(parseFloat(liability.monthlyPayment as any)) : '—'}
             </span>
-            <span className="text-right font-mono text-sm text-rose-400">
-              {formatINR(parseFloat(liability.outstandingAmount as any))}
-            </span>
+            {inlineEdit ? (
+              <InlineInput
+                initialValue={parseFloat(liability.outstandingAmount as any)}
+                onSave={async (val) => {
+                  await onAdd({
+                    name: liability.name,
+                    type: liability.type,
+                    outstandingAmount: val,
+                    interestRate: liability.interestRate ? parseFloat(String(liability.interestRate)) : undefined,
+                    monthlyPayment: liability.monthlyPayment ? parseFloat(String(liability.monthlyPayment)) : undefined,
+                    ownerId: liability.ownerId,
+                  }, liability.id)
+                }}
+                className="h-7 text-xs bg-background text-foreground border-border text-right max-w-[120px] ml-auto font-mono"
+              />
+            ) : (
+              <span className="text-right font-mono text-sm text-rose-400">
+                {formatINR(parseFloat(liability.outstandingAmount as any))}
+              </span>
+            )}
 
             <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
               <button

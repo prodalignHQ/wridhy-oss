@@ -5,6 +5,7 @@ import { Pencil, Trash2, Plus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { SavingsModal } from '../modals/SavingsModal'
 import { formatINR } from '@/lib/format'
+import { InlineInput } from './InlineInput'
 
 import { cn } from '@/lib/utils'
 
@@ -36,9 +37,10 @@ interface SavingsTableProps {
   onDelete: (id: string) => Promise<void>
   owners?: any[]
   defaultOwnerId?: string
+  inlineEdit?: boolean
 }
 
-export function SavingsTable({ assets, onAdd, onDelete, owners, defaultOwnerId }: SavingsTableProps) {
+export function SavingsTable({ assets, onAdd, onDelete, owners, defaultOwnerId, inlineEdit }: SavingsTableProps) {
   const [editAsset, setEditAsset] = useState<SavingsAsset | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -111,9 +113,27 @@ export function SavingsTable({ assets, onAdd, onDelete, owners, defaultOwnerId }
               {asset.metadata.accountNumber || <span className="text-muted-foreground/70 italic">Not provided</span>}
             </span>
 
-            <span className="text-right font-mono text-sm text-emerald-400">
-              {formatINR(parseFloat(asset.value))}
-            </span>
+            {inlineEdit ? (
+              <InlineInput
+                initialValue={parseFloat(asset.value)}
+                onSave={async (val) => {
+                  await onAdd({
+                    name: asset.name,
+                    type: 'savings_account',
+                    value: val,
+                    currency: asset.currency,
+                    valuationDate: asset.valuationDate,
+                    metadata: asset.metadata,
+                    ownerId: asset.ownerId,
+                  }, asset.id)
+                }}
+                className="h-7 text-xs bg-background text-foreground border-border text-right max-w-[120px] ml-auto font-mono"
+              />
+            ) : (
+              <span className="text-right font-mono text-sm text-emerald-400">
+                {formatINR(parseFloat(asset.value))}
+              </span>
+            )}
 
             <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
               <button

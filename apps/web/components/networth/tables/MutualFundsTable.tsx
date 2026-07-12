@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { MutualFundModal } from '../modals/MutualFundModal'
 import { formatINR } from '@/lib/format'
+import { InlineInput } from './InlineInput'
 
 import { cn } from '@/lib/utils'
 
@@ -40,9 +41,10 @@ interface MutualFundsTableProps {
   onDelete: (id: string) => Promise<void>
   owners?: any[]
   defaultOwnerId?: string
+  inlineEdit?: boolean
 }
 
-export function MutualFundsTable({ assets, onAdd, onDelete, owners, defaultOwnerId }: MutualFundsTableProps) {
+export function MutualFundsTable({ assets, onAdd, onDelete, owners, defaultOwnerId, inlineEdit }: MutualFundsTableProps) {
   const [editAsset, setEditAsset] = useState<MutualFundAsset | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -138,12 +140,51 @@ export function MutualFundsTable({ assets, onAdd, onDelete, owners, defaultOwner
               )}
             </div>
 
-            <span className="text-right font-mono text-sm text-muted-foreground">
-              {formatINR(invested)}
-            </span>
-            <span className="text-right font-mono text-sm text-emerald-400">
-              {formatINR(present)}
-            </span>
+            {inlineEdit ? (
+              <InlineInput
+                initialValue={invested}
+                onSave={async (val) => {
+                  await onAdd({
+                    name: asset.name,
+                    type: asset.type,
+                    value: parseFloat(asset.value),
+                    currency: asset.currency,
+                    valuationDate: asset.valuationDate,
+                    metadata: {
+                      ...asset.metadata,
+                      investedAmount: val,
+                    },
+                    ownerId: asset.ownerId,
+                  }, asset.id)
+                }}
+                className="h-7 text-xs bg-background text-foreground border-border text-right max-w-[100px] ml-auto font-mono"
+              />
+            ) : (
+              <span className="text-right font-mono text-sm text-muted-foreground">
+                {formatINR(invested)}
+              </span>
+            )}
+            {inlineEdit ? (
+              <InlineInput
+                initialValue={present}
+                onSave={async (val) => {
+                  await onAdd({
+                    name: asset.name,
+                    type: asset.type,
+                    value: val,
+                    currency: asset.currency,
+                    valuationDate: asset.valuationDate,
+                    metadata: asset.metadata,
+                    ownerId: asset.ownerId,
+                  }, asset.id)
+                }}
+                className="h-7 text-xs bg-background text-foreground border-border text-right max-w-[100px] ml-auto font-mono"
+              />
+            ) : (
+              <span className="text-right font-mono text-sm text-emerald-400">
+                {formatINR(present)}
+              </span>
+            )}
             <div className="text-right flex flex-col">
               <span className={`font-mono text-sm ${gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {gain >= 0 ? '+' : ''}{formatINR(gain)}

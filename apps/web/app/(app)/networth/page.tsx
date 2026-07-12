@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { TrendingUp, PlusCircle, Camera, FileEdit, X, Loader2 } from 'lucide-react'
+import { TrendingUp, PlusCircle, Camera, FileEdit, X, Loader2, Trash2, Eye, CalendarClock, History, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { apiClient } from '@/lib/api'
@@ -12,10 +12,10 @@ import { Button } from '@/components/ui/button'
 import { AssetLayout } from '@/components/networth/AssetLayout'
 import { LiabilityTable } from '@/components/networth/LiabilityTable'
 import { NetWorthHistoryChart } from '@/components/networth/NetWorthHistoryChart'
-import { CopyFromSnapshotMenu } from '@/components/networth/CopyFromSnapshotMenu'
 import { QuickEntryMode } from '@/components/networth/QuickEntryMode'
 import { AddLiabilityModal, type Liability } from '@/components/networth/AddLiabilityModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import {
   Dialog,
   DialogContent,
@@ -49,6 +49,8 @@ interface Snapshot {
     name: string
     color: string
   } | null
+  assetBreakdown?: Array<{ name: string; type: string; value: number; metadata?: any }> | null
+  liabilityBreakdown?: Array<{ name: string; type: string; amount: number; interestRate?: number; monthlyPayment?: number }> | null
 }
 
 interface Draft {
@@ -63,6 +65,15 @@ interface Owner {
   notes: string | null
   color: string
   isDefault: boolean
+}
+
+const colorMap: Record<string, string> = {
+  indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  rose: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  sky: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+  violet: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
 }
 
 export default function NetWorthPage() {
@@ -81,6 +92,10 @@ export default function NetWorthPage() {
   const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false)
   const [selectedSnapshotDate, setSelectedSnapshotDate] = useState('')
   const [quickEntryValues, setQuickEntryValues] = useState<{ assets: number; liabilities: number } | null>(null)
+  const [detailsSnapshot, setDetailsSnapshot] = useState<Snapshot | null>(null)
+  const [deleteSnapshotId, setDeleteSnapshotId] = useState<string | null>(null)
+  const [restoreSnapshotId, setRestoreSnapshotId] = useState<string | null>(null)
+  const [isEditingValues, setIsEditingValues] = useState(false)
 
   const defaultOwnerId = owners.find(o => o.isDefault)?.id
 
@@ -290,9 +305,12 @@ export default function NetWorthPage() {
 
   // ─── Copy from snapshot ────────────────────────────────────────────────────
 
-  const handleCopySnapshot = async (snapshotId: string) => {
+  const handleCopySnapshot = async (snapshotId: string, adjustedData?: { adjustedAssets: any[], adjustedLiabilities: any[] }) => {
     try {
-      await apiClient.fetch(`/v1/networth/snapshot/${snapshotId}/copy`, { method: 'POST' })
+      await apiClient.fetch(`/v1/networth/snapshot/${snapshotId}/copy`, {
+        method: 'POST',
+        body: adjustedData ? JSON.stringify(adjustedData) : undefined
+      })
       const snap = snapshots.find((s) => s.id === snapshotId)
       const label = snap ? format(new Date(snap.snapshotDate), 'MMMM yyyy') : 'previous snapshot'
       toast.success(`Loaded values from ${label}. Review and save when ready.`)
@@ -301,6 +319,17 @@ export default function NetWorthPage() {
       toast.error(e?.message ?? 'Failed to copy snapshot')
     }
   }
+
+  const handleDeleteSnapshot = async (snapshotId: string) => {
+    try {
+      await apiClient.fetch(`/v1/networth/snapshot/${snapshotId}`, { method: 'DELETE' })
+      toast.success('Snapshot deleted successfully')
+      await fetchAll()
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Failed to delete snapshot')
+    }
+  }
+
 
   // ─── Derived values ────────────────────────────────────────────────────────
 
@@ -320,6 +349,36 @@ export default function NetWorthPage() {
     const delta = netWorth - prev
     trendDir = delta > 0 ? 'up' : delta < 0 ? 'down' : 'neutral'
     trendValue = `${delta >= 0 ? '+' : ''}${formatINR(delta)} from last snapshot`
+  }
+
+  // ─── Unsaved snapshot detection ────────────────────────────────────────────
+  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
+  const currentMonthStr = format(new Date(), 'yyyy-MM')
+  const latestSnapshotMonthStr = latestSnapshot ? format(new Date(latestSnapshot.snapshotDate), 'yyyy-MM') : ''
+  const isCurrentMonthSaved = latestSnapshotMonthStr === currentMonthStr
+
+  const liveTotalAssets = data?.totalAssets ?? 0
+  const liveTotalLiabilities = data?.totalLiabilities ?? 0
+
+  const latestSnapshotAssets = latestSnapshot ? parseFloat(latestSnapshot.totalAssets) : 0
+  const latestSnapshotLiabilities = latestSnapshot ? parseFloat(latestSnapshot.totalLiabilities) : 0
+
+  // Check if live values differ from latest snapshot
+  const valuesDiffer =
+    Math.abs(liveTotalAssets - latestSnapshotAssets) > 0.01 ||
+    Math.abs(liveTotalLiabilities - latestSnapshotLiabilities) > 0.01
+
+  const isSnapshotUnsaved = selectedOwnerId !== 'all' && (!latestSnapshot || !isCurrentMonthSaved || valuesDiffer)
+
+  let unsavedReason = ''
+  if (selectedOwnerId !== 'all') {
+    if (!latestSnapshot) {
+      unsavedReason = 'No snapshots saved yet'
+    } else if (!isCurrentMonthSaved) {
+      unsavedReason = `No snapshot saved for ${format(new Date(), 'MMMM yyyy')} yet`
+    } else if (valuesDiffer) {
+      unsavedReason = 'Live values differ from your last saved snapshot'
+    }
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -390,9 +449,6 @@ export default function NetWorthPage() {
             </Select>
           )}
 
-          {/* Copy from previous dropdown */}
-          <CopyFromSnapshotMenu snapshots={snapshots} onCopy={handleCopySnapshot} />
-
           {/* Mode toggle */}
           <div className="rounded-full bg-muted p-1 flex items-center gap-0.5">
             {(['detailed', 'quick'] as Mode[]).map((m) => (
@@ -414,11 +470,26 @@ export default function NetWorthPage() {
       </div>
 
       {mode === 'quick' ? (
-        <QuickEntryMode onSaveSnapshot={async (assets, liabilities) => {
-          setQuickEntryValues({ assets, liabilities })
-          setSelectedSnapshotDate(new Date().toISOString().split('T')[0])
-          setSnapshotDialogOpen(true)
-        }} />
+        selectedOwnerId === 'all' ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-center max-w-md mx-auto">
+            <div className="p-4 bg-secondary/50 rounded-full text-muted-foreground">
+              <History size={32} />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Select a Household Member</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Quick Entry is only available when managing an individual member's net worth.
+                Please select a member from the dropdown above to proceed.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <QuickEntryMode onSaveSnapshot={async (assets, liabilities) => {
+            setQuickEntryValues({ assets, liabilities })
+            setSelectedSnapshotDate(new Date().toISOString().split('T')[0])
+            setSnapshotDialogOpen(true)
+          }} />
+        )
       ) : (
         <>
           {/* ─── Section A: Summary cards + Save buttons ──────────────── */}
@@ -445,126 +516,381 @@ export default function NetWorthPage() {
             </div>
 
             {/* Action buttons */}
-            <div className="flex items-center gap-3 justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSaveDraft}
-                disabled={savingDraft}
-                className="border-border text-muted-foreground hover:text-foreground gap-1.5"
-              >
-                {savingDraft ? (
-                  <Loader2 size={13} className="animate-spin" />
+            <div className="flex items-center gap-3 justify-end flex-wrap">
+              {selectedOwnerId !== 'all' && isSnapshotUnsaved && (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 mr-auto animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span>Unsaved Snapshot: {unsavedReason}</span>
+                </div>
+              )}
+              {selectedOwnerId !== 'all' ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSaveDraft}
+                    disabled={savingDraft}
+                    className="border-border text-muted-foreground hover:text-foreground gap-1.5"
+                  >
+                    {savingDraft ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <FileEdit size={13} />
+                    )}
+                    Save Draft
+                  </Button>
+                  <Button
+                    variant={isEditingValues ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsEditingValues(!isEditingValues)}
+                    className={cn(
+                      "gap-1.5 transition-colors",
+                      isEditingValues
+                        ? "bg-emerald-600 hover:bg-emerald-500 text-white border-none"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {isEditingValues ? <Check size={13} /> : <FileEdit size={13} />}
+                    {isEditingValues ? 'Finish Editing' : 'Edit Values'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setQuickEntryValues(null)
+                      setSelectedSnapshotDate(new Date().toISOString().split('T')[0])
+                      setSnapshotDialogOpen(true)
+                    }}
+                    disabled={savingSnapshot}
+                    className="bg-indigo-600 hover:bg-indigo-500 gap-1.5"
+                  >
+                    {savingSnapshot ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Camera size={13} />
+                    )}
+                    Save Snapshot
+                  </Button>
+                </>
                 ) : (
-                  <FileEdit size={13} />
+                  <div className="text-sm text-muted-foreground flex items-center gap-1.5 bg-secondary/40 border border-border/50 px-4 py-2 rounded-lg w-full justify-between">
+                    <span>💡 <strong>All Household</strong> view is aggregated. Select a member to save snapshots or drafts.</span>
+                  </div>
                 )}
-                Save Draft
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setQuickEntryValues(null)
-                  setSelectedSnapshotDate(new Date().toISOString().split('T')[0])
-                  setSnapshotDialogOpen(true)
-                }}
-                disabled={savingSnapshot}
-                className="bg-indigo-600 hover:bg-indigo-500 gap-1.5"
-              >
-                {savingSnapshot ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Camera size={13} />
-                )}
-                Save Snapshot
-              </Button>
+              </div>
             </div>
-          </div>
 
-          {/* ─── Section B: Assets ────────────────────────────────────── */}
-          <AssetLayout
-            assets={data?.assets ?? []}
-            onAdd={handleSaveAsset}
-            onDelete={handleDeleteAsset}
-            owners={contextOwners}
-            defaultOwnerId={contextDefaultOwnerId}
-          />
-
-          {/* ─── Section C: Liabilities ───────────────────────────────── */}
-          <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-semibold text-foreground">Liabilities</h2>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setAddLiability(true)}
-                className="border-border text-muted-foreground hover:text-foreground gap-1.5"
-              >
-                <PlusCircle size={13} />
-                Add Liability
-              </Button>
-            </div>
-            <LiabilityTable
-              liabilities={data?.liabilities ?? []}
-              onAdd={handleSaveLiability}
-              onDelete={handleDeleteLiability}
+            {/* ─── Section B: Assets ────────────────────────────────────── */}
+            <AssetLayout
+              assets={data?.assets ?? []}
+              onAdd={handleSaveAsset}
+              onDelete={handleDeleteAsset}
               owners={contextOwners}
               defaultOwnerId={contextDefaultOwnerId}
+              inlineEdit={isEditingValues}
             />
-          </div>
 
-          {/* ─── Section D: History chart ─────────────────────────────── */}
-          <div className="bg-card border border-border rounded-xl p-6">
-            <h2 className="text-base font-semibold text-foreground mb-5">Net Worth Over Time</h2>
-            <NetWorthHistoryChart snapshots={snapshots} owners={owners} selectedOwnerId={selectedOwnerId} />
-          </div>
-        </>
-      )}
-
-      {/* Global Add modals (for top-level buttons) */}
-      {addLiability && (
-        <AddLiabilityModal
-          open
-          owners={contextOwners}
-          defaultOwnerId={contextDefaultOwnerId}
-          onClose={() => setAddLiability(false)}
-          onSave={async (data, id) => { await handleSaveLiability(data, id); setAddLiability(false) }}
-        />
-      )}
-
-      {/* Save Snapshot Dialog */}
-      <Dialog open={snapshotDialogOpen} onOpenChange={setSnapshotDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-card border-border">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">Save Snapshot</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              Choose the date for this net worth snapshot.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="snapshot-date" className="text-foreground">Snapshot Date</Label>
-              <Input
-                id="snapshot-date"
-                type="date"
-                value={selectedSnapshotDate}
-                onChange={(e) => setSelectedSnapshotDate(e.target.value)}
-                className="bg-background border-border focus-visible:ring-indigo-500 text-foreground"
+            {/* ─── Section C: Liabilities ───────────────────────────────── */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-base font-semibold text-foreground">Liabilities</h2>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAddLiability(true)}
+                  className="border-border text-muted-foreground hover:text-foreground gap-1.5"
+                >
+                  <PlusCircle size={13} />
+                  Add Liability
+                </Button>
+              </div>
+              <LiabilityTable
+                liabilities={data?.liabilities ?? []}
+                onAdd={handleSaveLiability}
+                onDelete={handleDeleteLiability}
+                owners={contextOwners}
+                defaultOwnerId={contextDefaultOwnerId}
+                inlineEdit={isEditingValues}
               />
             </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setSnapshotDialogOpen(false)} className="text-muted-foreground hover:text-foreground">
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmSaveSnapshot}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white"
-            >
-              Save Snapshot
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+            {/* ─── Section D: History chart ─────────────────────────────── */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-base font-semibold text-foreground mb-5">Net Worth Over Time</h2>
+              <NetWorthHistoryChart snapshots={snapshots} owners={owners} selectedOwnerId={selectedOwnerId} />
+            </div>
+
+            {/* ─── Section E: Snapshot History Table ─────────────────────────── */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-base font-semibold text-foreground">Snapshot History</h2>
+                <span className="text-xs text-muted-foreground">
+                  {snapshots.length} snapshot{snapshots.length === 1 ? '' : 's'} recorded
+                </span>
+              </div>
+              {snapshots.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
+                  No saved snapshots found.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left text-muted-foreground">
+                    <thead className="text-xs uppercase bg-muted/30 border-b border-border/50 text-muted-foreground font-semibold">
+                      <tr>
+                        <th className="px-4 py-3">Date</th>
+                        {selectedOwnerId === 'all' && <th className="px-4 py-3">Member</th>}
+                        <th className="px-4 py-3 text-right">Assets</th>
+                        <th className="px-4 py-3 text-right">Liabilities</th>
+                        <th className="px-4 py-3 text-right">Net Worth</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800">
+                      {[...snapshots].reverse().map((snap) => {
+                        const snapDate = new Date(snap.snapshotDate)
+                        const owner = owners.find(o => o.id === snap.ownerId)
+                        const nwVal = parseFloat(snap.netWorth)
+                        
+                        return (
+                          <tr key={snap.id} className="hover:bg-muted/30 transition-colors border-b border-border/30 last:border-0">
+                            <td className="px-4 py-3 text-foreground font-medium">
+                              {format(snapDate, 'dd MMM yyyy')}
+                            </td>
+                            {selectedOwnerId === 'all' && (
+                              <td className="px-4 py-3">
+                                {owner ? (
+                                  <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium", colorMap[owner.color] || "bg-indigo-500/10 text-indigo-400 border-indigo-500/20")}>
+                                    {owner.name}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground/60">—</span>
+                                )}
+                              </td>
+                            )}
+                            <td className="px-4 py-3 text-right font-mono text-emerald-400">
+                              {formatINR(parseFloat(snap.totalAssets))}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-rose-400">
+                              {formatINR(parseFloat(snap.totalLiabilities))}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-foreground font-semibold">
+                              {nwVal >= 0 ? '' : '−'}{formatINR(Math.abs(nwVal))}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => setDetailsSnapshot(snap)}
+                                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                                  title="View Details"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                
+                                {selectedOwnerId !== 'all' && selectedOwnerId === snap.ownerId && (
+                                  <button
+                                    onClick={() => setRestoreSnapshotId(snap.id)}
+                                    className="p-1.5 text-muted-foreground hover:text-indigo-400 hover:bg-muted rounded transition-colors"
+                                    title="Restore snapshot to live draft"
+                                  >
+                                    <CalendarClock size={14} />
+                                  </button>
+                                )}
+                                
+                                <button
+                                  onClick={() => setDeleteSnapshotId(snap.id)}
+                                  className="p-1.5 text-muted-foreground hover:text-rose-400 hover:bg-muted rounded transition-colors"
+                                  title="Delete Snapshot"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Global Add modals (for top-level buttons) */}
+        {addLiability && (
+          <AddLiabilityModal
+            open
+            owners={contextOwners}
+            defaultOwnerId={contextDefaultOwnerId}
+            onClose={() => setAddLiability(false)}
+            onSave={async (data, id) => { await handleSaveLiability(data, id); setAddLiability(false) }}
+          />
+        )}
+
+        {/* Save Snapshot Dialog */}
+        <Dialog open={snapshotDialogOpen} onOpenChange={setSnapshotDialogOpen}>
+          <DialogContent className="sm:max-w-[425px] bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">Save Snapshot</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Choose the date for this net worth snapshot.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="snapshot-date" className="text-foreground">Snapshot Date</Label>
+                <Input
+                  id="snapshot-date"
+                  type="date"
+                  value={selectedSnapshotDate}
+                  onChange={(e) => setSelectedSnapshotDate(e.target.value)}
+                  className="bg-background border-border focus-visible:ring-indigo-500 text-foreground"
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="ghost" onClick={() => setSnapshotDialogOpen(false)} className="text-muted-foreground hover:text-foreground">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmSaveSnapshot}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white"
+              >
+                Save Snapshot
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {/* Snapshot Details Dialog */}
+        <Dialog open={!!detailsSnapshot} onOpenChange={(val) => !val && setDetailsSnapshot(null)}>
+          <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="text-foreground flex items-center justify-between">
+                <span>Snapshot Details</span>
+                {detailsSnapshot && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {format(new Date(detailsSnapshot.snapshotDate), 'dd MMM yyyy')}
+                  </span>
+                )}
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                {detailsSnapshot?.owner && (
+                  <span>Member: <strong>{detailsSnapshot.owner.name}</strong></span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            {detailsSnapshot && (
+              <div className="space-y-6 py-4">
+                {/* Summary cards */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-secondary/45 border border-border/40 p-3 rounded-lg text-center">
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Assets</p>
+                    <p className="text-lg font-bold font-mono text-emerald-400 mt-1">
+                      {formatINR(parseFloat(detailsSnapshot.totalAssets))}
+                    </p>
+                  </div>
+                  <div className="bg-secondary/45 border border-border/40 p-3 rounded-lg text-center">
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Liabilities</p>
+                    <p className="text-lg font-bold font-mono text-rose-400 mt-1">
+                      {formatINR(parseFloat(detailsSnapshot.totalLiabilities))}
+                    </p>
+                  </div>
+                  <div className="bg-secondary/45 border border-border/40 p-3 rounded-lg text-center">
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Net Worth</p>
+                    <p className="text-lg font-bold font-mono text-foreground mt-1">
+                      {parseFloat(detailsSnapshot.netWorth) >= 0 ? '' : '−'}
+                      {formatINR(Math.abs(parseFloat(detailsSnapshot.netWorth)))}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Grid of Assets & Liabilities */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Assets column */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/50 pb-1.5">
+            Assets Breakdown
+          </h3>
+          {!detailsSnapshot.assetBreakdown || detailsSnapshot.assetBreakdown.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">No assets recorded in this snapshot.</p>
+          ) : (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              {detailsSnapshot.assetBreakdown.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center p-2 rounded bg-muted/40 border border-border/20 text-xs">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-foreground">{item.name}</span>
+                    <span className="text-[10px] text-muted-foreground capitalize">{item.type.replace('_', ' ')}</span>
+                  </div>
+                  <span className="font-mono text-emerald-400 font-semibold">{formatINR(item.value)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Liabilities column */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/50 pb-1.5">
+            Liabilities Breakdown
+          </h3>
+          {!detailsSnapshot.liabilityBreakdown || detailsSnapshot.liabilityBreakdown.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">No liabilities recorded in this snapshot.</p>
+          ) : (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              {detailsSnapshot.liabilityBreakdown.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center p-2 rounded bg-muted/40 border border-border/20 text-xs">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-foreground">{item.name}</span>
+                    <span className="text-[10px] text-muted-foreground capitalize">{item.type.replace('_', ' ')}</span>
+                  </div>
+                  <span className="font-mono text-rose-400 font-semibold">{formatINR(item.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
-  )
+  )}
+
+  <DialogFooter>
+    <Button onClick={() => setDetailsSnapshot(null)} className="bg-secondary text-foreground hover:bg-secondary/80">
+      Close
+    </Button>
+  </DialogFooter>
+</DialogContent>
+</Dialog>
+
+{/* Delete Snapshot Confirmation Dialog */}
+<ConfirmDialog
+open={!!deleteSnapshotId}
+onOpenChange={(val) => !val && setDeleteSnapshotId(null)}
+title="Delete Snapshot"
+description="This will permanently delete this net worth snapshot. This cannot be undone."
+confirmLabel="Delete"
+destructive={true}
+onConfirm={async () => {
+  if (deleteSnapshotId) {
+    await handleDeleteSnapshot(deleteSnapshotId)
+  }
+  setDeleteSnapshotId(null)}
+}
+/>
+
+      {/* Restore Snapshot Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!restoreSnapshotId}
+        onOpenChange={(val) => !val && setRestoreSnapshotId(null)}
+        title="Restore Snapshot"
+        description="This will replace all your current active assets and liabilities for this member with the values from this snapshot. This cannot be undone."
+        confirmLabel="Restore"
+        onConfirm={async () => {
+          if (restoreSnapshotId) {
+            await handleCopySnapshot(restoreSnapshotId)
+          }
+          setRestoreSnapshotId(null)
+        }}
+      />
+</div>
+)
 }

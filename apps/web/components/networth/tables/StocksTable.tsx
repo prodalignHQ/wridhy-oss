@@ -5,6 +5,7 @@ import { Pencil, Trash2, Plus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { StockModal } from '../modals/StockModal'
 import { formatINR } from '@/lib/format'
+import { InlineInput } from './InlineInput'
 
 import { cn } from '@/lib/utils'
 
@@ -39,9 +40,10 @@ interface StocksTableProps {
   onDelete: (id: string) => Promise<void>
   owners?: any[]
   defaultOwnerId?: string
+  inlineEdit?: boolean
 }
 
-export function StocksTable({ assets, onAdd, onDelete, owners, defaultOwnerId }: StocksTableProps) {
+export function StocksTable({ assets, onAdd, onDelete, owners, defaultOwnerId, inlineEdit }: StocksTableProps) {
   const [editAsset, setEditAsset] = useState<StockAsset | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -90,9 +92,19 @@ export function StocksTable({ assets, onAdd, onDelete, owners, defaultOwnerId }:
 
       <div className="grid grid-cols-[1.5fr_1fr_120px_120px_120px_80px] gap-3 px-3 pb-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold border-b border-border/50">
         <span>Stock</span>
-        <span>Holdings</span>
-        <span className="text-right">Invested</span>
-        <span className="text-right">Present Value</span>
+        {inlineEdit ? (
+          <>
+            <span>Quantity</span>
+            <span className="text-right">Avg Buy</span>
+            <span className="text-right">LTP</span>
+          </>
+        ) : (
+          <>
+            <span>Holdings</span>
+            <span className="text-right">Invested</span>
+            <span className="text-right">Present Value</span>
+          </>
+        )}
         <span className="text-right">Unrealized</span>
         <span />
       </div>
@@ -123,17 +135,67 @@ export function StocksTable({ assets, onAdd, onDelete, owners, defaultOwnerId }:
               )}
             </span>
             
-            <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">{qty} qty @ {formatINR(avg)}</span>
-              <span className="text-[10px] text-muted-foreground mt-0.5">LTP: {formatINR(ltp)}</span>
-            </div>
+            {inlineEdit ? (
+              <InlineInput
+                initialValue={qty}
+                onSave={async (val) => {
+                  await onAdd({
+                    name: asset.name,
+                    type: 'stock',
+                    value: val * ltp,
+                    currency: asset.currency,
+                    valuationDate: asset.valuationDate,
+                    metadata: {
+                      ...asset.metadata,
+                      quantity: val,
+                      investedAmount: val * avg,
+                    },
+                    ownerId: asset.ownerId,
+                  }, asset.id)
+                }}
+                className="h-7 text-xs bg-background text-foreground border-border max-w-[85px] font-mono"
+              />
+            ) : (
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">{qty} qty @ {formatINR(avg)}</span>
+                <span className="text-[10px] text-muted-foreground mt-0.5">LTP: {formatINR(ltp)}</span>
+              </div>
+            )}
 
-            <span className="text-right font-mono text-sm text-muted-foreground">
-              {formatINR(invested)}
-            </span>
-            <span className="text-right font-mono text-sm text-emerald-400">
-              {formatINR(present)}
-            </span>
+            {inlineEdit ? (
+              <span className="text-right font-mono text-sm text-muted-foreground">
+                {formatINR(avg)}
+              </span>
+            ) : (
+              <span className="text-right font-mono text-sm text-muted-foreground">
+                {formatINR(invested)}
+              </span>
+            )}
+
+            {inlineEdit ? (
+              <InlineInput
+                initialValue={ltp}
+                onSave={async (val) => {
+                  await onAdd({
+                    name: asset.name,
+                    type: 'stock',
+                    value: qty * val,
+                    currency: asset.currency,
+                    valuationDate: asset.valuationDate,
+                    metadata: {
+                      ...asset.metadata,
+                      ltp: val,
+                    },
+                    ownerId: asset.ownerId,
+                  }, asset.id)
+                }}
+                className="h-7 text-xs bg-background text-foreground border-border text-right max-w-[90px] ml-auto font-mono"
+              />
+            ) : (
+              <span className="text-right font-mono text-sm text-emerald-400">
+                {formatINR(present)}
+              </span>
+            )}
             <div className="text-right flex flex-col">
               <span className={`font-mono text-sm ${gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {gain >= 0 ? '+' : ''}{formatINR(gain)}

@@ -275,6 +275,8 @@ networthRoute.post('/snapshot', async (c) => {
 networthRoute.post('/snapshot/:id/copy', async (c) => {
   const userId = c.get('userId')
   const snapshotId = c.req.param('id')
+  const body = await c.req.json().catch(() => ({}))
+  const { adjustedAssets, adjustedLiabilities } = body
 
   const snapshot = await db.query.netWorthSnapshots.findFirst({
     where: and(eq(netWorthSnapshots.id, snapshotId), eq(netWorthSnapshots.userId, userId)),
@@ -319,7 +321,19 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
   const today = new Date()
   const targetOwnerId = ownerId || defaultOwner.id
 
-  if (snapshot.assetBreakdown && snapshot.assetBreakdown.length > 0) {
+  if (adjustedAssets && adjustedAssets.length > 0) {
+    const assetValues = adjustedAssets.map((a: any) => ({
+      userId,
+      ownerId: targetOwnerId,
+      name: a.name,
+      type: a.type as any,
+      value: a.value.toFixed(2),
+      metadata: a.metadata ?? {},
+      currency: 'INR',
+      valuationDate: today,
+    }))
+    await db.insert(assets).values(assetValues)
+  } else if (snapshot.assetBreakdown && snapshot.assetBreakdown.length > 0) {
     const assetValues = snapshot.assetBreakdown.map((a) => ({
       userId,
       ownerId: targetOwnerId,
@@ -333,7 +347,19 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
     await db.insert(assets).values(assetValues)
   }
 
-  if (snapshot.liabilityBreakdown && snapshot.liabilityBreakdown.length > 0) {
+  if (adjustedLiabilities && adjustedLiabilities.length > 0) {
+    const liabilityValues = adjustedLiabilities.map((l: any) => ({
+      userId,
+      ownerId: targetOwnerId,
+      name: l.name,
+      type: l.type as any,
+      outstandingAmount: l.outstandingAmount.toFixed(2),
+      interestRate: l.interestRate !== undefined ? l.interestRate.toFixed(2) : undefined,
+      monthlyPayment: l.monthlyPayment !== undefined ? l.monthlyPayment.toFixed(2) : undefined,
+      lastUpdated: today,
+    }))
+    await db.insert(liabilities).values(liabilityValues)
+  } else if (snapshot.liabilityBreakdown && snapshot.liabilityBreakdown.length > 0) {
     const liabilityValues = snapshot.liabilityBreakdown.map((l) => ({
       userId,
       ownerId: targetOwnerId,
@@ -349,6 +375,24 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
 
   const data = await computeLiveNetWorth(userId, targetOwnerId)
   return c.json({ success: true, data })
+})
+
+// ─── DELETE /v1/networth/snapshot/:id — delete past snapshot ──────────────────
+
+networthRoute.delete('/snapshot/:id', async (c) => {
+  const userId = c.get('userId')
+  const snapshotId = c.req.param('id')
+
+  const [snapshot] = await db
+    .delete(netWorthSnapshots)
+    .where(and(eq(netWorthSnapshots.id, snapshotId), eq(netWorthSnapshots.userId, userId)))
+    .returning()
+
+  if (!snapshot) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Snapshot not found' } }, 404)
+  }
+
+  return c.json({ success: true, data: null })
 })
 
 // ─── GET /v1/networth/draft ───────────────────────────────────────────────────

@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 import { format } from 'date-fns'
 import { TrendingUp } from 'lucide-react'
+import { formatINRShort } from '@/lib/format'
 
 interface Snapshot {
   id: string
@@ -42,18 +43,6 @@ interface NetWorthHistoryChartProps {
   selectedOwnerId: string
 }
 
-function formatLakhs(value: number): string {
-  if (Math.abs(value) >= 10_00_000) {
-    return `₹${(value / 10_00_000).toFixed(1)}Cr`
-  }
-  if (Math.abs(value) >= 1_00_000) {
-    return `₹${(value / 1_00_000).toFixed(1)}L`
-  }
-  if (Math.abs(value) >= 1_000) {
-    return `₹${(value / 1_000).toFixed(0)}K`
-  }
-  return `₹${value.toFixed(0)}`
-}
 
 const colorHexMap: Record<string, string> = {
   indigo: '#6366f1',
@@ -74,7 +63,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           <span className="w-2 h-2 rounded-full" style={{ background: entry.color }} />
           <span className="text-foreground/80">{entry.name}:</span>
           <span className="font-mono font-semibold text-foreground">
-            {formatLakhs(entry.value)}
+            {formatINRShort(entry.value)}
           </span>
         </div>
       ))}
@@ -187,7 +176,7 @@ export function NetWorthHistoryChart({ snapshots, owners, selectedOwnerId }: Net
           tickLine={false}
         />
         <YAxis
-          tickFormatter={formatLakhs}
+          tickFormatter={formatINRShort}
           tick={{ fill: '#71717a', fontSize: 11 }}
           axisLine={false}
           tickLine={false}

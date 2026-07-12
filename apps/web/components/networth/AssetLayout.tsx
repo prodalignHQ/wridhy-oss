@@ -12,15 +12,16 @@ interface AssetLayoutProps {
   onDelete: (id: string) => Promise<void>
   owners?: any[]
   defaultOwnerId?: string
+  inlineEdit?: boolean
 }
 
-export function AssetLayout({ assets, onAdd, onDelete, owners, defaultOwnerId }: AssetLayoutProps) {
-  // Partition assets into groups
-  const mfAssets = assets.filter(a => a.type === 'mutual_fund') as MutualFundAsset[]
-  const stockAssets = assets.filter(a => a.type === 'stock') as StockAsset[]
-  const depositAssets = assets.filter(a => ['fixed_deposit', 'recurring_deposit', 'ppf'].includes(a.type)) as DepositAsset[]
-  const savingsAssets = assets.filter(a => a.type === 'savings_account') as SavingsAsset[]
-  const genericAssets = assets.filter(a => ['real_estate', 'crypto', 'cash', 'other'].includes(a.type)) as GenericAsset[]
+export function AssetLayout({ assets, onAdd, onDelete, owners, defaultOwnerId, inlineEdit }: AssetLayoutProps) {
+  // Partition assets into groups sorted alphabetically by name
+  const mfAssets = assets.filter(a => a.type === 'mutual_fund').sort((a, b) => a.name.localeCompare(b.name)) as MutualFundAsset[]
+  const stockAssets = assets.filter(a => a.type === 'stock').sort((a, b) => a.name.localeCompare(b.name)) as StockAsset[]
+  const depositAssets = assets.filter(a => ['fixed_deposit', 'recurring_deposit', 'ppf'].includes(a.type)).sort((a, b) => a.name.localeCompare(b.name)) as DepositAsset[]
+  const savingsAssets = assets.filter(a => a.type === 'savings_account').sort((a, b) => a.name.localeCompare(b.name)) as SavingsAsset[]
+  const genericAssets = assets.filter(a => ['real_estate', 'crypto', 'cash', 'other'].includes(a.type)).sort((a, b) => a.name.localeCompare(b.name)) as GenericAsset[]
 
   return (
     <div className="space-y-6">
@@ -34,19 +35,19 @@ export function AssetLayout({ assets, onAdd, onDelete, owners, defaultOwnerId }:
 
         <div className="divide-y divide-zinc-800 space-y-4 pb-4">
           <div className="pt-2">
-            <MutualFundsTable assets={mfAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
+            <MutualFundsTable assets={mfAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} inlineEdit={inlineEdit} />
           </div>
           <div className="pt-2">
-            <StocksTable assets={stockAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
+            <StocksTable assets={stockAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} inlineEdit={inlineEdit} />
           </div>
           <div className="pt-2">
-            <DepositsTable assets={depositAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
+            <DepositsTable assets={depositAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} inlineEdit={inlineEdit} />
           </div>
           <div className="pt-2">
-            <SavingsTable assets={savingsAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
+            <SavingsTable assets={savingsAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} inlineEdit={inlineEdit} />
           </div>
           <div className="pt-2">
-            <GenericAssetTable assets={genericAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} />
+            <GenericAssetTable assets={genericAssets} onAdd={onAdd} onDelete={onDelete} owners={owners} defaultOwnerId={defaultOwnerId} inlineEdit={inlineEdit} />
           </div>
         </div>
       </div>

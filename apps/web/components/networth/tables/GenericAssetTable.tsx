@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { GenericAssetModal } from '../modals/GenericAssetModal'
 import { formatINR } from '@/lib/format'
+import { InlineInput } from './InlineInput'
 
 import { cn } from '@/lib/utils'
 
@@ -37,6 +38,7 @@ interface GenericAssetTableProps {
   onDelete: (id: string) => Promise<void>
   owners?: any[]
   defaultOwnerId?: string
+  inlineEdit?: boolean
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -46,7 +48,7 @@ const TYPE_LABELS: Record<string, string> = {
   other: 'Other'
 }
 
-export function GenericAssetTable({ assets, onAdd, onDelete, owners, defaultOwnerId }: GenericAssetTableProps) {
+export function GenericAssetTable({ assets, onAdd, onDelete, owners, defaultOwnerId, inlineEdit }: GenericAssetTableProps) {
   const [editAsset, setEditAsset] = useState<GenericAsset | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -124,9 +126,27 @@ export function GenericAssetTable({ assets, onAdd, onDelete, owners, defaultOwne
               {TYPE_LABELS[asset.type] || asset.type}
             </Badge>
 
-            <span className="text-right font-mono text-sm text-emerald-400">
-              {formatINR(parseFloat(asset.value))}
-            </span>
+            {inlineEdit ? (
+              <InlineInput
+                initialValue={parseFloat(asset.value)}
+                onSave={async (val) => {
+                  await onAdd({
+                    name: asset.name,
+                    type: asset.type,
+                    value: val,
+                    currency: asset.currency,
+                    valuationDate: asset.valuationDate,
+                    metadata: asset.metadata,
+                    ownerId: asset.ownerId,
+                  }, asset.id)
+                }}
+                className="h-7 text-xs bg-background text-foreground border-border text-right max-w-[120px] ml-auto font-mono"
+              />
+            ) : (
+              <span className="text-right font-mono text-sm text-emerald-400">
+                {formatINR(parseFloat(asset.value))}
+              </span>
+            )}
 
             <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
               <button
