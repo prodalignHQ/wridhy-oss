@@ -21,6 +21,7 @@ export const assetTypeEnum = pgEnum('asset_type', [
   'other'
 ])
 export const liabilityTypeEnum = pgEnum('liability_type', ['home_loan', 'car_loan', 'credit_card', 'student_loan', 'personal_loan', 'other'])
+export const equityDebtTagEnum = pgEnum('equity_debt_tag', ['equity', 'debt', 'mixed', 'cash'])
 export const invoiceStatusEnum = pgEnum('invoice_status', ['draft', 'generated'])
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -238,6 +239,7 @@ export const assets = pgTable('assets', {
   type: assetTypeEnum('type').notNull(),
   value: numeric('value', { precision: 15, scale: 2 }).notNull(),
   currency: text('currency').notNull().default('INR'),
+  equityDebtTag: equityDebtTagEnum('equity_debt_tag'),
   metadata: jsonb('metadata').notNull().default({}),
   valuationDate: timestamp('valuation_date', { mode: 'date' }).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -269,7 +271,7 @@ export const netWorthSnapshots = pgTable('net_worth_snapshots', {
   totalAssets: numeric('total_assets', { precision: 15, scale: 2 }).notNull(),
   totalLiabilities: numeric('total_liabilities', { precision: 15, scale: 2 }).notNull(),
   netWorth: numeric('net_worth', { precision: 15, scale: 2 }).notNull(),
-  assetBreakdown: jsonb('asset_breakdown').$type<Array<{ name: string; type: string; value: number }>>(),
+  assetBreakdown: jsonb('asset_breakdown').$type<Array<{ name: string; type: string; value: number; equityDebtTag?: string }>>(),
   liabilityBreakdown: jsonb('liability_breakdown').$type<Array<{ name: string; type: string; amount: number }>>(),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

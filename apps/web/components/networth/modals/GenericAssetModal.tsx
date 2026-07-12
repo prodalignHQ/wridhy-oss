@@ -27,6 +27,7 @@ interface Owner {
 const schema = z.object({
   type: z.enum(['real_estate', 'crypto', 'cash', 'other']),
   name: z.string().min(1, 'Name is required'),
+  equityDebtTag: z.enum(['equity', 'debt', 'mixed', 'cash']).optional().nullable(),
   value: z.number({ required_error: 'Estimated value is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
   comments: z.string().optional(),
   ownerId: z.string().uuid().optional(),
@@ -55,6 +56,7 @@ export function GenericAssetModal({ open, onClose, onSave, asset, owners, defaul
     defaultValues: {
       type: asset?.type || 'real_estate',
       name: asset?.name || '',
+      equityDebtTag: (asset?.equityDebtTag as any) || null,
       value: asset ? parseFloat(asset.value) : undefined,
       comments: asset?.metadata?.comments || '',
       ownerId: asset?.ownerId || defaultOwnerId || '',
@@ -62,6 +64,7 @@ export function GenericAssetModal({ open, onClose, onSave, asset, owners, defaul
   })
 
   const typeValue = watch('type')
+  const equityDebtTagValue = watch('equityDebtTag')
   const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
@@ -71,6 +74,7 @@ export function GenericAssetModal({ open, onClose, onSave, asset, owners, defaul
       value: data.value,
       currency: 'INR',
       valuationDate: new Date().toISOString(),
+      equityDebtTag: data.equityDebtTag || undefined,
       metadata: {
         comments: data.comments || undefined,
       },
@@ -109,6 +113,22 @@ export function GenericAssetModal({ open, onClose, onSave, asset, owners, defaul
               <Input id="name" placeholder="e.g. Home" {...register('name')} />
               {errors.name && <p className="text-xs text-rose-400">{errors.name.message}</p>}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="equityDebtTag">Classification</Label>
+            <Select value={equityDebtTagValue || '__none__'} onValueChange={(val: any) => setValue('equityDebtTag', val === '__none__' ? null : val)}>
+              <SelectTrigger id="equityDebtTag">
+                <SelectValue placeholder="Select classification" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                <SelectItem value="equity">Equity</SelectItem>
+                <SelectItem value="debt">Debt</SelectItem>
+                <SelectItem value="mixed">Mixed</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

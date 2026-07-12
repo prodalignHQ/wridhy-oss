@@ -26,6 +26,7 @@ export interface MutualFundAsset {
   type: 'mutual_fund'
   value: string // Present Value
   currency: string
+  equityDebtTag?: string | null
   valuationDate: string
   metadata: {
     folioNumber?: string

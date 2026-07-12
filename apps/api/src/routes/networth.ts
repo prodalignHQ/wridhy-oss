@@ -30,6 +30,7 @@ const insertAssetSchema = z.object({
   valuationDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Invalid date'),
   metadata: z.record(z.any()).default({}),
   ownerId: z.string().uuid().optional().nullable(),
+  equityDebtTag: z.enum(['equity', 'debt', 'mixed', 'cash']).optional().nullable(),
 }).superRefine((data, ctx) => {
   if (data.type === 'stock') {
     if (typeof data.metadata.quantity !== 'number' || typeof data.metadata.ltp !== 'number') {
@@ -56,6 +57,7 @@ const updateAssetSchema = z.object({
   valuationDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Invalid date').optional(),
   metadata: z.record(z.any()).optional(),
   ownerId: z.string().uuid().optional().nullable(),
+  equityDebtTag: z.enum(['equity', 'debt', 'mixed', 'cash']).optional().nullable(),
 })
 
 const insertLiabilitySchema = z.object({
@@ -212,9 +214,10 @@ networthRoute.post('/snapshot', async (c) => {
 
   const assetBreakdown = userAssets.map((a) => ({
     name: a.name,
-    type: a.type,
+    type: a.type as string,
     value: parseFloat(a.value as string),
     metadata: a.metadata,
+    ...(a.equityDebtTag ? { equityDebtTag: a.equityDebtTag as string } : {}),
   }))
   const liabilityBreakdown = userLiabilities.map((l) => ({
     name: l.name,
@@ -328,6 +331,7 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
       name: a.name,
       type: a.type as any,
       value: a.value.toFixed(2),
+      equityDebtTag: a.equityDebtTag || undefined,
       metadata: a.metadata ?? {},
       currency: 'INR',
       valuationDate: today,
@@ -340,6 +344,7 @@ networthRoute.post('/snapshot/:id/copy', async (c) => {
       name: a.name,
       type: a.type as any,
       value: a.value.toFixed(2),
+      equityDebtTag: (a as any).equityDebtTag || undefined,
       metadata: (a as any).metadata ?? {},
       currency: 'INR',
       valuationDate: today,
@@ -442,6 +447,7 @@ networthRoute.put('/draft', zValidator('json', draftSchema), async (c) => {
       type: a.type,
       value: parseFloat(a.value as string),
       currency: a.currency,
+      equityDebtTag: a.equityDebtTag || undefined,
       metadata: a.metadata,
       valuationDate: (a.valuationDate as Date).toISOString().split('T')[0],
     }))
@@ -548,6 +554,7 @@ networthRoute.post('/assets', zValidator('json', insertAssetSchema), async (c) =
       name: body.name,
       type: body.type,
       value: body.value.toFixed(2),
+      equityDebtTag: body.equityDebtTag,
       metadata: body.metadata,
       currency: body.currency,
       valuationDate: new Date(body.valuationDate),
@@ -570,6 +577,7 @@ networthRoute.patch('/assets/:id', zValidator('json', updateAssetSchema), async 
   if (body.metadata !== undefined) updateData.metadata = body.metadata
   if (body.valuationDate !== undefined) updateData.valuationDate = new Date(body.valuationDate)
   if (body.ownerId !== undefined) updateData.ownerId = body.ownerId
+  if (body.equityDebtTag !== undefined) updateData.equityDebtTag = body.equityDebtTag
 
   const [asset] = await db
     .update(assets)

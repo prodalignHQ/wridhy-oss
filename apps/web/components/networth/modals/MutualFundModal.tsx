@@ -28,6 +28,7 @@ const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   folioNumber: z.string().optional(),
   category: z.enum(['Equity', 'Debt', 'Hybrid', 'Other']).optional(),
+  equityDebtTag: z.enum(['equity', 'debt', 'mixed', 'cash']).optional().nullable(),
   investedAmount: z.number({ required_error: 'Invested amount is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
   presentAmount: z.number({ required_error: 'Present amount is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
   comments: z.string().optional(),
@@ -58,6 +59,7 @@ export function MutualFundModal({ open, onClose, onSave, asset, owners, defaultO
       name: asset?.name || '',
       folioNumber: asset?.metadata?.folioNumber || '',
       category: (asset?.metadata?.category as any) || 'Equity',
+      equityDebtTag: (asset?.equityDebtTag as any) || null,
       investedAmount: asset?.metadata?.investedAmount || undefined,
       presentAmount: asset ? parseFloat(asset.value) : undefined,
       comments: asset?.metadata?.comments || '',
@@ -65,18 +67,18 @@ export function MutualFundModal({ open, onClose, onSave, asset, owners, defaultO
     },
   })
 
-  // Watch for Select changes
   const categoryValue = watch('category')
+  const equityDebtTagValue = watch('equityDebtTag')
   const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
-    // Structure for the API
     const payload = {
       name: data.name,
       type: 'mutual_fund',
       value: data.presentAmount,
       currency: 'INR',
-      valuationDate: new Date().toISOString(), // Default to today
+      valuationDate: new Date().toISOString(),
+      equityDebtTag: data.equityDebtTag || undefined,
       metadata: {
         folioNumber: data.folioNumber || undefined,
         investedAmount: data.investedAmount,
@@ -123,6 +125,22 @@ export function MutualFundModal({ open, onClose, onSave, asset, owners, defaultO
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="equityDebtTag">Classification</Label>
+            <Select value={equityDebtTagValue || '__none__'} onValueChange={(val: any) => setValue('equityDebtTag', val === '__none__' ? null : val)}>
+              <SelectTrigger id="equityDebtTag">
+                <SelectValue placeholder="Select classification" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                <SelectItem value="equity">Equity</SelectItem>
+                <SelectItem value="debt">Debt</SelectItem>
+                <SelectItem value="mixed">Mixed</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

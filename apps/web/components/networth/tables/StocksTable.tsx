@@ -25,6 +25,7 @@ export interface StockAsset {
   type: 'stock'
   value: string // Present Value
   currency: string
+  equityDebtTag?: string | null
   valuationDate: string
   metadata: {
     quantity?: number

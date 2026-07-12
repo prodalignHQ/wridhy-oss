@@ -29,6 +29,7 @@ const schema = z.object({
   quantity: z.number({ required_error: 'Qty required', invalid_type_error: 'Must be a number' }).nonnegative(),
   averageBuyPrice: z.number({ required_error: 'Avg price required', invalid_type_error: 'Must be a number' }).nonnegative(),
   ltp: z.number({ required_error: 'LTP required', invalid_type_error: 'Must be a number' }).nonnegative(),
+  equityDebtTag: z.enum(['equity', 'debt', 'mixed', 'cash']).optional().nullable(),
   ownerId: z.string().uuid().optional(),
 })
 
@@ -57,6 +58,7 @@ export function StockModal({ open, onClose, onSave, asset, owners, defaultOwnerI
       quantity: asset?.metadata?.quantity || undefined,
       averageBuyPrice: asset?.metadata?.averageBuyPrice || undefined,
       ltp: asset?.metadata?.ltp || undefined,
+      equityDebtTag: (asset?.equityDebtTag as any) || null,
       ownerId: asset?.ownerId || defaultOwnerId || '',
     },
   })
@@ -65,6 +67,7 @@ export function StockModal({ open, onClose, onSave, asset, owners, defaultOwnerI
   const qty = watch('quantity')
   const avg = watch('averageBuyPrice')
   const ltpVal = watch('ltp')
+  const equityDebtTagValue = watch('equityDebtTag')
   const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
@@ -77,6 +80,7 @@ export function StockModal({ open, onClose, onSave, asset, owners, defaultOwnerI
       value: presentAmount,
       currency: 'INR',
       valuationDate: new Date().toISOString(),
+      equityDebtTag: data.equityDebtTag || undefined,
       metadata: {
         quantity: data.quantity,
         averageBuyPrice: data.averageBuyPrice,
@@ -101,6 +105,22 @@ export function StockModal({ open, onClose, onSave, asset, owners, defaultOwnerI
             <Label htmlFor="name">Stock Ticker / Name</Label>
             <Input id="name" placeholder="e.g. RELIANCE" {...register('name')} />
             {errors.name && <p className="text-xs text-rose-400">{errors.name.message}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="equityDebtTag">Classification</Label>
+            <Select value={equityDebtTagValue || '__none__'} onValueChange={(val: any) => setValue('equityDebtTag', val === '__none__' ? null : val)}>
+              <SelectTrigger id="equityDebtTag">
+                <SelectValue placeholder="Select classification" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                <SelectItem value="equity">Equity</SelectItem>
+                <SelectItem value="debt">Debt</SelectItem>
+                <SelectItem value="mixed">Mixed</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-3 gap-4">

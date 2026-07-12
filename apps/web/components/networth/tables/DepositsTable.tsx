@@ -26,6 +26,7 @@ export interface DepositAsset {
   type: 'fixed_deposit' | 'recurring_deposit' | 'ppf'
   value: string // Present Value
   currency: string
+  equityDebtTag?: string | null
   valuationDate: string
   metadata: {
     accountNumber?: string

@@ -49,7 +49,7 @@ interface Snapshot {
     name: string
     color: string
   } | null
-  assetBreakdown?: Array<{ name: string; type: string; value: number; metadata?: any }> | null
+  assetBreakdown?: Array<{ name: string; type: string; value: number; equityDebtTag?: string; metadata?: any }> | null
   liabilityBreakdown?: Array<{ name: string; type: string; amount: number; interestRate?: number; monthlyPayment?: number }> | null
 }
 
@@ -804,6 +804,69 @@ export default function NetWorthPage() {
                   </div>
                 </div>
 
+                {/* Equity / Debt / Mixed / Liability Split */}
+                {(() => {
+                  const totalAssetsVal = parseFloat(detailsSnapshot.totalAssets)
+                  const totalLiabilitiesVal = parseFloat(detailsSnapshot.totalLiabilities)
+                  const grandTotal = totalAssetsVal + totalLiabilitiesVal
+                  const hasAnyTag = detailsSnapshot.assetBreakdown?.some(a => a.equityDebtTag) ?? false
+
+                  if (!hasAnyTag) {
+                    return (
+                      <div className="bg-secondary/45 border border-border/40 p-4 rounded-lg">
+                        <p className="text-sm font-semibold text-foreground mb-1">Portfolio Split</p>
+                        <p className="text-xs text-muted-foreground italic">No data available for split. Tag assets with a classification to see the breakdown.</p>
+                      </div>
+                    )
+                  }
+
+                  const equityTotal = detailsSnapshot.assetBreakdown?.filter(a => a.equityDebtTag === 'equity').reduce((s, a) => s + a.value, 0) ?? 0
+                  const debtTotal = detailsSnapshot.assetBreakdown?.filter(a => a.equityDebtTag === 'debt').reduce((s, a) => s + a.value, 0) ?? 0
+                  const mixedTotal = detailsSnapshot.assetBreakdown?.filter(a => a.equityDebtTag === 'mixed').reduce((s, a) => s + a.value, 0) ?? 0
+                  const cashTotal = detailsSnapshot.assetBreakdown?.filter(a => a.equityDebtTag === 'cash').reduce((s, a) => s + a.value, 0) ?? 0
+                  const untaggedTotal = detailsSnapshot.assetBreakdown?.filter(a => !a.equityDebtTag).reduce((s, a) => s + a.value, 0) ?? 0
+
+                  const splits = [
+                    { label: 'Equity', value: equityTotal, color: 'text-emerald-400', bg: 'bg-emerald-500' },
+                    { label: 'Debt', value: debtTotal, color: 'text-sky-400', bg: 'bg-sky-500' },
+                    { label: 'Mixed', value: mixedTotal, color: 'text-amber-400', bg: 'bg-amber-500' },
+                    { label: 'Cash', value: cashTotal, color: 'text-violet-400', bg: 'bg-violet-500' },
+                    { label: 'Liabilities', value: totalLiabilitiesVal, color: 'text-rose-400', bg: 'bg-rose-500' },
+                  ]
+
+                  const maxSplitVal = Math.max(...splits.map(s => s.value), 1)
+
+                  return (
+                    <div className="bg-secondary/45 border border-border/40 p-4 rounded-lg space-y-3">
+                      <p className="text-sm font-semibold text-foreground">Portfolio Split</p>
+                      <div className="space-y-2">
+                        {splits.filter(s => s.value > 0).map((split) => {
+                          const pct = grandTotal > 0 ? (split.value / grandTotal) * 100 : 0
+                          const barWidth = maxSplitVal > 0 ? (split.value / maxSplitVal) * 100 : 0
+                          return (
+                            <div key={split.label} className="space-y-1">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="text-muted-foreground font-medium">{split.label}</span>
+                                <span className={`font-mono ${split.color} font-semibold`}>
+                                  {formatINR(split.value)} <span className="text-muted-foreground font-normal">({pct.toFixed(1)}%)</span>
+                                </span>
+                              </div>
+                              <div className="w-full bg-muted/50 rounded-full h-1.5">
+                                <div className={`${split.bg} rounded-full h-1.5 transition-all`} style={{ width: `${barWidth}%` }} />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {untaggedTotal > 0 && (
+                        <p className="text-[10px] text-muted-foreground/70 pt-1">
+                          {formatINR(untaggedTotal)} in assets without a classification tag
+                        </p>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 {/* Grid of Assets & Liabilities */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Assets column */}
@@ -814,17 +877,38 @@ export default function NetWorthPage() {
           {!detailsSnapshot.assetBreakdown || detailsSnapshot.assetBreakdown.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">No assets recorded in this snapshot.</p>
           ) : (
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {detailsSnapshot.assetBreakdown.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center p-2 rounded bg-muted/40 border border-border/20 text-xs">
-                  <div className="flex flex-col">
-                    <span className="font-medium text-foreground">{item.name}</span>
-                    <span className="text-[10px] text-muted-foreground capitalize">{item.type.replace('_', ' ')}</span>
-                  </div>
-                  <span className="font-mono text-emerald-400 font-semibold">{formatINR(item.value)}</span>
+            (() => {
+              const assetGroups: { label: string; items: typeof detailsSnapshot.assetBreakdown extends Array<infer T> ? T[] : never }[] = [
+                { label: 'Mutual Funds', items: detailsSnapshot.assetBreakdown.filter(a => a.type === 'mutual_fund') },
+                { label: 'Stocks', items: detailsSnapshot.assetBreakdown.filter(a => a.type === 'stock') },
+                { label: 'Deposits', items: detailsSnapshot.assetBreakdown.filter(a => ['fixed_deposit', 'recurring_deposit', 'ppf'].includes(a.type)) },
+                { label: 'Savings Accounts', items: detailsSnapshot.assetBreakdown.filter(a => a.type === 'savings_account') },
+                { label: 'Other Assets', items: detailsSnapshot.assetBreakdown.filter(a => ['real_estate', 'crypto', 'cash', 'other'].includes(a.type)) },
+              ].filter(g => g.items.length > 0)
+              return (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                  {assetGroups.map((group) => {
+                    const groupTotal = group.items.reduce((sum, a) => sum + a.value, 0)
+                    return (
+                      <div key={group.label} className="rounded-md border border-border/30 overflow-hidden">
+                        <div className="flex justify-between items-center px-3 py-2 bg-muted/50 border-b border-border/20">
+                          <span className="text-xs font-semibold text-foreground">{group.label}</span>
+                          <span className="text-xs font-mono text-emerald-400 font-semibold">{formatINR(groupTotal)}</span>
+                        </div>
+                        <div className="divide-y divide-border/20">
+                          {group.items.sort((a, b) => a.name.localeCompare(b.name)).map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center px-3 py-1.5 text-xs">
+                              <span className="text-muted-foreground">{item.name}</span>
+                              <span className="font-mono text-emerald-400/80">{formatINR(item.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
+              )
+            })()
           )}
         </div>
 

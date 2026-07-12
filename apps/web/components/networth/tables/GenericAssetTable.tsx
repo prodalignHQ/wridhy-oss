@@ -26,6 +26,7 @@ export interface GenericAsset {
   type: 'real_estate' | 'crypto' | 'cash' | 'other'
   value: string // Present Value
   currency: string
+  equityDebtTag?: string | null
   valuationDate: string
   metadata: {
     comments?: string

@@ -27,6 +27,7 @@ interface Owner {
 const schema = z.object({
   name: z.string().min(1, 'Bank name is required'),
   accountNumber: z.string().optional(),
+  equityDebtTag: z.enum(['equity', 'debt', 'mixed', 'cash']).optional().nullable(),
   currentBalance: z.number({ required_error: 'Balance is required', invalid_type_error: 'Must be a number' }).nonnegative('Must be positive'),
   ownerId: z.string().uuid().optional(),
 })
@@ -54,11 +55,13 @@ export function SavingsModal({ open, onClose, onSave, asset, owners, defaultOwne
     defaultValues: {
       name: asset?.name || '',
       accountNumber: asset?.metadata?.accountNumber || '',
+      equityDebtTag: (asset?.equityDebtTag as any) || null,
       currentBalance: asset ? parseFloat(asset.value) : undefined,
       ownerId: asset?.ownerId || defaultOwnerId || '',
     },
   })
 
+  const equityDebtTagValue = watch('equityDebtTag')
   const ownerIdValue = watch('ownerId')
 
   const onSubmit = async (data: FormData) => {
@@ -68,6 +71,7 @@ export function SavingsModal({ open, onClose, onSave, asset, owners, defaultOwne
       value: data.currentBalance,
       currency: 'INR',
       valuationDate: new Date().toISOString(),
+      equityDebtTag: data.equityDebtTag || undefined,
       metadata: {
         accountNumber: data.accountNumber || undefined,
       },
@@ -94,6 +98,22 @@ export function SavingsModal({ open, onClose, onSave, asset, owners, defaultOwne
           <div className="space-y-2">
             <Label htmlFor="accountNumber">Account Number <span className="text-muted-foreground font-normal">(Optional)</span></Label>
             <Input id="accountNumber" placeholder="e.g. 50100XXXX" {...register('accountNumber')} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="equityDebtTag">Classification</Label>
+            <Select value={equityDebtTagValue || '__none__'} onValueChange={(val: any) => setValue('equityDebtTag', val === '__none__' ? null : val)}>
+              <SelectTrigger id="equityDebtTag">
+                <SelectValue placeholder="Select classification" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                <SelectItem value="equity">Equity</SelectItem>
+                <SelectItem value="debt">Debt</SelectItem>
+                <SelectItem value="mixed">Mixed</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

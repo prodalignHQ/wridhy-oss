@@ -25,6 +25,7 @@ export interface SavingsAsset {
   type: 'savings_account'
   value: string // Current Balance
   currency: string
+  equityDebtTag?: string | null
   valuationDate: string
   metadata: {
     accountNumber?: string
