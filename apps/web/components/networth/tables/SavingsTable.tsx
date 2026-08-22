@@ -8,6 +8,7 @@ import { formatINR } from '@/lib/format'
 import { InlineInput } from './InlineInput'
 
 import { cn } from '@/lib/utils'
+import { ASSET_TAG_COLORS, ASSET_TAG_LABELS, resolveAssetTag } from '@momoney/utils'
 
 const colorMap: Record<string, string> = {
   indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
@@ -95,20 +96,27 @@ export function SavingsTable({ assets, onAdd, onDelete, owners, defaultOwnerId, 
 
       {assets.map((asset) => {
         const owner = owners?.find(o => o.id === asset.ownerId)
+        const tag = resolveAssetTag(asset.type, asset.metadata, asset.equityDebtTag)
+        const tagStyle = ASSET_TAG_COLORS[tag]
 
         return (
           <div
             key={asset.id}
             className="grid grid-cols-[1fr_1fr_160px_80px] gap-3 items-center px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors group border-b border-border/30 last:border-0"
           >
-            <span className="text-sm text-foreground/90 flex items-center gap-2">
-              {asset.name}
-              {owner && (
-                <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full border font-medium shrink-0", colorMap[owner.color] || colorMap['indigo'])}>
-                  {owner.name}
-                </span>
-              )}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-foreground/90 flex items-center gap-2">
+                {asset.name}
+                {owner && (
+                  <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full border font-medium shrink-0", colorMap[owner.color] || colorMap['indigo'])}>
+                    {owner.name}
+                  </span>
+                )}
+              </span>
+              <span className={cn('text-[10px] font-medium px-1.5 py-0.2 rounded-full border leading-tight', tagStyle.badge)}>
+                {ASSET_TAG_LABELS[tag]}
+              </span>
+            </div>
             
             <span className="text-sm font-mono text-muted-foreground">
               {asset.metadata.accountNumber || <span className="text-muted-foreground/70 italic">Not provided</span>}

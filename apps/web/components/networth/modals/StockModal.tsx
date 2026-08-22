@@ -58,7 +58,7 @@ export function StockModal({ open, onClose, onSave, asset, owners, defaultOwnerI
       quantity: asset?.metadata?.quantity || undefined,
       averageBuyPrice: asset?.metadata?.averageBuyPrice || undefined,
       ltp: asset?.metadata?.ltp || undefined,
-      equityDebtTag: (asset?.equityDebtTag as any) || null,
+      equityDebtTag: (asset?.equityDebtTag as any) || 'equity',
       ownerId: asset?.ownerId || defaultOwnerId || '',
     },
   })
@@ -80,7 +80,7 @@ export function StockModal({ open, onClose, onSave, asset, owners, defaultOwnerI
       value: presentAmount,
       currency: 'INR',
       valuationDate: new Date().toISOString(),
-      equityDebtTag: data.equityDebtTag || undefined,
+      equityDebtTag: data.equityDebtTag || 'equity',
       metadata: {
         quantity: data.quantity,
         averageBuyPrice: data.averageBuyPrice,
@@ -108,13 +108,12 @@ export function StockModal({ open, onClose, onSave, asset, owners, defaultOwnerI
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="equityDebtTag">Classification</Label>
-            <Select value={equityDebtTagValue || '__none__'} onValueChange={(val: any) => setValue('equityDebtTag', val === '__none__' ? null : val)}>
+            <Label htmlFor="equityDebtTag">Asset Class Tag</Label>
+            <Select value={equityDebtTagValue || 'equity'} onValueChange={(val: any) => setValue('equityDebtTag', val)}>
               <SelectTrigger id="equityDebtTag">
                 <SelectValue placeholder="Select classification" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
                 <SelectItem value="equity">Equity</SelectItem>
                 <SelectItem value="debt">Debt</SelectItem>
                 <SelectItem value="mixed">Mixed</SelectItem>

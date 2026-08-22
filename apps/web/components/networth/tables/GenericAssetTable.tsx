@@ -9,6 +9,7 @@ import { formatINR } from '@/lib/format'
 import { InlineInput } from './InlineInput'
 
 import { cn } from '@/lib/utils'
+import { ASSET_TAG_COLORS, ASSET_TAG_LABELS, resolveAssetTag } from '@momoney/utils'
 
 const colorMap: Record<string, string> = {
   indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
@@ -103,6 +104,8 @@ export function GenericAssetTable({ assets, onAdd, onDelete, owners, defaultOwne
 
       {assets.map((asset) => {
         const owner = owners?.find(o => o.id === asset.ownerId)
+        const tag = resolveAssetTag(asset.type, asset.metadata, asset.equityDebtTag)
+        const tagStyle = ASSET_TAG_COLORS[tag]
 
         return (
           <div
@@ -123,9 +126,14 @@ export function GenericAssetTable({ assets, onAdd, onDelete, owners, defaultOwne
               )}
             </div>
             
-            <Badge variant="outline" className="border-border text-muted-foreground text-[10px] w-fit">
-              {TYPE_LABELS[asset.type] || asset.type}
-            </Badge>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={cn('text-[10px] font-medium px-1.5 py-0.2 rounded-full border leading-tight', tagStyle.badge)}>
+                {ASSET_TAG_LABELS[tag]}
+              </span>
+              <Badge variant="outline" className="border-border text-muted-foreground text-[10px] w-fit">
+                {TYPE_LABELS[asset.type] || asset.type}
+              </Badge>
+            </div>
 
             {inlineEdit ? (
               <InlineInput

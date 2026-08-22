@@ -11,6 +11,7 @@ import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { eq, and, desc, asc, sum, or, isNull } from 'drizzle-orm'
 import { authMiddleware } from '../middleware/auth.js'
+import { resolveAssetTag } from '@momoney/utils'
 
 export const networthRoute = new Hono<{
   Variables: { userId: string }
@@ -217,7 +218,7 @@ networthRoute.post('/snapshot', async (c) => {
     type: a.type as string,
     value: parseFloat(a.value as string),
     metadata: a.metadata,
-    ...(a.equityDebtTag ? { equityDebtTag: a.equityDebtTag as string } : {}),
+    equityDebtTag: resolveAssetTag(a.type as string, a.metadata, a.equityDebtTag as any),
   }))
   const liabilityBreakdown = userLiabilities.map((l) => ({
     name: l.name,
@@ -546,6 +547,8 @@ networthRoute.post('/assets', zValidator('json', insertAssetSchema), async (c) =
   const userId = c.get('userId')
   const body = c.req.valid('json')
 
+  const tag = resolveAssetTag(body.type, body.metadata, body.equityDebtTag)
+
   const [asset] = await db
     .insert(assets)
     .values({
@@ -554,7 +557,7 @@ networthRoute.post('/assets', zValidator('json', insertAssetSchema), async (c) =
       name: body.name,
       type: body.type,
       value: body.value.toFixed(2),
-      equityDebtTag: body.equityDebtTag,
+      equityDebtTag: tag,
       metadata: body.metadata,
       currency: body.currency,
       valuationDate: new Date(body.valuationDate),

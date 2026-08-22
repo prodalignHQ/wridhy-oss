@@ -9,6 +9,7 @@ import { formatINR } from '@/lib/format'
 import { InlineInput } from './InlineInput'
 
 import { cn } from '@/lib/utils'
+import { resolveAssetTag, ASSET_TAG_COLORS, ASSET_TAG_LABELS } from '@momoney/utils'
 
 const colorMap: Record<string, string> = {
   indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
@@ -96,7 +97,7 @@ export function MutualFundsTable({ assets, onAdd, onDelete, owners, defaultOwner
       {/* Table header */}
       <div className="grid grid-cols-[1.5fr_1fr_120px_120px_120px_80px] gap-3 px-3 pb-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold border-b border-border/50">
         <span>Fund Name</span>
-        <span>Category / Folio</span>
+        <span>Class & Folio</span>
         <span className="text-right">Invested</span>
         <span className="text-right">Present Value</span>
         <span className="text-right">Unrealized</span>
@@ -110,6 +111,8 @@ export function MutualFundsTable({ assets, onAdd, onDelete, owners, defaultOwner
         const gain = present - invested
         const gainPercent = invested > 0 ? (gain / invested) * 100 : 0
         const owner = owners?.find(o => o.id === asset.ownerId)
+        const tag = resolveAssetTag(asset.type, asset.metadata, asset.equityDebtTag)
+        const tagStyle = ASSET_TAG_COLORS[tag]
 
         return (
           <div
@@ -131,11 +134,16 @@ export function MutualFundsTable({ assets, onAdd, onDelete, owners, defaultOwner
             </div>
             
             <div className="flex flex-col gap-1 items-start">
-              {asset.metadata.category && (
-                <Badge variant="outline" className="border-border text-muted-foreground text-[10px] leading-none px-1.5 py-0.5">
-                  {asset.metadata.category}
-                </Badge>
-              )}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={cn('text-[10px] font-medium px-1.5 py-0.2 rounded-full border leading-tight', tagStyle.badge)}>
+                  {ASSET_TAG_LABELS[tag]}
+                </span>
+                {asset.metadata.category && (
+                  <Badge variant="outline" className="border-border text-muted-foreground text-[10px] leading-none px-1.5 py-0.5">
+                    {asset.metadata.category}
+                  </Badge>
+                )}
+              </div>
               {asset.metadata.folioNumber && (
                 <span className="text-xs font-mono text-muted-foreground">{asset.metadata.folioNumber}</span>
               )}

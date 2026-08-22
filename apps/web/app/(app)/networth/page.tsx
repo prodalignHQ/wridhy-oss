@@ -12,10 +12,12 @@ import { Button } from '@/components/ui/button'
 import { AssetLayout } from '@/components/networth/AssetLayout'
 import { LiabilityTable } from '@/components/networth/LiabilityTable'
 import { NetWorthHistoryChart } from '@/components/networth/NetWorthHistoryChart'
+import { NetWorthAllocation } from '@/components/networth/NetWorthAllocation'
 import { QuickEntryMode } from '@/components/networth/QuickEntryMode'
 import { AddLiabilityModal, type Liability } from '@/components/networth/AddLiabilityModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
+import { resolveAssetTag } from '@momoney/utils'
 import {
   Dialog,
   DialogContent,
@@ -579,6 +581,13 @@ export default function NetWorthPage() {
               </div>
             </div>
 
+            {/* ─── Section: Asset Allocation (Equity, Debt, Cash) ─────────── */}
+            <NetWorthAllocation
+              assets={data?.assets ?? []}
+              totalAssets={totalAssets}
+              netWorth={netWorth}
+            />
+
             {/* ─── Section B: Assets ────────────────────────────────────── */}
             <AssetLayout
               assets={data?.assets ?? []}
@@ -804,51 +813,56 @@ export default function NetWorthPage() {
                   </div>
                 </div>
 
-                {/* Equity / Debt / Mixed / Liability Split */}
+                {/* Equity / Debt / Mixed / Cash / Liability Split */}
                 {(() => {
                   const totalAssetsVal = parseFloat(detailsSnapshot.totalAssets)
                   const totalLiabilitiesVal = parseFloat(detailsSnapshot.totalLiabilities)
-                  const grandTotal = totalAssetsVal + totalLiabilitiesVal
-                  const hasAnyTag = detailsSnapshot.assetBreakdown?.some(a => a.equityDebtTag) ?? false
+                  const safeAssets = totalAssetsVal > 0 ? totalAssetsVal : 1
 
-                  if (!hasAnyTag) {
-                    return (
-                      <div className="bg-secondary/45 border border-border/40 p-4 rounded-lg">
-                        <p className="text-sm font-semibold text-foreground mb-1">Portfolio Split</p>
-                        <p className="text-xs text-muted-foreground italic">No data available for split. Tag assets with a classification to see the breakdown.</p>
-                      </div>
-                    )
-                  }
+                  let equityTotal = 0
+                  let debtTotal = 0
+                  let mixedTotal = 0
+                  let cashTotal = 0
 
-                  const equityTotal = detailsSnapshot.assetBreakdown?.filter(a => a.equityDebtTag === 'equity').reduce((s, a) => s + a.value, 0) ?? 0
-                  const debtTotal = detailsSnapshot.assetBreakdown?.filter(a => a.equityDebtTag === 'debt').reduce((s, a) => s + a.value, 0) ?? 0
-                  const mixedTotal = detailsSnapshot.assetBreakdown?.filter(a => a.equityDebtTag === 'mixed').reduce((s, a) => s + a.value, 0) ?? 0
-                  const cashTotal = detailsSnapshot.assetBreakdown?.filter(a => a.equityDebtTag === 'cash').reduce((s, a) => s + a.value, 0) ?? 0
-                  const untaggedTotal = detailsSnapshot.assetBreakdown?.filter(a => !a.equityDebtTag).reduce((s, a) => s + a.value, 0) ?? 0
+                  detailsSnapshot.assetBreakdown?.forEach((a) => {
+                    const tag = resolveAssetTag(a.type, a.metadata, a.equityDebtTag)
+                    if (tag === 'equity') equityTotal += a.value
+                    else if (tag === 'debt') debtTotal += a.value
+                    else if (tag === 'cash') cashTotal += a.value
+                    else if (tag === 'mixed') mixedTotal += a.value
+                  })
 
                   const splits = [
-                    { label: 'Equity', value: equityTotal, color: 'text-emerald-400', bg: 'bg-emerald-500' },
-                    { label: 'Debt', value: debtTotal, color: 'text-sky-400', bg: 'bg-sky-500' },
-                    { label: 'Mixed', value: mixedTotal, color: 'text-amber-400', bg: 'bg-amber-500' },
-                    { label: 'Cash', value: cashTotal, color: 'text-violet-400', bg: 'bg-violet-500' },
-                    { label: 'Liabilities', value: totalLiabilitiesVal, color: 'text-rose-400', bg: 'bg-rose-500' },
+                    { label: 'Equity', value: equityTotal, color: 'text-indigo-400', bg: 'bg-indigo-500' },
+                    { label: 'Debt', value: debtTotal, color: 'text-amber-400', bg: 'bg-amber-500' },
+                    { label: 'Cash', value: cashTotal, color: 'text-emerald-400', bg: 'bg-emerald-500' },
+                    ...(mixedTotal > 0 ? [{ label: 'Mixed', value: mixedTotal, color: 'text-purple-400', bg: 'bg-purple-500' }] : []),
+                    ...(totalLiabilitiesVal > 0 ? [{ label: 'Liabilities', value: totalLiabilitiesVal, color: 'text-rose-400', bg: 'bg-rose-500' }] : []),
                   ]
 
                   const maxSplitVal = Math.max(...splits.map(s => s.value), 1)
 
                   return (
                     <div className="bg-secondary/45 border border-border/40 p-4 rounded-lg space-y-3">
-                      <p className="text-sm font-semibold text-foreground">Portfolio Split</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-foreground">Asset Allocation Split</p>
+                        <span className="text-xs text-muted-foreground">
+                          {((equityTotal / safeAssets) * 100).toFixed(0)}% Equity · {((debtTotal / safeAssets) * 100).toFixed(0)}% Debt · {((cashTotal / safeAssets) * 100).toFixed(0)}% Cash
+                        </span>
+                      </div>
                       <div className="space-y-2">
                         {splits.filter(s => s.value > 0).map((split) => {
-                          const pct = grandTotal > 0 ? (split.value / grandTotal) * 100 : 0
+                          const pctOfAssets = split.label !== 'Liabilities' && totalAssetsVal > 0 ? (split.value / totalAssetsVal) * 100 : undefined
                           const barWidth = maxSplitVal > 0 ? (split.value / maxSplitVal) * 100 : 0
                           return (
                             <div key={split.label} className="space-y-1">
                               <div className="flex justify-between items-center text-xs">
                                 <span className="text-muted-foreground font-medium">{split.label}</span>
                                 <span className={`font-mono ${split.color} font-semibold`}>
-                                  {formatINR(split.value)} <span className="text-muted-foreground font-normal">({pct.toFixed(1)}%)</span>
+                                  {formatINR(split.value)}{' '}
+                                  {pctOfAssets !== undefined && (
+                                    <span className="text-muted-foreground font-normal">({pctOfAssets.toFixed(1)}% of assets)</span>
+                                  )}
                                 </span>
                               </div>
                               <div className="w-full bg-muted/50 rounded-full h-1.5">
@@ -858,11 +872,6 @@ export default function NetWorthPage() {
                           )
                         })}
                       </div>
-                      {untaggedTotal > 0 && (
-                        <p className="text-[10px] text-muted-foreground/70 pt-1">
-                          {formatINR(untaggedTotal)} in assets without a classification tag
-                        </p>
-                      )}
                     </div>
                   )
                 })()}

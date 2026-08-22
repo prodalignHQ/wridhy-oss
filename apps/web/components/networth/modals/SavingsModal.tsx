@@ -55,7 +55,7 @@ export function SavingsModal({ open, onClose, onSave, asset, owners, defaultOwne
     defaultValues: {
       name: asset?.name || '',
       accountNumber: asset?.metadata?.accountNumber || '',
-      equityDebtTag: (asset?.equityDebtTag as any) || null,
+      equityDebtTag: (asset?.equityDebtTag as any) || 'cash',
       currentBalance: asset ? parseFloat(asset.value) : undefined,
       ownerId: asset?.ownerId || defaultOwnerId || '',
     },
@@ -71,7 +71,7 @@ export function SavingsModal({ open, onClose, onSave, asset, owners, defaultOwne
       value: data.currentBalance,
       currency: 'INR',
       valuationDate: new Date().toISOString(),
-      equityDebtTag: data.equityDebtTag || undefined,
+      equityDebtTag: data.equityDebtTag || 'cash',
       metadata: {
         accountNumber: data.accountNumber || undefined,
       },
@@ -101,17 +101,16 @@ export function SavingsModal({ open, onClose, onSave, asset, owners, defaultOwne
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="equityDebtTag">Classification</Label>
-            <Select value={equityDebtTagValue || '__none__'} onValueChange={(val: any) => setValue('equityDebtTag', val === '__none__' ? null : val)}>
+            <Label htmlFor="equityDebtTag">Asset Class Tag</Label>
+            <Select value={equityDebtTagValue || 'cash'} onValueChange={(val: any) => setValue('equityDebtTag', val)}>
               <SelectTrigger id="equityDebtTag">
                 <SelectValue placeholder="Select classification" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                <SelectItem value="equity">Equity</SelectItem>
-                <SelectItem value="debt">Debt</SelectItem>
-                <SelectItem value="mixed">Mixed</SelectItem>
                 <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="debt">Debt</SelectItem>
+                <SelectItem value="equity">Equity</SelectItem>
+                <SelectItem value="mixed">Mixed</SelectItem>
               </SelectContent>
             </Select>
           </div>

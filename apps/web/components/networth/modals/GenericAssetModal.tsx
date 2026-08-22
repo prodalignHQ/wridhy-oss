@@ -56,7 +56,7 @@ export function GenericAssetModal({ open, onClose, onSave, asset, owners, defaul
     defaultValues: {
       type: asset?.type || 'real_estate',
       name: asset?.name || '',
-      equityDebtTag: (asset?.equityDebtTag as any) || null,
+      equityDebtTag: (asset?.equityDebtTag as any) || (asset?.type === 'cash' ? 'cash' : 'equity'),
       value: asset ? parseFloat(asset.value) : undefined,
       comments: asset?.metadata?.comments || '',
       ownerId: asset?.ownerId || defaultOwnerId || '',
@@ -67,14 +67,25 @@ export function GenericAssetModal({ open, onClose, onSave, asset, owners, defaul
   const equityDebtTagValue = watch('equityDebtTag')
   const ownerIdValue = watch('ownerId')
 
+  const handleTypeChange = (val: 'real_estate' | 'crypto' | 'cash' | 'other' | null) => {
+    if (!val) return
+    setValue('type', val)
+    if (val === 'cash') {
+      setValue('equityDebtTag', 'cash')
+    } else if (val === 'crypto' || val === 'real_estate') {
+      setValue('equityDebtTag', 'equity')
+    }
+  }
+
   const onSubmit = async (data: FormData) => {
+    const finalTag = data.equityDebtTag || (data.type === 'cash' ? 'cash' : 'equity')
     const payload = {
       name: data.name,
       type: data.type,
       value: data.value,
       currency: 'INR',
       valuationDate: new Date().toISOString(),
-      equityDebtTag: data.equityDebtTag || undefined,
+      equityDebtTag: finalTag,
       metadata: {
         comments: data.comments || undefined,
       },
@@ -95,7 +106,7 @@ export function GenericAssetModal({ open, onClose, onSave, asset, owners, defaul
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="type">Asset Group</Label>
-              <Select value={typeValue} onValueChange={(val: any) => setValue('type', val)}>
+              <Select value={typeValue} onValueChange={handleTypeChange}>
                 <SelectTrigger id="type">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
@@ -109,26 +120,25 @@ export function GenericAssetModal({ open, onClose, onSave, asset, owners, defaul
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="name">Asset Name</Label>
-              <Input id="name" placeholder="e.g. Home" {...register('name')} />
-              {errors.name && <p className="text-xs text-rose-400">{errors.name.message}</p>}
+              <Label htmlFor="equityDebtTag">Asset Class Tag</Label>
+              <Select value={equityDebtTagValue || 'equity'} onValueChange={(val: any) => setValue('equityDebtTag', val)}>
+                <SelectTrigger id="equityDebtTag">
+                  <SelectValue placeholder="Select classification" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="equity">Equity</SelectItem>
+                  <SelectItem value="debt">Debt</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="mixed">Mixed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="equityDebtTag">Classification</Label>
-            <Select value={equityDebtTagValue || '__none__'} onValueChange={(val: any) => setValue('equityDebtTag', val === '__none__' ? null : val)}>
-              <SelectTrigger id="equityDebtTag">
-                <SelectValue placeholder="Select classification" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                <SelectItem value="equity">Equity</SelectItem>
-                <SelectItem value="debt">Debt</SelectItem>
-                <SelectItem value="mixed">Mixed</SelectItem>
-                <SelectItem value="cash">Cash</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="name">Asset Name</Label>
+            <Input id="name" placeholder="e.g. Home" {...register('name')} />
+            {errors.name && <p className="text-xs text-rose-400">{errors.name.message}</p>}
           </div>
 
           <div className="space-y-2">

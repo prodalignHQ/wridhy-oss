@@ -9,6 +9,7 @@ import { formatINR } from '@/lib/format'
 import { InlineInput } from './InlineInput'
 
 import { cn } from '@/lib/utils'
+import { ASSET_TAG_COLORS, ASSET_TAG_LABELS, resolveAssetTag } from '@momoney/utils'
 
 const colorMap: Record<string, string> = {
   indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
@@ -114,6 +115,8 @@ export function DepositsTable({ assets, onAdd, onDelete, owners, defaultOwnerId,
         const present = parseFloat(asset.value)
         const earned = present - invested
         const owner = owners?.find(o => o.id === asset.ownerId)
+        const tag = resolveAssetTag(asset.type, asset.metadata, asset.equityDebtTag)
+        const tagStyle = ASSET_TAG_COLORS[tag]
 
         return (
           <div
@@ -130,6 +133,9 @@ export function DepositsTable({ assets, onAdd, onDelete, owners, defaultOwnerId,
               <div className="flex flex-col">
                 <span className="text-sm text-foreground/90 flex items-center gap-2">
                   {asset.name}
+                  <span className={cn('text-[10px] font-medium px-1.5 py-0.2 rounded-full border leading-tight', tagStyle.badge)}>
+                    {ASSET_TAG_LABELS[tag]}
+                  </span>
                   {owner && (
                     <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full border font-medium shrink-0", colorMap[owner.color] || colorMap['indigo'])}>
                       {owner.name}

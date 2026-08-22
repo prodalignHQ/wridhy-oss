@@ -90,3 +90,83 @@ export function assignOwnerColor(existingColors: string[], name: string): OwnerC
   const unused = OWNER_COLOR_PALETTE.find(c => !existingColors.includes(c))
   return unused ?? 'indigo'
 }
+
+/**
+ * Asset Classification Tags (Equity, Debt, Cash, Mixed)
+ */
+export type AssetTag = 'equity' | 'debt' | 'cash' | 'mixed'
+
+export const ASSET_TAG_LABELS: Record<AssetTag, string> = {
+  equity: 'Equity',
+  debt: 'Debt',
+  cash: 'Cash',
+  mixed: 'Mixed',
+}
+
+export const ASSET_TAG_COLORS: Record<AssetTag, { badge: string; dot: string; text: string; bg: string; border: string }> = {
+  equity: {
+    badge: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    dot: 'bg-indigo-400',
+    text: 'text-indigo-400',
+    bg: 'bg-indigo-500',
+    border: 'border-indigo-500/30',
+  },
+  debt: {
+    badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    dot: 'bg-amber-400',
+    text: 'text-amber-400',
+    bg: 'bg-amber-500',
+    border: 'border-amber-500/30',
+  },
+  cash: {
+    badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    dot: 'bg-emerald-400',
+    text: 'text-emerald-400',
+    bg: 'bg-emerald-500',
+    border: 'border-emerald-500/30',
+  },
+  mixed: {
+    badge: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    dot: 'bg-purple-400',
+    text: 'text-purple-400',
+    bg: 'bg-purple-500',
+    border: 'border-purple-500/30',
+  },
+}
+
+/**
+ * Automatically resolve or fallback the asset classification tag.
+ */
+export function resolveAssetTag(
+  type: string,
+  metadata?: any,
+  explicitTag?: string | null
+): AssetTag {
+  if (explicitTag && (explicitTag === 'equity' || explicitTag === 'debt' || explicitTag === 'cash' || explicitTag === 'mixed')) {
+    return explicitTag as AssetTag
+  }
+
+  switch (type) {
+    case 'stock':
+      return 'equity'
+    case 'mutual_fund': {
+      const category = (metadata?.category || '').toLowerCase()
+      if (category === 'debt') return 'debt'
+      if (category === 'hybrid') return 'mixed'
+      return 'equity'
+    }
+    case 'fixed_deposit':
+    case 'recurring_deposit':
+    case 'ppf':
+      return 'debt'
+    case 'savings_account':
+    case 'cash':
+      return 'cash'
+    case 'crypto':
+    case 'real_estate':
+    case 'other':
+    default:
+      return 'equity'
+  }
+}
+

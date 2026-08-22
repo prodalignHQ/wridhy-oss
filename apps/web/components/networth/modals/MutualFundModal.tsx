@@ -59,7 +59,7 @@ export function MutualFundModal({ open, onClose, onSave, asset, owners, defaultO
       name: asset?.name || '',
       folioNumber: asset?.metadata?.folioNumber || '',
       category: (asset?.metadata?.category as any) || 'Equity',
-      equityDebtTag: (asset?.equityDebtTag as any) || null,
+      equityDebtTag: (asset?.equityDebtTag as any) || (asset?.metadata?.category === 'Debt' ? 'debt' : 'equity'),
       investedAmount: asset?.metadata?.investedAmount || undefined,
       presentAmount: asset ? parseFloat(asset.value) : undefined,
       comments: asset?.metadata?.comments || '',
@@ -71,14 +71,27 @@ export function MutualFundModal({ open, onClose, onSave, asset, owners, defaultO
   const equityDebtTagValue = watch('equityDebtTag')
   const ownerIdValue = watch('ownerId')
 
+  const handleCategoryChange = (val: 'Equity' | 'Debt' | 'Hybrid' | 'Other' | null) => {
+    if (!val) return
+    setValue('category', val)
+    if (val === 'Debt') {
+      setValue('equityDebtTag', 'debt')
+    } else if (val === 'Equity') {
+      setValue('equityDebtTag', 'equity')
+    } else if (val === 'Hybrid') {
+      setValue('equityDebtTag', 'mixed')
+    }
+  }
+
   const onSubmit = async (data: FormData) => {
+    const finalTag = data.equityDebtTag || (data.category === 'Debt' ? 'debt' : 'equity')
     const payload = {
       name: data.name,
       type: 'mutual_fund',
       value: data.presentAmount,
       currency: 'INR',
       valuationDate: new Date().toISOString(),
-      equityDebtTag: data.equityDebtTag || undefined,
+      equityDebtTag: finalTag,
       metadata: {
         folioNumber: data.folioNumber || undefined,
         investedAmount: data.investedAmount,
@@ -107,13 +120,8 @@ export function MutualFundModal({ open, onClose, onSave, asset, owners, defaultO
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="folioNumber">Folio Number <span className="text-muted-foreground font-normal">(Optional)</span></Label>
-              <Input id="folioNumber" placeholder="e.g. 12345678" {...register('folioNumber')} />
-            </div>
-            
-            <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
-              <Select value={categoryValue} onValueChange={(val: any) => setValue('category', val)}>
+              <Select value={categoryValue} onValueChange={handleCategoryChange}>
                 <SelectTrigger id="category">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
@@ -125,22 +133,26 @@ export function MutualFundModal({ open, onClose, onSave, asset, owners, defaultO
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="equityDebtTag">Asset Class Tag</Label>
+              <Select value={equityDebtTagValue || 'equity'} onValueChange={(val: any) => setValue('equityDebtTag', val)}>
+                <SelectTrigger id="equityDebtTag">
+                  <SelectValue placeholder="Select classification" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="equity">Equity</SelectItem>
+                  <SelectItem value="debt">Debt</SelectItem>
+                  <SelectItem value="mixed">Mixed</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="equityDebtTag">Classification</Label>
-            <Select value={equityDebtTagValue || '__none__'} onValueChange={(val: any) => setValue('equityDebtTag', val === '__none__' ? null : val)}>
-              <SelectTrigger id="equityDebtTag">
-                <SelectValue placeholder="Select classification" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                <SelectItem value="equity">Equity</SelectItem>
-                <SelectItem value="debt">Debt</SelectItem>
-                <SelectItem value="mixed">Mixed</SelectItem>
-                <SelectItem value="cash">Cash</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="folioNumber">Folio Number <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+            <Input id="folioNumber" placeholder="e.g. 12345678" {...register('folioNumber')} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
