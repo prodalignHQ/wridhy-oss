@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { TrendingUp, PlusCircle, Camera, FileEdit, X, Loader2, Trash2, Eye, CalendarClock, History, Check, Users } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
+import { TrendingUp, PlusCircle, Camera, FileEdit, X, Loader2, Trash2, Eye, CalendarClock, History, Check, Users, ChevronDown, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { apiClient } from '@/lib/api'
@@ -49,6 +49,15 @@ interface Snapshot {
   } | null
   assetBreakdown?: Array<{ name: string; type: string; value: number; equityDebtTag?: string; metadata?: any }> | null
   liabilityBreakdown?: Array<{ name: string; type: string; amount: number; interestRate?: number; monthlyPayment?: number }> | null
+}
+
+interface AggregatedSnapshotGroup {
+  dateKey: string
+  date: Date
+  snapshots: Snapshot[]
+  totalAssets: number
+  totalLiabilities: number
+  netWorth: number
 }
 
 interface Draft {
@@ -102,6 +111,7 @@ export default function NetWorthPage() {
   const [deleteSnapshotId, setDeleteSnapshotId] = useState<string | null>(null)
   const [restoreSnapshotId, setRestoreSnapshotId] = useState<string | null>(null)
   const [isEditingValues, setIsEditingValues] = useState(false)
+  const [expandedDates, setExpandedDates] = useState<string[]>([])
 
   const isAllSelected = selectedOwnerIds.length === 0 || (owners.length > 0 && selectedOwnerIds.length === owners.length)
   const isSingleOwner = selectedOwnerIds.length === 1
@@ -136,6 +146,52 @@ export default function NetWorthPage() {
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
+
+  // ─── Aggregated Snapshot Groups ────────────────────────────────────────────
+
+  const aggregatedSnapshotGroups: AggregatedSnapshotGroup[] = useMemo(() => {
+    const groups: Record<string, Snapshot[]> = {}
+    
+    for (const snap of snapshots) {
+      const d = new Date(snap.snapshotDate)
+      const dateKey = format(d, 'yyyy-MM-dd')
+      if (!groups[dateKey]) {
+        groups[dateKey] = []
+      }
+      groups[dateKey].push(snap)
+    }
+
+    return Object.keys(groups)
+      .sort((a, b) => b.localeCompare(a))
+      .map((dateKey) => {
+        const snaps = groups[dateKey]!
+        const totalAssets = snaps.reduce((sum, s) => sum + parseFloat(s.totalAssets || '0'), 0)
+        const totalLiabilities = snaps.reduce((sum, s) => sum + parseFloat(s.totalLiabilities || '0'), 0)
+        const netWorth = totalAssets - totalLiabilities
+        return {
+          dateKey,
+          date: new Date(snaps[0]!.snapshotDate),
+          snapshots: snaps,
+          totalAssets,
+          totalLiabilities,
+          netWorth,
+        }
+      })
+  }, [snapshots])
+
+  const toggleExpandDate = (dateKey: string) => {
+    setExpandedDates((prev) =>
+      prev.includes(dateKey) ? prev.filter((d) => d !== dateKey) : [...prev, dateKey]
+    )
+  }
+
+  const toggleExpandAll = () => {
+    if (expandedDates.length === aggregatedSnapshotGroups.length) {
+      setExpandedDates([])
+    } else {
+      setExpandedDates(aggregatedSnapshotGroups.map((g) => g.dateKey))
+    }
+  }
 
   // ─── Filter Chip Handlers ──────────────────────────────────────────────────
 
@@ -303,7 +359,7 @@ export default function NetWorthPage() {
   // ─── Derived values ────────────────────────────────────────────────────────
 
   const contextOwners = isAllSelected ? owners : owners.filter(o => selectedOwnerIds.includes(o.id))
-  const contextDefaultOwnerId = isSingleOwner ? singleOwnerId : defaultOwnerId
+  const contextDefaultOwnerId = (isSingleOwner ? singleOwnerId : defaultOwnerId) ?? undefined
 
   const totalAssets = data?.totalAssets ?? 0
   const totalLiabilities = data?.totalLiabilities ?? 0
@@ -597,23 +653,38 @@ export default function NetWorthPage() {
 
             {/* ─── Section E: Snapshot History Table ─────────────────────────── */}
             <div className="bg-card border border-border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-base font-semibold text-foreground">Snapshot History</h2>
-                <span className="text-xs text-muted-foreground">
-                  {snapshots.length} snapshot{snapshots.length === 1 ? '' : 's'} recorded
-                </span>
+              <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">Snapshot History</h2>
+                  <span className="text-xs text-muted-foreground">
+                    {!isSingleOwner
+                      ? `${aggregatedSnapshotGroups.length} snapshot period${aggregatedSnapshotGroups.length === 1 ? '' : 's'} (${snapshots.length} total record${snapshots.length === 1 ? '' : 's'})`
+                      : `${snapshots.length} snapshot${snapshots.length === 1 ? '' : 's'} recorded`}
+                  </span>
+                </div>
+                {!isSingleOwner && aggregatedSnapshotGroups.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleExpandAll}
+                    className="text-xs text-muted-foreground hover:text-foreground h-7"
+                  >
+                    {expandedDates.length === aggregatedSnapshotGroups.length ? 'Collapse All' : 'Expand All'}
+                  </Button>
+                )}
               </div>
+
               {snapshots.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
                   No saved snapshots found.
                 </div>
-              ) : (
+              ) : isSingleOwner ? (
+                /* Single owner table */
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left text-muted-foreground">
                     <thead className="text-xs uppercase bg-muted/30 border-b border-border/50 text-muted-foreground font-semibold">
                       <tr>
                         <th className="px-4 py-3">Date</th>
-                        {!isSingleOwner && <th className="px-4 py-3">Member</th>}
                         <th className="px-4 py-3 text-right">Assets</th>
                         <th className="px-4 py-3 text-right">Liabilities</th>
                         <th className="px-4 py-3 text-right">Net Worth</th>
@@ -623,25 +694,13 @@ export default function NetWorthPage() {
                     <tbody className="divide-y divide-zinc-800">
                       {[...snapshots].reverse().map((snap) => {
                         const snapDate = new Date(snap.snapshotDate)
-                        const owner = owners.find(o => o.id === snap.ownerId)
                         const nwVal = parseFloat(snap.netWorth)
-                        
+
                         return (
                           <tr key={snap.id} className="hover:bg-muted/30 transition-colors border-b border-border/30 last:border-0">
                             <td className="px-4 py-3 text-foreground font-medium">
                               {format(snapDate, 'dd MMM yyyy')}
                             </td>
-                            {!isSingleOwner && (
-                              <td className="px-4 py-3">
-                                {owner ? (
-                                  <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium", colorMap[owner.color] || "bg-indigo-500/10 text-indigo-400 border-indigo-500/20")}>
-                                    {owner.name}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground/60">—</span>
-                                )}
-                              </td>
-                            )}
                             <td className="px-4 py-3 text-right font-mono text-emerald-400">
                               {formatINR(parseFloat(snap.totalAssets))}
                             </td>
@@ -661,7 +720,7 @@ export default function NetWorthPage() {
                                   <Eye size={14} />
                                 </button>
                                 
-                                {isSingleOwner && singleOwnerId === snap.ownerId && (
+                                {singleOwnerId === snap.ownerId && (
                                   <button
                                     onClick={() => setRestoreSnapshotId(snap.id)}
                                     className="p-1.5 text-muted-foreground hover:text-indigo-400 hover:bg-muted rounded transition-colors"
@@ -681,6 +740,152 @@ export default function NetWorthPage() {
                               </div>
                             </td>
                           </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                /* Aggregated table with expandable rows */
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left text-muted-foreground">
+                    <thead className="text-xs uppercase bg-muted/30 border-b border-border/50 text-muted-foreground font-semibold">
+                      <tr>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Members</th>
+                        <th className="px-4 py-3 text-right">Assets</th>
+                        <th className="px-4 py-3 text-right">Liabilities</th>
+                        <th className="px-4 py-3 text-right">Net Worth</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800">
+                      {aggregatedSnapshotGroups.map((group) => {
+                        const isExpanded = expandedDates.includes(group.dateKey)
+                        const nwVal = group.netWorth
+
+                        return (
+                          <Fragment key={group.dateKey}>
+                            {/* Aggregated parent row */}
+                            <tr
+                              onClick={() => toggleExpandDate(group.dateKey)}
+                              className={cn(
+                                "cursor-pointer transition-colors border-b border-border/30",
+                                isExpanded ? "bg-muted/40 font-medium" : "hover:bg-muted/20"
+                              )}
+                            >
+                              <td className="px-4 py-3 text-foreground font-medium flex items-center gap-2">
+                                <div className="p-1 rounded hover:bg-muted text-muted-foreground">
+                                  {isExpanded ? (
+                                    <ChevronDown size={15} className="text-indigo-400" />
+                                  ) : (
+                                    <ChevronRight size={15} />
+                                  )}
+                                </div>
+                                <span>{format(group.date, 'dd MMM yyyy')}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-semibold text-foreground/90 mr-1">
+                                    {group.snapshots.length} member{group.snapshots.length === 1 ? '' : 's'}
+                                  </span>
+                                  {group.snapshots.map((s) => {
+                                    const owner = owners.find(o => o.id === s.ownerId)
+                                    if (!owner) return null
+                                    const initials = owner.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                                    const avatarBg = AVATAR_COLOR_MAP[owner.color] ?? 'bg-indigo-500'
+                                    return (
+                                      <span
+                                        key={s.id}
+                                        title={owner.name}
+                                        className={cn(
+                                          "w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold shrink-0",
+                                          avatarBg
+                                        )}
+                                      >
+                                        {initials}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono text-emerald-400 font-medium">
+                                {formatINR(group.totalAssets)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono text-rose-400 font-medium">
+                                {formatINR(group.totalLiabilities)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono text-foreground font-bold">
+                                {nwVal >= 0 ? '' : '−'}{formatINR(Math.abs(nwVal))}
+                              </td>
+                              <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleExpandDate(group.dateKey)}
+                                  className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1"
+                                >
+                                  {isExpanded ? 'Hide' : 'Breakdown'}
+                                  <ChevronDown size={13} className={cn("transition-transform duration-200", isExpanded && "rotate-180")} />
+                                </Button>
+                              </td>
+                            </tr>
+
+                            {/* Sub-rows for each member in this date group */}
+                            {isExpanded && group.snapshots.map((snap) => {
+                              const owner = owners.find(o => o.id === snap.ownerId)
+                              const subNw = parseFloat(snap.netWorth)
+
+                              return (
+                                <tr
+                                  key={snap.id}
+                                  className="bg-muted/15 border-b border-border/20 last:border-b-0 hover:bg-muted/25 transition-colors text-xs"
+                                >
+                                  <td className="px-4 py-2.5 pl-10 text-muted-foreground flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-border" />
+                                    <span>Individual snapshot</span>
+                                  </td>
+                                  <td className="px-4 py-2.5">
+                                    {owner ? (
+                                      <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-medium", colorMap[owner.color] || "bg-indigo-500/10 text-indigo-400 border-indigo-500/20")}>
+                                        <span className={cn("w-2 h-2 rounded-full", AVATAR_COLOR_MAP[owner.color] || "bg-indigo-500")} />
+                                        {owner.name} {owner.isDefault ? '(Self)' : ''}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground/60">—</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-mono text-emerald-400/90">
+                                    {formatINR(parseFloat(snap.totalAssets))}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-mono text-rose-400/90">
+                                    {formatINR(parseFloat(snap.totalLiabilities))}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-mono text-foreground font-medium">
+                                    {subNw >= 0 ? '' : '−'}{formatINR(Math.abs(subNw))}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <button
+                                        onClick={() => setDetailsSnapshot(snap)}
+                                        className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                                        title="View Member Snapshot Details"
+                                      >
+                                        <Eye size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => setDeleteSnapshotId(snap.id)}
+                                        className="p-1 text-muted-foreground hover:text-rose-400 hover:bg-muted rounded transition-colors"
+                                        title="Delete Snapshot"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </Fragment>
                         )
                       })}
                     </tbody>
