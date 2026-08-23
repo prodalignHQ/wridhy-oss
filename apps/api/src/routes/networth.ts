@@ -9,7 +9,7 @@ import {
 } from '@momoney/db'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, desc, asc, sum, or, isNull } from 'drizzle-orm'
+import { eq, and, desc, asc, sum, or, isNull, inArray } from 'drizzle-orm'
 import { authMiddleware } from '../middleware/auth.js'
 import { resolveAssetTag } from '@momoney/utils'
 
@@ -77,41 +77,81 @@ const draftSchema = z.object({
   liabilityBreakdown: z.array(z.record(z.any())).optional(),
 })
 
+// ─── Helpers: owner filtering ────────────────────────────────────────────────
+
+function parseOwnerIds(rawOwnerId?: string, rawOwnerIds?: string): string[] | null {
+  if (rawOwnerIds) {
+    const ids = rawOwnerIds.split(',').map((s) => s.trim()).filter(Boolean)
+    if (ids.length > 0) return ids
+  }
+  if (rawOwnerId && rawOwnerId !== 'all') {
+    return [rawOwnerId]
+  }
+  return null
+}
+
+function buildOwnerWhereClause(userId: string, ownerIds: string[] | null, defaultOwnerId?: string) {
+  if (!ownerIds || ownerIds.length === 0) {
+    return {
+      assetWhere: eq(assets.userId, userId),
+      liabilityWhere: eq(liabilities.userId, userId),
+      snapshotWhere: eq(netWorthSnapshots.userId, userId),
+    }
+  }
+
+  const hasDefault = defaultOwnerId ? ownerIds.includes(defaultOwnerId) : false
+
+  if (ownerIds.length === 1 && ownerIds[0]) {
+    const singleId = ownerIds[0]
+    if (defaultOwnerId && singleId === defaultOwnerId) {
+      return {
+        assetWhere: and(eq(assets.userId, userId), or(eq(assets.ownerId, singleId), isNull(assets.ownerId))),
+        liabilityWhere: and(eq(liabilities.userId, userId), or(eq(liabilities.ownerId, singleId), isNull(liabilities.ownerId))),
+        snapshotWhere: and(eq(netWorthSnapshots.userId, userId), or(eq(netWorthSnapshots.ownerId, singleId), isNull(netWorthSnapshots.ownerId))),
+      }
+    } else {
+      return {
+        assetWhere: and(eq(assets.userId, userId), eq(assets.ownerId, singleId)),
+        liabilityWhere: and(eq(liabilities.userId, userId), eq(liabilities.ownerId, singleId)),
+        snapshotWhere: and(eq(netWorthSnapshots.userId, userId), eq(netWorthSnapshots.ownerId, singleId)),
+      }
+    }
+  }
+
+  if (hasDefault) {
+    return {
+      assetWhere: and(eq(assets.userId, userId), or(inArray(assets.ownerId, ownerIds), isNull(assets.ownerId))),
+      liabilityWhere: and(eq(liabilities.userId, userId), or(inArray(liabilities.ownerId, ownerIds), isNull(liabilities.ownerId))),
+      snapshotWhere: and(eq(netWorthSnapshots.userId, userId), or(inArray(netWorthSnapshots.ownerId, ownerIds), isNull(netWorthSnapshots.ownerId))),
+    }
+  } else {
+    return {
+      assetWhere: and(eq(assets.userId, userId), inArray(assets.ownerId, ownerIds)),
+      liabilityWhere: and(eq(liabilities.userId, userId), inArray(liabilities.ownerId, ownerIds)),
+      snapshotWhere: and(eq(netWorthSnapshots.userId, userId), inArray(netWorthSnapshots.ownerId, ownerIds)),
+    }
+  }
+}
+
 // ─── Helper: compute live net worth ──────────────────────────────────────────
 
-async function computeLiveNetWorth(userId: string, ownerId?: string | null) {
+async function computeLiveNetWorth(userId: string, rawOwnerIds?: string[] | string | null) {
+  const ownerIds = Array.isArray(rawOwnerIds)
+    ? rawOwnerIds
+    : (rawOwnerIds && rawOwnerIds !== 'all' ? [rawOwnerIds] : null)
+
   const defaultOwner = await db.query.owners.findFirst({
     where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
   })
 
-  let assetWhereClause
-  let liabilityWhereClause
-
-  if (ownerId && ownerId !== 'all') {
-    if (defaultOwner && ownerId === defaultOwner.id) {
-      assetWhereClause = and(
-        eq(assets.userId, userId),
-        or(eq(assets.ownerId, ownerId), isNull(assets.ownerId))
-      )
-      liabilityWhereClause = and(
-        eq(liabilities.userId, userId),
-        or(eq(liabilities.ownerId, ownerId), isNull(liabilities.ownerId))
-      )
-    } else {
-      assetWhereClause = and(eq(assets.userId, userId), eq(assets.ownerId, ownerId))
-      liabilityWhereClause = and(eq(liabilities.userId, userId), eq(liabilities.ownerId, ownerId))
-    }
-  } else {
-    assetWhereClause = eq(assets.userId, userId)
-    liabilityWhereClause = eq(liabilities.userId, userId)
-  }
+  const { assetWhere, liabilityWhere } = buildOwnerWhereClause(userId, ownerIds, defaultOwner?.id)
 
   const userAssets = await db.query.assets.findMany({
-    where: assetWhereClause,
+    where: assetWhere,
     orderBy: [asc(assets.type), asc(assets.createdAt)],
   })
   const userLiabilities = await db.query.liabilities.findMany({
-    where: liabilityWhereClause,
+    where: liabilityWhere,
     orderBy: [asc(liabilities.type), asc(liabilities.createdAt)],
   })
 
@@ -134,8 +174,8 @@ async function computeLiveNetWorth(userId: string, ownerId?: string | null) {
 
 networthRoute.get('/', async (c) => {
   const userId = c.get('userId')
-  const ownerId = c.req.query('ownerId')
-  const data = await computeLiveNetWorth(userId, ownerId)
+  const ownerIds = parseOwnerIds(c.req.query('ownerId'), c.req.query('ownerIds'))
+  const data = await computeLiveNetWorth(userId, ownerIds)
   return c.json({ success: true, data })
 })
 
@@ -143,37 +183,22 @@ networthRoute.get('/', async (c) => {
 
 networthRoute.get('/history', async (c) => {
   const userId = c.get('userId')
-  const ownerId = c.req.query('ownerId')
+  const ownerIds = parseOwnerIds(c.req.query('ownerId'), c.req.query('ownerIds'))
 
   let snapshots
-  if (ownerId && ownerId !== 'all') {
+  if (ownerIds && ownerIds.length > 0) {
     const defaultOwner = await db.query.owners.findFirst({
       where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
     })
-    
-    if (defaultOwner && ownerId === defaultOwner.id) {
-      snapshots = await db.query.netWorthSnapshots.findMany({
-        where: and(
-          eq(netWorthSnapshots.userId, userId),
-          or(eq(netWorthSnapshots.ownerId, ownerId), isNull(netWorthSnapshots.ownerId))
-        ),
-        with: {
-          owner: true,
-        },
-        orderBy: [asc(netWorthSnapshots.snapshotDate)],
-      })
-    } else {
-      snapshots = await db.query.netWorthSnapshots.findMany({
-        where: and(
-          eq(netWorthSnapshots.userId, userId),
-          eq(netWorthSnapshots.ownerId, ownerId)
-        ),
-        with: {
-          owner: true,
-        },
-        orderBy: [asc(netWorthSnapshots.snapshotDate)],
-      })
-    }
+    const { snapshotWhere } = buildOwnerWhereClause(userId, ownerIds, defaultOwner?.id)
+
+    snapshots = await db.query.netWorthSnapshots.findMany({
+      where: snapshotWhere,
+      with: {
+        owner: true,
+      },
+      orderBy: [asc(netWorthSnapshots.snapshotDate)],
+    })
   } else {
     // Return all snapshots with their owner relations
     snapshots = await db.query.netWorthSnapshots.findMany({
@@ -520,24 +545,14 @@ networthRoute.delete('/draft', async (c) => {
 
 networthRoute.get('/assets', async (c) => {
   const userId = c.get('userId')
-  const ownerId = c.req.query('ownerId')
-  
-  let assetWhereClause
-  if (ownerId && ownerId !== 'all') {
-    const defaultOwner = await db.query.owners.findFirst({
-      where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
-    })
-    if (defaultOwner && ownerId === defaultOwner.id) {
-      assetWhereClause = and(eq(assets.userId, userId), or(eq(assets.ownerId, ownerId), isNull(assets.ownerId)))
-    } else {
-      assetWhereClause = and(eq(assets.userId, userId), eq(assets.ownerId, ownerId))
-    }
-  } else {
-    assetWhereClause = eq(assets.userId, userId)
-  }
+  const ownerIds = parseOwnerIds(c.req.query('ownerId'), c.req.query('ownerIds'))
+  const defaultOwner = await db.query.owners.findFirst({
+    where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+  })
+  const { assetWhere } = buildOwnerWhereClause(userId, ownerIds, defaultOwner?.id)
 
   const data = await db.query.assets.findMany({
-    where: assetWhereClause,
+    where: assetWhere,
     orderBy: [asc(assets.type), asc(assets.createdAt)],
   })
   return c.json({ success: true, data })
@@ -615,24 +630,14 @@ networthRoute.delete('/assets/:id', async (c) => {
 
 networthRoute.get('/liabilities', async (c) => {
   const userId = c.get('userId')
-  const ownerId = c.req.query('ownerId')
-
-  let liabilityWhereClause
-  if (ownerId && ownerId !== 'all') {
-    const defaultOwner = await db.query.owners.findFirst({
-      where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
-    })
-    if (defaultOwner && ownerId === defaultOwner.id) {
-      liabilityWhereClause = and(eq(liabilities.userId, userId), or(eq(liabilities.ownerId, ownerId), isNull(liabilities.ownerId)))
-    } else {
-      liabilityWhereClause = and(eq(liabilities.userId, userId), eq(liabilities.ownerId, ownerId))
-    }
-  } else {
-    liabilityWhereClause = eq(liabilities.userId, userId)
-  }
+  const ownerIds = parseOwnerIds(c.req.query('ownerId'), c.req.query('ownerIds'))
+  const defaultOwner = await db.query.owners.findFirst({
+    where: and(eq(owners.userId, userId), eq(owners.isDefault, true))
+  })
+  const { liabilityWhere } = buildOwnerWhereClause(userId, ownerIds, defaultOwner?.id)
 
   const data = await db.query.liabilities.findMany({
-    where: liabilityWhereClause,
+    where: liabilityWhere,
     orderBy: [asc(liabilities.type), asc(liabilities.createdAt)],
   })
   return c.json({ success: true, data })

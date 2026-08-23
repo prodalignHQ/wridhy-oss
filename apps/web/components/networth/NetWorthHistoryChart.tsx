@@ -40,7 +40,7 @@ interface Owner {
 interface NetWorthHistoryChartProps {
   snapshots: Snapshot[]
   owners: Owner[]
-  selectedOwnerId: string
+  selectedOwnerIds: string[]
 }
 
 
@@ -71,11 +71,16 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   )
 }
 
-export function NetWorthHistoryChart({ snapshots, owners, selectedOwnerId }: NetWorthHistoryChartProps) {
+export function NetWorthHistoryChart({ snapshots, owners, selectedOwnerIds }: NetWorthHistoryChartProps) {
   const defaultOwnerId = owners.find((o) => o.isDefault)?.id
+  const isAll = selectedOwnerIds.length === 0 || selectedOwnerIds.length === owners.length
+  const isSingle = selectedOwnerIds.length === 1
+  const activeOwners = isAll
+    ? owners
+    : owners.filter((o) => selectedOwnerIds.includes(o.id))
 
   let chartData: any[] = []
-  if (selectedOwnerId === 'all') {
+  if (!isSingle) {
     // Group snapshots by date
     const groupedByDate: Record<string, Snapshot[]> = {}
     for (const s of snapshots) {
@@ -88,9 +93,9 @@ export function NetWorthHistoryChart({ snapshots, owners, selectedOwnerId }: Net
 
     const sortedDateKeys = Object.keys(groupedByDate).sort()
 
-    // Keep track of the last known net worth for each owner
+    // Keep track of the last known net worth for each active owner
     const lastKnownNetWorth: Record<string, number> = {}
-    for (const o of owners) {
+    for (const o of activeOwners) {
       lastKnownNetWorth[o.id] = 0
     }
 
@@ -100,7 +105,9 @@ export function NetWorthHistoryChart({ snapshots, owners, selectedOwnerId }: Net
       // Update last known net worth with snapshots from this date
       for (const s of snapshotsForDate) {
         const oId = s.ownerId || defaultOwnerId || 'default'
-        lastKnownNetWorth[oId] = parseFloat(s.netWorth as string)
+        if (lastKnownNetWorth[oId] !== undefined) {
+          lastKnownNetWorth[oId] = parseFloat(s.netWorth as string)
+        }
       }
 
       const dateLabel = format(new Date(dateKey), 'dd MMM')
@@ -109,8 +116,8 @@ export function NetWorthHistoryChart({ snapshots, owners, selectedOwnerId }: Net
       }
 
       let totalNetWorth = 0
-      for (const o of owners) {
-        const val = lastKnownNetWorth[o.id]
+      for (const o of activeOwners) {
+        const val = lastKnownNetWorth[o.id] ?? 0
         dataPoint[o.name] = val
         totalNetWorth += val
       }
@@ -163,8 +170,6 @@ export function NetWorthHistoryChart({ snapshots, owners, selectedOwnerId }: Net
     )
   }
 
-  const isAll = selectedOwnerId === 'all'
-
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -189,7 +194,7 @@ export function NetWorthHistoryChart({ snapshots, owners, selectedOwnerId }: Net
           formatter={(val) => <span className="text-xs text-muted-foreground">{val}</span>}
         />
         
-        {isAll ? (
+        {!isSingle ? (
           <>
             <defs>
               <linearGradient id="totalNetWorthGradient" x1="0" y1="0" x2="0" y2="1">
@@ -206,7 +211,7 @@ export function NetWorthHistoryChart({ snapshots, owners, selectedOwnerId }: Net
               dot={{ fill: '#6366f1', r: 4, strokeWidth: 0 }}
               activeDot={{ r: 6, fill: '#818cf8' }}
             />
-            {owners.map((owner) => (
+            {activeOwners.map((owner) => (
               <Line
                 key={owner.id}
                 type="monotone"

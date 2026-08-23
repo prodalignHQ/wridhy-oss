@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { TrendingUp, PlusCircle, Camera, FileEdit, X, Loader2, Trash2, Eye, CalendarClock, History, Check } from 'lucide-react'
+import { TrendingUp, PlusCircle, Camera, FileEdit, X, Loader2, Trash2, Eye, CalendarClock, History, Check, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { apiClient } from '@/lib/api'
@@ -14,7 +14,6 @@ import { LiabilityTable } from '@/components/networth/LiabilityTable'
 import { NetWorthHistoryChart } from '@/components/networth/NetWorthHistoryChart'
 import { NetWorthAllocation } from '@/components/networth/NetWorthAllocation'
 import { AddLiabilityModal, type Liability } from '@/components/networth/AddLiabilityModal'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { resolveAssetTag } from '@momoney/utils'
 import {
@@ -27,8 +26,6 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-
-
 
 interface NetWorthData {
   totalAssets: number
@@ -77,12 +74,21 @@ const colorMap: Record<string, string> = {
   violet: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
 }
 
+const AVATAR_COLOR_MAP: Record<string, string> = {
+  indigo: 'bg-indigo-500',
+  emerald: 'bg-emerald-500',
+  rose: 'bg-rose-500',
+  amber: 'bg-amber-500',
+  sky: 'bg-sky-500',
+  violet: 'bg-violet-500',
+}
+
 export default function NetWorthPage() {
   const [data, setData] = useState<NetWorthData | null>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
   const [owners, setOwners] = useState<Owner[]>([])
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string>('all')
+  const [selectedOwnerIds, setSelectedOwnerIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [savingSnapshot, setSavingSnapshot] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
@@ -97,17 +103,23 @@ export default function NetWorthPage() {
   const [restoreSnapshotId, setRestoreSnapshotId] = useState<string | null>(null)
   const [isEditingValues, setIsEditingValues] = useState(false)
 
+  const isAllSelected = selectedOwnerIds.length === 0 || (owners.length > 0 && selectedOwnerIds.length === owners.length)
+  const isSingleOwner = selectedOwnerIds.length === 1
+  const singleOwnerId = isSingleOwner ? selectedOwnerIds[0] : null
   const defaultOwnerId = owners.find(o => o.isDefault)?.id
+  const targetOwnerId = singleOwnerId || defaultOwnerId
 
   // ─── Data fetching ─────────────────────────────────────────────────────────
 
   const fetchAll = useCallback(async () => {
     try {
-      const ownerQuery = selectedOwnerId && selectedOwnerId !== 'all' ? `?ownerId=${selectedOwnerId}` : ''
+      const ownerQuery = isAllSelected ? '' : `?ownerIds=${selectedOwnerIds.join(',')}`
+      const singleQuery = singleOwnerId ? `?ownerId=${singleOwnerId}` : (defaultOwnerId ? `?ownerId=${defaultOwnerId}` : '')
+
       const [nw, hist, dr, ownList] = await Promise.all([
         apiClient.fetch<NetWorthData>(`/v1/networth${ownerQuery}`),
         apiClient.fetch<Snapshot[]>(`/v1/networth/history${ownerQuery}`),
-        apiClient.fetch<Draft | null>(`/v1/networth/draft${ownerQuery}`).catch(() => null),
+        apiClient.fetch<Draft | null>(`/v1/networth/draft${singleQuery}`).catch(() => null),
         apiClient.fetch<Owner[]>('/v1/owners'),
       ])
       setData(nw)
@@ -119,18 +131,42 @@ export default function NetWorthPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedOwnerId])
+  }, [isAllSelected, selectedOwnerIds, singleOwnerId, defaultOwnerId])
 
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
+
+  // ─── Filter Chip Handlers ──────────────────────────────────────────────────
+
+  const handleSelectAll = () => {
+    setSelectedOwnerIds([])
+  }
+
+  const handleToggleOwner = (ownerId: string) => {
+    if (isAllSelected) {
+      setSelectedOwnerIds([ownerId])
+    } else if (selectedOwnerIds.includes(ownerId)) {
+      if (selectedOwnerIds.length === 1) {
+        setSelectedOwnerIds([])
+      } else {
+        setSelectedOwnerIds(selectedOwnerIds.filter((id) => id !== ownerId))
+      }
+    } else {
+      const next = [...selectedOwnerIds, ownerId]
+      if (next.length === owners.length) {
+        setSelectedOwnerIds([])
+      } else {
+        setSelectedOwnerIds(next)
+      }
+    }
+  }
 
   // ─── Snapshot ──────────────────────────────────────────────────────────────
 
   const handleSaveSnapshot = async (date?: string) => {
     setSavingSnapshot(true)
     try {
-      const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
       await apiClient.fetch('/v1/networth/snapshot', { 
         method: 'POST',
         body: JSON.stringify({ ownerId: targetOwnerId, date })
@@ -157,7 +193,6 @@ export default function NetWorthPage() {
   const handleSaveDraft = async () => {
     setSavingDraft(true)
     try {
-      const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
       await apiClient.fetch(`/v1/networth/draft?ownerId=${targetOwnerId}`, { method: 'PUT', body: JSON.stringify({}) })
       toast.success('Draft saved')
       await fetchAll()
@@ -170,7 +205,6 @@ export default function NetWorthPage() {
 
   const handleDiscardDraft = async () => {
     try {
-      const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
       await apiClient.fetch(`/v1/networth/draft?ownerId=${targetOwnerId}`, { method: 'DELETE' })
       setDraft(null)
       setDraftDismissed(true)
@@ -182,7 +216,6 @@ export default function NetWorthPage() {
   // ─── Assets ────────────────────────────────────────────────────────────────
 
   const handleSaveAsset = async (formData: any, id?: string) => {
-    const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
     const payload = {
       ...formData,
       ownerId: formData.ownerId || targetOwnerId,
@@ -213,7 +246,6 @@ export default function NetWorthPage() {
   // ─── Liabilities ───────────────────────────────────────────────────────────
 
   const handleSaveLiability = async (formData: any, id?: string) => {
-    const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
     const payload = {
       ...formData,
       ownerId: formData.ownerId || targetOwnerId,
@@ -268,11 +300,10 @@ export default function NetWorthPage() {
     }
   }
 
-
   // ─── Derived values ────────────────────────────────────────────────────────
 
-  const contextOwners = selectedOwnerId === 'all' ? owners : owners.filter(o => o.id === selectedOwnerId)
-  const contextDefaultOwnerId = selectedOwnerId === 'all' ? defaultOwnerId : selectedOwnerId
+  const contextOwners = isAllSelected ? owners : owners.filter(o => selectedOwnerIds.includes(o.id))
+  const contextDefaultOwnerId = isSingleOwner ? singleOwnerId : defaultOwnerId
 
   const totalAssets = data?.totalAssets ?? 0
   const totalLiabilities = data?.totalLiabilities ?? 0
@@ -306,10 +337,10 @@ export default function NetWorthPage() {
     Math.abs(liveTotalAssets - latestSnapshotAssets) > 0.01 ||
     Math.abs(liveTotalLiabilities - latestSnapshotLiabilities) > 0.01
 
-  const isSnapshotUnsaved = selectedOwnerId !== 'all' && (!latestSnapshot || !isCurrentMonthSaved || valuesDiffer)
+  const isSnapshotUnsaved = isSingleOwner && (!latestSnapshot || !isCurrentMonthSaved || valuesDiffer)
 
   let unsavedReason = ''
-  if (selectedOwnerId !== 'all') {
+  if (isSingleOwner) {
     if (!latestSnapshot) {
       unsavedReason = 'No snapshots saved yet'
     } else if (!isCurrentMonthSaved) {
@@ -363,29 +394,66 @@ export default function NetWorthPage() {
 
       {/* ─── Page header ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-semibold text-foreground">Net Worth</h1>
-
-        <div className="flex items-center gap-3">
-          {/* Member selector */}
-          {owners.length > 0 && (
-            <Select value={selectedOwnerId} onValueChange={(val) => setSelectedOwnerId(val ?? 'all')}>
-              <SelectTrigger className="w-[180px] bg-secondary border-none rounded-full h-[38px] text-sm focus:ring-0">
-                <SelectValue>
-                  {selectedOwnerId === 'all'
-                    ? 'All Household'
-                    : owners.find((o) => o.id === selectedOwnerId)?.name || 'Select Member'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border">
-                <SelectItem value="all">All Household</SelectItem>
-                {owners.map(owner => (
-                  <SelectItem key={owner.id} value={owner.id}>
-                    {owner.name} {owner.isDefault ? '(Self)' : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Net Worth</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Track and aggregate assets and liabilities across your household
+          </p>
         </div>
+
+        {/* Member filter chips */}
+        {owners.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap bg-card/60 border border-border p-1.5 rounded-2xl shadow-sm">
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all',
+                isAllSelected
+                  ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+              )}
+            >
+              <Users size={13} className={isAllSelected ? 'text-white' : 'text-muted-foreground'} />
+              <span>All Household</span>
+            </button>
+
+            <div className="h-4 w-px bg-border/80 mx-0.5" />
+
+            {owners.map((owner) => {
+              const isSelected = !isAllSelected && selectedOwnerIds.includes(owner.id)
+              const initials = owner.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+              const avatarBg = AVATAR_COLOR_MAP[owner.color] ?? 'bg-indigo-500'
+
+              return (
+                <button
+                  key={owner.id}
+                  type="button"
+                  onClick={() => handleToggleOwner(owner.id)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all border',
+                    isSelected
+                      ? 'border-indigo-500/80 bg-indigo-500/15 text-foreground ring-1 ring-indigo-500/30 font-semibold'
+                      : isAllSelected
+                      ? 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                      : 'border-transparent text-muted-foreground/60 opacity-60 hover:opacity-100 hover:text-foreground hover:bg-muted/40'
+                  )}
+                >
+                  <span className={cn('w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white font-bold shrink-0', avatarBg)}>
+                    {initials}
+                  </span>
+                  <span>{owner.name}</span>
+                  {owner.isDefault && (
+                    <span className="text-[10px] text-muted-foreground font-normal">(Self)</span>
+                  )}
+                  {isSelected && (
+                    <Check size={12} className="text-indigo-400 ml-0.5 stroke-[2.5]" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* ─── Section A: Summary cards + Save buttons ──────────────── */}
@@ -413,13 +481,13 @@ export default function NetWorthPage() {
 
             {/* Action buttons */}
             <div className="flex items-center gap-3 justify-end flex-wrap">
-              {selectedOwnerId !== 'all' && isSnapshotUnsaved && (
+              {isSingleOwner && isSnapshotUnsaved && (
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 mr-auto animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                   <span>Unsaved Snapshot: {unsavedReason}</span>
                 </div>
               )}
-              {selectedOwnerId !== 'all' ? (
+              {isSingleOwner ? (
                 <>
                   <Button
                     variant="outline"
@@ -468,7 +536,13 @@ export default function NetWorthPage() {
                 </>
                 ) : (
                   <div className="text-sm text-muted-foreground flex items-center gap-1.5 bg-secondary/40 border border-border/50 px-4 py-2 rounded-lg w-full justify-between">
-                    <span>💡 <strong>All Household</strong> view is aggregated. Select a member to save snapshots or drafts.</span>
+                    <span>
+                      💡 {isAllSelected ? (
+                        <><strong>All Household</strong> view is aggregated across all members.</>
+                      ) : (
+                        <>Aggregated view across <strong>{selectedOwnerIds.length} selected members</strong>.</>
+                      )} Select a single member chip to edit values, save drafts, or save snapshots.
+                    </span>
                   </div>
                 )}
               </div>
@@ -518,7 +592,7 @@ export default function NetWorthPage() {
             {/* ─── Section D: History chart ─────────────────────────────── */}
             <div className="bg-card border border-border rounded-xl p-6">
               <h2 className="text-base font-semibold text-foreground mb-5">Net Worth Over Time</h2>
-              <NetWorthHistoryChart snapshots={snapshots} owners={owners} selectedOwnerId={selectedOwnerId} />
+              <NetWorthHistoryChart snapshots={snapshots} owners={owners} selectedOwnerIds={selectedOwnerIds} />
             </div>
 
             {/* ─── Section E: Snapshot History Table ─────────────────────────── */}
@@ -539,7 +613,7 @@ export default function NetWorthPage() {
                     <thead className="text-xs uppercase bg-muted/30 border-b border-border/50 text-muted-foreground font-semibold">
                       <tr>
                         <th className="px-4 py-3">Date</th>
-                        {selectedOwnerId === 'all' && <th className="px-4 py-3">Member</th>}
+                        {!isSingleOwner && <th className="px-4 py-3">Member</th>}
                         <th className="px-4 py-3 text-right">Assets</th>
                         <th className="px-4 py-3 text-right">Liabilities</th>
                         <th className="px-4 py-3 text-right">Net Worth</th>
@@ -557,7 +631,7 @@ export default function NetWorthPage() {
                             <td className="px-4 py-3 text-foreground font-medium">
                               {format(snapDate, 'dd MMM yyyy')}
                             </td>
-                            {selectedOwnerId === 'all' && (
+                            {!isSingleOwner && (
                               <td className="px-4 py-3">
                                 {owner ? (
                                   <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium", colorMap[owner.color] || "bg-indigo-500/10 text-indigo-400 border-indigo-500/20")}>
@@ -587,7 +661,7 @@ export default function NetWorthPage() {
                                   <Eye size={14} />
                                 </button>
                                 
-                                {selectedOwnerId !== 'all' && selectedOwnerId === snap.ownerId && (
+                                {isSingleOwner && singleOwnerId === snap.ownerId && (
                                   <button
                                     onClick={() => setRestoreSnapshotId(snap.id)}
                                     className="p-1.5 text-muted-foreground hover:text-indigo-400 hover:bg-muted rounded transition-colors"
