@@ -13,7 +13,6 @@ import { AssetLayout } from '@/components/networth/AssetLayout'
 import { LiabilityTable } from '@/components/networth/LiabilityTable'
 import { NetWorthHistoryChart } from '@/components/networth/NetWorthHistoryChart'
 import { NetWorthAllocation } from '@/components/networth/NetWorthAllocation'
-import { QuickEntryMode } from '@/components/networth/QuickEntryMode'
 import { AddLiabilityModal, type Liability } from '@/components/networth/AddLiabilityModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
@@ -29,7 +28,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 
-type Mode = 'detailed' | 'quick'
+
 
 interface NetWorthData {
   totalAssets: number
@@ -79,7 +78,6 @@ const colorMap: Record<string, string> = {
 }
 
 export default function NetWorthPage() {
-  const [mode, setMode] = useState<Mode>('detailed')
   const [data, setData] = useState<NetWorthData | null>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -93,7 +91,7 @@ export default function NetWorthPage() {
   const [draftDismissed, setDraftDismissed] = useState(false)
   const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false)
   const [selectedSnapshotDate, setSelectedSnapshotDate] = useState('')
-  const [quickEntryValues, setQuickEntryValues] = useState<{ assets: number; liabilities: number } | null>(null)
+
   const [detailsSnapshot, setDetailsSnapshot] = useState<Snapshot | null>(null)
   const [deleteSnapshotId, setDeleteSnapshotId] = useState<string | null>(null)
   const [restoreSnapshotId, setRestoreSnapshotId] = useState<string | null>(null)
@@ -149,71 +147,9 @@ export default function NetWorthPage() {
     }
   }
 
-  const handleQuickSnapshot = async (totalAssets: number, totalLiabilities: number, date?: string) => {
-    setSavingSnapshot(true)
-    try {
-      const targetOwnerId = selectedOwnerId && selectedOwnerId !== 'all' ? selectedOwnerId : defaultOwnerId
-      // Clear existing rows
-      if (data?.assets) {
-        await Promise.all(
-          data.assets.map((a) =>
-            apiClient.fetch(`/v1/networth/assets/${a.id}`, { method: 'DELETE' })
-          )
-        )
-      }
-      if (data?.liabilities) {
-        await Promise.all(
-          data.liabilities.map((l) =>
-            apiClient.fetch(`/v1/networth/liabilities/${l.id}`, { method: 'DELETE' })
-          )
-        )
-      }
-      // Create synthetic rows
-      if (totalAssets > 0) {
-        await apiClient.fetch('/v1/networth/assets', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: 'Total Assets (Quick Entry)',
-            type: 'other',
-            value: totalAssets,
-            currency: 'INR',
-            valuationDate: date || new Date().toISOString().split('T')[0],
-            ownerId: targetOwnerId,
-          }),
-        })
-      }
-      if (totalLiabilities > 0) {
-        await apiClient.fetch('/v1/networth/liabilities', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: 'Total Liabilities (Quick Entry)',
-            type: 'other',
-            outstandingAmount: totalLiabilities,
-            ownerId: targetOwnerId,
-          }),
-        })
-      }
-      await apiClient.fetch('/v1/networth/snapshot', {
-        method: 'POST',
-        body: JSON.stringify({ ownerId: targetOwnerId, date })
-      })
-      const dateLabel = format(date ? new Date(date) : new Date(), 'dd MMM yyyy')
-      toast.success(`Snapshot saved for ${dateLabel}`)
-      await fetchAll()
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Failed to save snapshot')
-    } finally {
-      setSavingSnapshot(false)
-    }
-  }
-
   const handleConfirmSaveSnapshot = async () => {
     setSnapshotDialogOpen(false)
-    if (quickEntryValues) {
-      await handleQuickSnapshot(quickEntryValues.assets, quickEntryValues.liabilities, selectedSnapshotDate)
-    } else {
-      await handleSaveSnapshot(selectedSnapshotDate)
-    }
+    await handleSaveSnapshot(selectedSnapshotDate)
   }
 
   // ─── Draft ─────────────────────────────────────────────────────────────────
@@ -449,53 +385,11 @@ export default function NetWorthPage() {
                 ))}
               </SelectContent>
             </Select>
-          )}
-
-          {/* Mode toggle */}
-          <div className="rounded-full bg-muted p-1 flex items-center gap-0.5">
-            {(['detailed', 'quick'] as Mode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={cn(
-                  'px-4 py-1.5 rounded-full text-sm font-medium transition-all',
-                  mode === m
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground/90'
-                )}
-              >
-                {m === 'detailed' ? 'Detailed' : 'Quick Entry'}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
-      {mode === 'quick' ? (
-        selectedOwnerId === 'all' ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4 text-center max-w-md mx-auto">
-            <div className="p-4 bg-secondary/50 rounded-full text-muted-foreground">
-              <History size={32} />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-foreground">Select a Household Member</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Quick Entry is only available when managing an individual member's net worth.
-                Please select a member from the dropdown above to proceed.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <QuickEntryMode onSaveSnapshot={async (assets, liabilities) => {
-            setQuickEntryValues({ assets, liabilities })
-            setSelectedSnapshotDate(new Date().toISOString().split('T')[0])
-            setSnapshotDialogOpen(true)
-          }} />
-        )
-      ) : (
-        <>
-          {/* ─── Section A: Summary cards + Save buttons ──────────────── */}
-          <div className="flex flex-col gap-4">
+      {/* ─── Section A: Summary cards + Save buttons ──────────────── */}
+      <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <StatCard
                 label="Total Assets"
@@ -558,7 +452,6 @@ export default function NetWorthPage() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      setQuickEntryValues(null)
                       setSelectedSnapshotDate(new Date().toISOString().split('T')[0])
                       setSnapshotDialogOpen(true)
                     }}
@@ -721,8 +614,6 @@ export default function NetWorthPage() {
                 </div>
               )}
             </div>
-          </>
-        )}
 
         {/* Global Add modals (for top-level buttons) */}
         {addLiability && (
