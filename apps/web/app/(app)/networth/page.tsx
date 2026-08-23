@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
-import { TrendingUp, PlusCircle, Camera, FileEdit, X, Loader2, Trash2, Eye, CalendarClock, History, Check, Users, ChevronDown, ChevronRight } from 'lucide-react'
+import { TrendingUp, PlusCircle, Camera, FileEdit, X, Loader2, Trash2, Eye, CalendarClock, History, Check, Users, ChevronDown, ChevronRight, Download, FileSpreadsheet, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { apiClient } from '@/lib/api'
@@ -16,6 +16,13 @@ import { NetWorthAllocation } from '@/components/networth/NetWorthAllocation'
 import { AddLiabilityModal, type Liability } from '@/components/networth/AddLiabilityModal'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { resolveAssetTag } from '@momoney/utils'
+import { exportNetWorthPdf, exportNetWorthCsv } from '@/lib/networth-export'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -112,6 +119,8 @@ export default function NetWorthPage() {
   const [restoreSnapshotId, setRestoreSnapshotId] = useState<string | null>(null)
   const [isEditingValues, setIsEditingValues] = useState(false)
   const [expandedDates, setExpandedDates] = useState<string[]>([])
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportingCsv, setExportingCsv] = useState(false)
 
   const isAllSelected = selectedOwnerIds.length === 0 || (owners.length > 0 && selectedOwnerIds.length === owners.length)
   const isSingleOwner = selectedOwnerIds.length === 1
@@ -356,6 +365,119 @@ export default function NetWorthPage() {
     }
   }
 
+  // ─── Export handlers ───────────────────────────────────────────────────────
+
+  const handleExportPdf = async () => {
+    if (!data) return
+    setExportingPdf(true)
+    try {
+      toast.loading('Generating Net Worth PDF Statement...', { id: 'export-pdf' })
+      await exportNetWorthPdf({
+        data,
+        owners,
+        selectedOwnerIds,
+        isAllSelected,
+        snapshots,
+        statementDate: new Date(),
+      })
+      toast.success('PDF statement downloaded successfully', { id: 'export-pdf' })
+    } catch (err: any) {
+      console.error('PDF export error:', err)
+      toast.error('Failed to generate PDF statement', { id: 'export-pdf' })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const handleExportCsv = () => {
+    if (!data) return
+    setExportingCsv(true)
+    try {
+      exportNetWorthCsv({
+        data,
+        owners,
+        selectedOwnerIds,
+        isAllSelected,
+        statementDate: new Date(),
+      })
+      toast.success('CSV spreadsheet downloaded successfully')
+    } catch (err: any) {
+      console.error('CSV export error:', err)
+      toast.error('Failed to export CSV')
+    } finally {
+      setExportingCsv(false)
+    }
+  }
+
+  const handleExportSnapshotPdf = async (snap: Snapshot) => {
+    try {
+      toast.loading('Generating Snapshot PDF Statement...', { id: 'snap-pdf' })
+      const snapAssets = (snap.assetBreakdown || []).map(a => ({
+        ...a,
+        value: String(a.value),
+        ownerId: a.metadata?.ownerId || snap.ownerId,
+      }))
+      const snapLiabs = (snap.liabilityBreakdown || []).map(l => ({
+        ...l,
+        outstandingAmount: l.amount,
+        ownerId: snap.ownerId,
+      }))
+      const snapOwnerIds = snap.ownerId ? [snap.ownerId] : []
+
+      await exportNetWorthPdf({
+        data: {
+          totalAssets: parseFloat(snap.totalAssets || '0'),
+          totalLiabilities: parseFloat(snap.totalLiabilities || '0'),
+          netWorth: parseFloat(snap.netWorth || '0'),
+          assets: snapAssets,
+          liabilities: snapLiabs,
+        },
+        owners,
+        selectedOwnerIds: snapOwnerIds,
+        isAllSelected: snapOwnerIds.length === 0,
+        statementDate: new Date(snap.snapshotDate),
+      })
+      toast.success('Snapshot PDF downloaded successfully', { id: 'snap-pdf' })
+    } catch (err: any) {
+      console.error('Snapshot PDF export error:', err)
+      toast.error('Failed to generate snapshot PDF', { id: 'snap-pdf' })
+    }
+  }
+
+  const handleExportSnapshotCsv = (snap: Snapshot) => {
+    try {
+      const snapAssets = (snap.assetBreakdown || []).map(a => ({
+        ...a,
+        value: String(a.value),
+        ownerId: a.metadata?.ownerId || snap.ownerId,
+      }))
+      const snapLiabs = (snap.liabilityBreakdown || []).map(l => ({
+        ...l,
+        outstandingAmount: l.amount,
+        ownerId: snap.ownerId,
+      }))
+      const snapOwnerIds = snap.ownerId ? [snap.ownerId] : []
+
+      exportNetWorthCsv({
+        data: {
+          totalAssets: parseFloat(snap.totalAssets || '0'),
+          totalLiabilities: parseFloat(snap.totalLiabilities || '0'),
+          netWorth: parseFloat(snap.netWorth || '0'),
+          assets: snapAssets,
+          liabilities: snapLiabs,
+        },
+        owners,
+        selectedOwnerIds: snapOwnerIds,
+        isAllSelected: snapOwnerIds.length === 0,
+        statementDate: new Date(snap.snapshotDate),
+      })
+      toast.success('Snapshot CSV downloaded successfully')
+    } catch (err: any) {
+      console.error('Snapshot CSV export error:', err)
+      toast.error('Failed to export snapshot CSV')
+    }
+  }
+
   // ─── Derived values ────────────────────────────────────────────────────────
 
   const contextOwners = isAllSelected ? owners : owners.filter(o => selectedOwnerIds.includes(o.id))
@@ -457,59 +579,101 @@ export default function NetWorthPage() {
           </p>
         </div>
 
-        {/* Member filter chips */}
-        {owners.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap bg-card/60 border border-border p-1.5 rounded-2xl shadow-sm">
-            <button
-              type="button"
-              onClick={handleSelectAll}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all',
-                isAllSelected
-                  ? 'bg-indigo-600 text-white font-semibold shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-              )}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Member filter chips */}
+          {owners.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap bg-card/60 border border-border p-1.5 rounded-2xl shadow-sm">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all',
+                  isAllSelected
+                    ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                )}
+              >
+                <Users size={13} className={isAllSelected ? 'text-white' : 'text-muted-foreground'} />
+                <span>All Household</span>
+              </button>
+
+              <div className="h-4 w-px bg-border/80 mx-0.5" />
+
+              {owners.map((owner) => {
+                const isSelected = !isAllSelected && selectedOwnerIds.includes(owner.id)
+                const initials = owner.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+                const avatarBg = AVATAR_COLOR_MAP[owner.color] ?? 'bg-indigo-500'
+
+                return (
+                  <button
+                    key={owner.id}
+                    type="button"
+                    onClick={() => handleToggleOwner(owner.id)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all border',
+                      isSelected
+                        ? 'border-indigo-500/80 bg-indigo-500/15 text-foreground ring-1 ring-indigo-500/30 font-semibold'
+                        : isAllSelected
+                        ? 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                        : 'border-transparent text-muted-foreground/60 opacity-60 hover:opacity-100 hover:text-foreground hover:bg-muted/40'
+                    )}
+                  >
+                    <span className={cn('w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white font-bold shrink-0', avatarBg)}>
+                      {initials}
+                    </span>
+                    <span>{owner.name}</span>
+                    {owner.isDefault && (
+                      <span className="text-[10px] text-muted-foreground font-normal">(Self)</span>
+                    )}
+                    {isSelected && (
+                      <Check size={12} className="text-indigo-400 ml-0.5 stroke-[2.5]" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Export Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={!data || loading}
+              className="inline-flex items-center justify-center h-10 px-3.5 rounded-2xl border border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/60 gap-1.5 shadow-sm font-medium text-xs cursor-pointer transition-colors disabled:opacity-50 disabled:pointer-events-none"
             >
-              <Users size={13} className={isAllSelected ? 'text-white' : 'text-muted-foreground'} />
-              <span>All Household</span>
-            </button>
-
-            <div className="h-4 w-px bg-border/80 mx-0.5" />
-
-            {owners.map((owner) => {
-              const isSelected = !isAllSelected && selectedOwnerIds.includes(owner.id)
-              const initials = owner.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
-              const avatarBg = AVATAR_COLOR_MAP[owner.color] ?? 'bg-indigo-500'
-
-              return (
-                <button
-                  key={owner.id}
-                  type="button"
-                  onClick={() => handleToggleOwner(owner.id)}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all border',
-                    isSelected
-                      ? 'border-indigo-500/80 bg-indigo-500/15 text-foreground ring-1 ring-indigo-500/30 font-semibold'
-                      : isAllSelected
-                      ? 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                      : 'border-transparent text-muted-foreground/60 opacity-60 hover:opacity-100 hover:text-foreground hover:bg-muted/40'
-                  )}
-                >
-                  <span className={cn('w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white font-bold shrink-0', avatarBg)}>
-                    {initials}
-                  </span>
-                  <span>{owner.name}</span>
-                  {owner.isDefault && (
-                    <span className="text-[10px] text-muted-foreground font-normal">(Self)</span>
-                  )}
-                  {isSelected && (
-                    <Check size={12} className="text-indigo-400 ml-0.5 stroke-[2.5]" />
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        )}
+              {exportingPdf ? (
+                <Loader2 size={13} className="animate-spin text-indigo-400" />
+              ) : (
+                <Download size={13} />
+              )}
+              <span>Export</span>
+              <ChevronDown size={11} className="opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 bg-card border-border shadow-xl p-1 rounded-xl">
+              <DropdownMenuItem
+                onClick={handleExportPdf}
+                disabled={exportingPdf || !data}
+                className="cursor-pointer gap-2.5 p-2 rounded-lg hover:bg-muted/80 focus:bg-muted/80"
+              >
+                <FileText size={15} className="text-indigo-400 shrink-0" />
+                <div className="flex flex-col text-left">
+                  <span className="font-semibold text-foreground text-xs">Export PDF</span>
+                  <span className="text-[10px] text-muted-foreground">Multi-page styled statement</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleExportCsv}
+                disabled={exportingCsv || !data}
+                className="cursor-pointer gap-2.5 p-2 rounded-lg hover:bg-muted/80 focus:bg-muted/80"
+              >
+                <FileSpreadsheet size={15} className="text-emerald-400 shrink-0" />
+                <div className="flex flex-col text-left">
+                  <span className="font-semibold text-foreground text-xs">Export CSV</span>
+                  <span className="text-[10px] text-muted-foreground">Data spreadsheet (.csv)</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* ─── Section A: Summary cards + Save buttons ──────────────── */}
@@ -1116,7 +1280,33 @@ export default function NetWorthPage() {
     </div>
   )}
 
-  <DialogFooter>
+  <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/80 gap-1.5 text-xs font-medium cursor-pointer transition-colors"
+      >
+        <Download size={13} />
+        <span>Export Snapshot</span>
+        <ChevronDown size={11} className="opacity-60" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48 bg-card border-border shadow-lg p-1">
+        <DropdownMenuItem
+          onClick={() => detailsSnapshot && handleExportSnapshotPdf(detailsSnapshot)}
+          className="cursor-pointer gap-2 p-2 text-xs"
+        >
+          <FileText size={14} className="text-indigo-400" />
+          <span>Export PDF Statement</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => detailsSnapshot && handleExportSnapshotCsv(detailsSnapshot)}
+          className="cursor-pointer gap-2 p-2 text-xs"
+        >
+          <FileSpreadsheet size={14} className="text-emerald-400" />
+          <span>Export CSV Spreadsheet</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+
     <Button onClick={() => setDetailsSnapshot(null)} className="bg-secondary text-foreground hover:bg-secondary/80">
       Close
     </Button>
