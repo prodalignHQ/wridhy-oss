@@ -165,7 +165,7 @@ export default function InsightsPage() {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-700 ease-out">
           
           {/* ── Summary Cards ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="bg-card/40 backdrop-blur-sm border-border/50 hover:bg-card/60 transition-colors">
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
@@ -179,10 +179,20 @@ export default function InsightsPage() {
             <Card className="bg-card/40 backdrop-blur-sm border-border/50 hover:bg-card/60 transition-colors">
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
-                  <TrendingDown size={14} className="text-rose-500" /> Total Spending
+                  <TrendingDown size={14} className="text-rose-500" /> Living Spending
                 </CardDescription>
                 <CardTitle className="text-2xl font-bold tabular-nums text-rose-400 pt-1">
                   {formatINR(monthlyData?.totalSpend || '0')}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card className="bg-card/40 backdrop-blur-sm border-border/50 hover:bg-card/60 transition-colors">
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
+                  <TrendingUp size={14} className="text-emerald-400" /> Savings & Investments
+                </CardDescription>
+                <CardTitle className="text-2xl font-bold tabular-nums text-emerald-400 pt-1">
+                  {formatINR(monthlyData?.totalInvestments || '0')}
                 </CardTitle>
               </CardHeader>
             </Card>

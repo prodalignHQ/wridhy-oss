@@ -5,7 +5,7 @@ import {
   categories,
   statements,
 } from '@momoney/db'
-import { eq, and, inArray, gte, lte, sql, desc, isNull } from 'drizzle-orm'
+import { eq, and, or, inArray, gte, lte, sql, desc, isNull } from 'drizzle-orm'
 import { MonthlyInsight, YearlyInsight, CategoryComparison, CategoryAverage } from '@momoney/types'
 
 /**
@@ -48,15 +48,17 @@ export class InsightsService {
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
-    // ── Totals (grouped by credit/debit) ──
+    // ── Totals (grouped by credit/debit and category type) ──
 
     const resultQuery = db
       .select({
         type: transactions.type,
+        categoryType: sql<string>`coalesce(${categories.type}, 'expense')`,
         total: sql<string>`sum(${amountExpr})`,
       })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
 
     if (hasOwnerFilter) {
       resultQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
@@ -69,11 +71,29 @@ export class InsightsService {
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
         )
       )
-      .groupBy(transactions.type)
+      .groupBy(transactions.type, sql`coalesce(${categories.type}, 'expense')`)
 
-    const totalSpend = result.find((r) => r.type === 'debit')?.total || '0'
-    const totalIncome = result.find((r) => r.type === 'credit')?.total || '0'
-    const netFlow = (parseFloat(totalIncome) - parseFloat(totalSpend)).toFixed(2)
+    let totalSpendNum = 0
+    let totalInvestmentsNum = 0
+    let totalIncomeNum = 0
+
+    for (const r of result) {
+      const amt = parseFloat(r.total || '0')
+      if (r.type === 'debit') {
+        if (r.categoryType === 'investment') {
+          totalInvestmentsNum += amt
+        } else if (r.categoryType !== 'transfer') {
+          totalSpendNum += amt
+        }
+      } else if (r.type === 'credit') {
+        totalIncomeNum += amt
+      }
+    }
+
+    const totalSpend = totalSpendNum.toFixed(2)
+    const totalInvestments = totalInvestmentsNum.toFixed(2)
+    const totalIncome = totalIncomeNum.toFixed(2)
+    const netFlow = (totalIncomeNum - totalSpendNum - totalInvestmentsNum).toFixed(2)
 
     // ── Top categories ──
 
@@ -97,6 +117,7 @@ export class InsightsService {
         and(
           ...conditions,
           eq(transactions.type, 'debit'),
+          or(eq(categories.type, 'expense'), isNull(categories.type)),
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
         )
       )
@@ -104,7 +125,6 @@ export class InsightsService {
       .orderBy(desc(sql`sum(${amountExpr})`))
       .limit(5)
 
-    const totalSpendNum = parseFloat(totalSpend)
     const topCategories = topCategoriesRows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -123,6 +143,7 @@ export class InsightsService {
 
     return {
       totalSpend,
+      totalInvestments,
       totalIncome,
       netFlow,
       topCategories,
@@ -153,10 +174,12 @@ export class InsightsService {
       .select({
         month: sql<string>`to_char(${insightsDate}, 'YYYY-MM')`,
         type: transactions.type,
+        categoryType: sql<string>`coalesce(${categories.type}, 'expense')`,
         amount: sql<string>`sum(${amountExpr})`,
       })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
 
     if (hasOwnerFilter) {
       resultQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
@@ -169,7 +192,7 @@ export class InsightsService {
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
         )
       )
-      .groupBy(sql`to_char(${insightsDate}, 'YYYY-MM')`, transactions.type)
+      .groupBy(sql`to_char(${insightsDate}, 'YYYY-MM')`, transactions.type, sql`coalesce(${categories.type}, 'expense')`)
 
     const months: Record<string, { spend: string; income: string }> = {}
     for (let i = 0; i < 12; i++) {
@@ -180,8 +203,12 @@ export class InsightsService {
     for (const r of result) {
       const monthData = months[r.month]
       if (monthData) {
-        if (r.type === 'debit') monthData.spend = r.amount
-        else monthData.income = r.amount
+        const amt = parseFloat(r.amount || '0')
+        if (r.type === 'debit' && r.categoryType === 'expense') {
+          monthData.spend = (parseFloat(monthData.spend) + amt).toFixed(2)
+        } else if (r.type === 'credit') {
+          monthData.income = (parseFloat(monthData.income) + amt).toFixed(2)
+        }
       }
     }
 
@@ -213,11 +240,12 @@ export class InsightsService {
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
-    // Total spend across all categories (includes uncategorized — used for %)
+    // Total spend across expense categories (includes uncategorized — used for %)
     const totalSpendQuery = db
       .select({ total: sql<string>`sum(${amountExpr})` })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
 
     if (hasOwnerFilter) {
       totalSpendQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
@@ -226,13 +254,14 @@ export class InsightsService {
     const totalSpendResult = await totalSpendQuery.where(
       and(
         ...conditions,
+        or(eq(categories.type, 'expense'), isNull(categories.type)),
         hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
       )
     )
 
     const totalSpend = parseFloat(totalSpendResult[0]?.total || '0')
 
-    // Per-category totals
+    // Per-category totals (only expense categories)
     const rowsQuery = db
       .select({
         id: categories.id,
@@ -252,6 +281,7 @@ export class InsightsService {
       .where(
         and(
           ...conditions,
+          or(eq(categories.type, 'expense'), isNull(categories.type)),
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
         )
       )
@@ -332,7 +362,7 @@ export class InsightsService {
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
-    // 12-month average spend per category
+    // 12-month average spend per category (only expense categories)
     const avgQuery = db
       .select({
         id: categories.id,
@@ -347,6 +377,7 @@ export class InsightsService {
         and(
           eq(transactions.userId, userId),
           eq(transactions.type, 'debit'),
+          or(eq(categories.type, 'expense'), isNull(categories.type)),
           gte(insightsDate, twelveMonthsAgoISO),
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
         )

@@ -17,7 +17,10 @@ import {
   Sparkles,
   Tag,
   Trash2,
+  TrendingUp,
   User,
+  Wallet,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -105,38 +108,66 @@ interface InvoiceTransaction {
   description: string
   amount: string
   type: 'debit' | 'credit'
+  isOneTime?: boolean
   categoryId: string | null
   category: {
     id: string | null
     name: string
     color: string | null
+    type?: string | null
   } | null
   owners: InvoiceOwnerShare[]
 }
 
 interface InvoiceAnalysis {
+  totalSpend?: number
+  regularSpend?: number
+  oneTimeSpend?: number
+  totalInvestments?: number
+  regularInvestments?: number
+  oneTimeInvestments?: number
+  totalOutflow?: number
   ownerTotals: Array<{
     ownerId: string | null
     name: string
     color: string | null
     total: number
+    spendingTotal?: number
+    regularSpendingTotal?: number
+    oneTimeSpendingTotal?: number
+    investmentTotal?: number
+    regularInvestmentTotal?: number
+    oneTimeInvestmentTotal?: number
   }>
   ownerCategoryTotals: Array<{
     ownerId: string | null
     name: string
     color: string | null
     total: number
+    spendingTotal?: number
+    regularSpendingTotal?: number
+    oneTimeSpendingTotal?: number
+    investmentTotal?: number
+    regularInvestmentTotal?: number
+    oneTimeInvestmentTotal?: number
     categories: Array<{
       categoryId: string | null
       category: string
+      color?: string | null
+      type?: string
       total: number
+      regularTotal?: number
+      oneTimeTotal?: number
     }>
   }>
   categoryTotals: Array<{
     categoryId: string | null
     category: string
     color: string | null
+    type?: string
     total: number
+    regularTotal?: number
+    oneTimeTotal?: number
   }>
 }
 
@@ -320,6 +351,7 @@ export default function InvoicesPage() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [ownerFilter, setOwnerFilter] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<'all' | 'debit' | 'credit'>('all')
+  const [natureFilter, setNatureFilter] = useState<'all' | 'regular' | 'one_time' | 'investment'>('all')
 
   const drafts = useMemo(
     () => invoices.filter((invoice) => invoice.status === 'draft'),
@@ -396,6 +428,16 @@ export default function InvoicesPage() {
       const transactionCategory = transaction.categoryId ?? 'uncategorized'
       const matchesCategory = categoryFilter === 'all' || transactionCategory === categoryFilter
       const matchesType = typeFilter === 'all' || transaction.type === typeFilter
+      const isInv = transaction.category?.type === 'investment'
+      const isOneTime = Boolean(transaction.isOneTime)
+      const matchesNature =
+        natureFilter === 'all'
+          ? true
+          : natureFilter === 'investment'
+          ? isInv
+          : natureFilter === 'one_time'
+          ? isOneTime && !isInv
+          : !isOneTime && !isInv
       const matchesOwner =
         ownerFilter.length === 0 ||
         (ownerFilter.length === 1 && ownerFilter[0] === 'unassigned'
@@ -403,7 +445,7 @@ export default function InvoicesPage() {
           : transaction.owners.length === ownerFilter.length &&
           transaction.owners.every((o) => o.ownerId && ownerFilter.includes(o.ownerId)))
 
-      return matchesSearch && matchesCategory && matchesType && matchesOwner
+      return matchesSearch && matchesCategory && matchesType && matchesNature && matchesOwner
     })
 
     if (!sortField) {
@@ -779,6 +821,55 @@ export default function InvoicesPage() {
     },
     [activeInvoice, loadInvoiceDetail]
   )
+
+  const applyOneTimeChange = useCallback(
+    async (transactionIds: string[], isOneTime: boolean) => {
+      if (!activeInvoice || activeInvoice.status !== 'draft' || transactionIds.length === 0) {
+        return
+      }
+
+      if (transactionIds.length === 1) {
+        await apiClient.fetch(`/v1/transactions/${transactionIds[0]}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ isOneTime }),
+        })
+      } else {
+        await apiClient.fetch('/v1/transactions/bulk/one-time', {
+          method: 'PATCH',
+          body: JSON.stringify({ transactionIds, isOneTime }),
+        })
+      }
+
+      await loadInvoiceDetail(activeInvoice.id, true)
+    },
+    [activeInvoice, loadInvoiceDetail]
+  )
+
+  const handleToggleOneTime = async (transaction: InvoiceTransaction) => {
+    if (!activeInvoice || activeInvoice.status !== 'draft') return
+    try {
+      await applyOneTimeChange([transaction.id], !transaction.isOneTime)
+      toast.success(transaction.isOneTime ? 'Marked as regular' : 'Marked as one-time expense')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update transaction')
+    }
+  }
+
+  const handleBulkOneTime = async (isOneTime: boolean) => {
+    if (!activeInvoice || activeInvoice.status !== 'draft') return
+    const selectedIds = filteredTransactionIds.filter((id) => selectedTransactionIds.has(id))
+    if (selectedIds.length === 0) return
+
+    try {
+      await applyOneTimeChange(selectedIds, isOneTime)
+      toast.success(
+        `Marked ${selectedIds.length} transaction${selectedIds.length === 1 ? '' : 's'} as ${isOneTime ? 'one-time' : 'regular'}`
+      )
+      setSelectedTransactionIds(new Set())
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update transactions')
+    }
+  }
 
   const handleCategoryUpdate = async (transactionId: string, categoryId: string | null) => {
     if (!activeInvoice || activeInvoice.status !== 'draft') return
@@ -1245,6 +1336,70 @@ export default function InvoicesPage() {
                 </div>
               </div>
 
+              {/* Top Overview Cards */}
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-2xl border border-border bg-card/50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Total Spendings
+                    </span>
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-400">
+                      <Wallet size={14} />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-2xl font-bold font-mono text-rose-400">
+                    {formatINR(activeInvoice.analysis?.totalSpend ?? 0)}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>Regular: <span className="font-mono text-foreground/90 font-medium">{formatINR(activeInvoice.analysis?.regularSpend ?? 0)}</span></span>
+                    <span>·</span>
+                    <span className="flex items-center gap-0.5">
+                      <Zap size={11} className="text-amber-400" />
+                      One-Time: <span className="font-mono text-amber-400 font-medium">{formatINR(activeInvoice.analysis?.oneTimeSpend ?? 0)}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-card/50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Savings & Investments
+                    </span>
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                      <TrendingUp size={14} />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-2xl font-bold font-mono text-emerald-400">
+                    {formatINR(activeInvoice.analysis?.totalInvestments ?? 0)}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>Regular: <span className="font-mono text-foreground/90 font-medium">{formatINR(activeInvoice.analysis?.regularInvestments ?? 0)}</span></span>
+                    <span>·</span>
+                    <span className="flex items-center gap-0.5">
+                      <Zap size={11} className="text-amber-400" />
+                      One-Time: <span className="font-mono text-amber-400 font-medium">{formatINR(activeInvoice.analysis?.oneTimeInvestments ?? 0)}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-card/50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Total Cash Outflow
+                    </span>
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+                      <Receipt size={14} />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-2xl font-bold font-mono text-foreground">
+                    {formatINR(activeInvoice.analysis?.totalOutflow ?? 0)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Spendings + Investments
+                  </p>
+                </div>
+              </div>
+
               <Tabs defaultValue="transactions" className="w-full space-y-4">
                 <TabsList className="bg-zinc-900 border border-zinc-800 rounded-lg p-1">
                   <TabsTrigger value="transactions" className="flex items-center gap-2">
@@ -1268,7 +1423,29 @@ export default function InvoicesPage() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="relative min-w-56">
+                        {activeInvoice.status === 'draft' && selectedTransactionIds.size > 0 && (
+                          <div className="flex items-center gap-1.5 mr-1 pr-2 border-r border-border">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void handleBulkOneTime(true)}
+                              className="h-9 gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs"
+                            >
+                              <Zap size={13} />
+                              Mark One-Time
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void handleBulkOneTime(false)}
+                              className="h-9 gap-1.5 border-border bg-background text-foreground/80 hover:bg-muted text-xs"
+                            >
+                              Mark Regular
+                            </Button>
+                          </div>
+                        )}
+
+                        <div className="relative min-w-52">
                           <Search
                             size={15}
                             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -1277,17 +1454,32 @@ export default function InvoicesPage() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Filter by description"
-                            className="border-border bg-background pl-8 text-foreground"
+                            className="border-border bg-background pl-8 text-foreground text-xs"
                           />
                         </div>
+
+                        <Select
+                          value={natureFilter}
+                          onValueChange={(value) => setNatureFilter(value as 'all' | 'regular' | 'one_time' | 'investment')}
+                        >
+                          <SelectTrigger className="w-[170px] border-border bg-background text-foreground/90 text-xs">
+                            <SelectValue placeholder="Nature" />
+                          </SelectTrigger>
+                          <SelectContent className="border-border bg-card">
+                            <SelectItem value="all">All items</SelectItem>
+                            <SelectItem value="regular">Regular spending</SelectItem>
+                            <SelectItem value="one_time">⚡ One-time only</SelectItem>
+                            <SelectItem value="investment">📈 Investments only</SelectItem>
+                          </SelectContent>
+                        </Select>
 
                         <Select
                           value={categoryFilter}
                           onValueChange={(value) => setCategoryFilter(value ?? 'all')}
                         >
-                          <SelectTrigger className="w-[180px] border-border bg-background text-foreground/90">
+                          <SelectTrigger className="w-[160px] border-border bg-background text-foreground/90 text-xs">
                             <div className="flex items-center gap-2 truncate">
-                              <Filter size={14} className="text-muted-foreground shrink-0" />
+                              <Filter size={13} className="text-muted-foreground shrink-0" />
                               <SelectValue placeholder="Category">
                                 {categoryFilter === 'all'
                                   ? 'All categories'
@@ -1310,10 +1502,10 @@ export default function InvoicesPage() {
                             render={
                               <Button
                                 variant="outline"
-                                className="w-[180px] justify-start border-border bg-background text-foreground/90 hover:bg-background hover:text-foreground"
+                                className="w-[160px] justify-start border-border bg-background text-foreground/90 hover:bg-background hover:text-foreground text-xs"
                               >
                                 <div className="flex items-center gap-2 truncate">
-                                  <User size={14} className="text-muted-foreground" />
+                                  <User size={13} className="text-muted-foreground" />
                                   <span className="truncate">
                                     {ownerFilter.length === 0
                                       ? 'All assignees'
@@ -1326,7 +1518,7 @@ export default function InvoicesPage() {
                               </Button>
                             }
                           />
-                          <DropdownMenuContent className="w-[180px] border-border bg-card">
+                          <DropdownMenuContent className="w-[160px] border-border bg-card">
                             {ownerOptions.map((option) => (
                               <DropdownMenuCheckboxItem
                                 key={option.value}
@@ -1348,7 +1540,7 @@ export default function InvoicesPage() {
                           value={typeFilter}
                           onValueChange={(value) => setTypeFilter(value as 'all' | 'debit' | 'credit')}
                         >
-                          <SelectTrigger className="w-[170px] border-border bg-background text-foreground/90">
+                          <SelectTrigger className="w-[140px] border-border bg-background text-foreground/90 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="border-border bg-card">
@@ -1403,10 +1595,13 @@ export default function InvoicesPage() {
                                 Description
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Statement
+                                Category
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Category
+                                One-Time?
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Statement
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                 Owners
@@ -1450,9 +1645,6 @@ export default function InvoicesPage() {
                                     {transaction.description}
                                   </p>
                                 </td>
-                                <td className="px-4 py-3 text-muted-foreground">
-                                  {statementLabels.get(transaction.statementId) ?? 'Statement removed'}
-                                </td>
                                 <td className="px-4 py-3">
                                   {activeInvoice.status === 'draft' ? (
                                     <CategoryPicker
@@ -1463,13 +1655,70 @@ export default function InvoicesPage() {
                                       }
                                     />
                                   ) : transaction.category ? (
-                                    <CategoryBadge
-                                      name={transaction.category.name}
-                                      color={transaction.category.color ?? '#6366f1'}
-                                    />
+                                    <div className="flex items-center gap-1.5">
+                                      <CategoryBadge
+                                        name={transaction.category.name}
+                                        color={transaction.category.color ?? '#6366f1'}
+                                      />
+                                      {transaction.category.type && transaction.category.type !== 'expense' && (
+                                        <span className={cn(
+                                          "text-[9px] px-1 py-0.2 rounded font-medium uppercase",
+                                          transaction.category.type === 'investment' ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" :
+                                          transaction.category.type === 'income' ? "bg-sky-500/15 text-sky-300 border border-sky-500/30" :
+                                          "bg-purple-500/15 text-purple-300 border border-purple-500/30"
+                                        )}>
+                                          {transaction.category.type === 'investment' ? '📈 Invest' : transaction.category.type}
+                                        </span>
+                                      )}
+                                    </div>
                                   ) : (
                                     <span className="text-xs text-muted-foreground">— Uncategorized</span>
                                   )}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  {activeInvoice.status === 'draft' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleToggleOneTime(transaction)}
+                                      className={cn(
+                                        'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer',
+                                        transaction.isOneTime
+                                          ? 'border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25'
+                                          : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                                      )}
+                                      title="Click to toggle One-Time vs Regular"
+                                    >
+                                      {transaction.isOneTime ? (
+                                        <>
+                                          <Zap size={12} className="text-amber-400" />
+                                          One-Time
+                                        </>
+                                      ) : (
+                                        'Regular'
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <span
+                                      className={cn(
+                                        'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium',
+                                        transaction.isOneTime
+                                          ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                                          : 'border-border bg-muted/40 text-muted-foreground'
+                                      )}
+                                    >
+                                      {transaction.isOneTime ? (
+                                        <>
+                                          <Zap size={12} className="text-amber-400" />
+                                          One-Time
+                                        </>
+                                      ) : (
+                                        'Regular'
+                                      )}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {statementLabels.get(transaction.statementId) ?? 'Statement removed'}
                                 </td>
                                 <td className="px-4 py-3">
                                   <button
@@ -1517,7 +1766,7 @@ export default function InvoicesPage() {
                               ) : null}
                               <td
                                 className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                                colSpan={5}
+                                colSpan={6}
                               >
                                 Sub-total <span className="normal-case font-normal text-muted-foreground/75 ml-1.5">(Avg: {formatINR(filteredAverage)})</span>
                               </td>
@@ -1545,63 +1794,168 @@ export default function InvoicesPage() {
                     <div className="rounded-2xl border border-border bg-card/50 p-6">
                       <div className="flex items-center gap-2">
                         <Sparkles size={16} className="text-emerald-400" />
-                        <h3 className="text-lg font-semibold text-foreground">Analysis</h3>
+                        <h3 className="text-lg font-semibold text-foreground">Analysis (Who spent what)</h3>
                       </div>
 
-                      <div className="mt-6 grid gap-6 md:grid-cols-2">
-                        <div className="rounded-2xl border border-border bg-background/70 p-5">
-                          <div className="flex items-center gap-2">
-                            <User size={15} className="text-muted-foreground" />
-                            <p className="text-sm font-semibold text-foreground/90">Who spent how much?</p>
-                          </div>
-                          <div className="mt-4 space-y-3">
-                            {activeInvoice.analysis.ownerTotals.map((owner) => (
-                              <div
-                                key={`${owner.ownerId ?? owner.name}-total`}
-                                className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3"
-                              >
+                      {/* Who spent how much (Multi-tier owner breakdown) */}
+                      <div className="mt-6">
+                        <div className="flex items-center gap-2 mb-3">
+                          <User size={15} className="text-muted-foreground" />
+                          <p className="text-sm font-semibold text-foreground/90">Who spent how much?</p>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {activeInvoice.analysis.ownerTotals.map((owner) => (
+                            <div
+                              key={`${owner.ownerId ?? owner.name}-total`}
+                              className="rounded-2xl border border-border bg-background/70 p-5 space-y-3"
+                            >
+                              <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <div
-                                    className="h-3 w-3 rounded-full"
+                                    className="h-3.5 w-3.5 rounded-full"
                                     style={{ backgroundColor: owner.color ?? '#71717a' }}
                                   />
-                                  <span className="font-medium text-foreground">{owner.name}</span>
+                                  <span className="text-base font-semibold text-foreground">{owner.name}</span>
                                 </div>
-                                <span className="font-mono text-rose-400">{formatINR(owner.total)}</span>
+                                <div className="text-right">
+                                  <span className={cn(
+                                    "font-mono text-base font-bold",
+                                    owner.total < 0 ? "text-emerald-400" : "text-foreground"
+                                  )}>
+                                    {owner.total < 0 ? '−' : ''}{formatINR(owner.total)}
+                                  </span>
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                                    {owner.total < 0 ? 'Net Inflow / Surplus' : 'Net Outflow'}
+                                  </p>
+                                </div>
                               </div>
-                            ))}
+
+                              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border/60 text-xs">
+                                <div className="rounded-lg bg-card/60 p-3 space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-[11px] font-medium text-muted-foreground">Living Spend</p>
+                                    <span className={cn(
+                                      "font-mono font-bold",
+                                      (owner.spendingTotal ?? 0) < 0 ? "text-emerald-400" : "text-rose-400"
+                                    )}>
+                                      {(owner.spendingTotal ?? 0) < 0 ? '−' : ''}{formatINR(owner.spendingTotal ?? 0)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/40">
+                                    <span>Regular: <span className="font-mono text-foreground/90">{(owner.regularSpendingTotal ?? 0) < 0 ? '−' : ''}{formatINR(owner.regularSpendingTotal ?? 0)}</span></span>
+                                    <span className="flex items-center gap-0.5">
+                                      <Zap size={9} className="text-amber-400" />
+                                      <span className="font-mono text-amber-400">{(owner.oneTimeSpendingTotal ?? 0) < 0 ? '−' : ''}{formatINR(owner.oneTimeSpendingTotal ?? 0)}</span>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="rounded-lg bg-card/60 p-3 space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                                      <TrendingUp size={11} className="text-emerald-400" />
+                                      Savings & Invest
+                                    </p>
+                                    <span className="font-mono font-bold text-emerald-400">{formatINR(owner.investmentTotal ?? 0)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/40">
+                                    <span>Regular: <span className="font-mono text-foreground/90">{formatINR(owner.regularInvestmentTotal ?? 0)}</span></span>
+                                    <span className="flex items-center gap-0.5">
+                                      <Zap size={9} className="text-amber-400" />
+                                      <span className="font-mono text-amber-400">{formatINR(owner.oneTimeInvestmentTotal ?? 0)}</span>
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Category-wise Breakdown: Split Expenses vs Savings */}
+                      <div className="mt-6 grid gap-6 md:grid-cols-2">
+                        {/* Expense Categories */}
+                        <div className="rounded-2xl border border-border bg-background/70 p-5">
+                          <div className="flex items-center gap-2">
+                            <Layers size={15} className="text-rose-400" />
+                            <p className="text-sm font-semibold text-foreground/90">Living Expenses by Category</p>
+                          </div>
+                          <div className="mt-4 space-y-3">
+                            {activeInvoice.analysis.categoryTotals &&
+                            activeInvoice.analysis.categoryTotals.filter((c) => c.type !== 'investment').length > 0 ? (
+                              activeInvoice.analysis.categoryTotals
+                                .filter((c) => c.type !== 'investment')
+                                .map((category) => (
+                                  <div
+                                    key={`${category.categoryId ?? 'uncategorized'}:${category.category}-total`}
+                                    className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className="h-3 w-3 rounded-full"
+                                        style={{ backgroundColor: category.color ?? '#71717a' }}
+                                      />
+                                      <div>
+                                        <span className="font-medium text-foreground">{category.category}</span>
+                                        {(category.oneTimeTotal ?? 0) > 0 && (
+                                          <span className="ml-2 inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 bg-amber-500/10 text-[10px] text-amber-300 font-mono">
+                                            <Zap size={9} />
+                                            {formatINR(category.oneTimeTotal ?? 0)} one-time
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="font-mono text-rose-400 font-semibold">{formatINR(category.total)}</span>
+                                  </div>
+                                ))
+                            ) : (
+                              <p className="text-xs text-muted-foreground text-center py-4">No expense category data.</p>
+                            )}
                           </div>
                         </div>
 
+                        {/* Investment / Savings Categories */}
                         <div className="rounded-2xl border border-border bg-background/70 p-5">
                           <div className="flex items-center gap-2">
-                            <Layers size={15} className="text-muted-foreground" />
-                            <p className="text-sm font-semibold text-foreground/90">Category-wise spends (in total)</p>
+                            <TrendingUp size={15} className="text-emerald-400" />
+                            <p className="text-sm font-semibold text-foreground/90">Savings & Investments</p>
                           </div>
                           <div className="mt-4 space-y-3">
-                            {activeInvoice.analysis.categoryTotals && activeInvoice.analysis.categoryTotals.length > 0 ? (
-                              activeInvoice.analysis.categoryTotals.map((category) => (
-                                <div
-                                  key={`${category.categoryId ?? 'uncategorized'}:${category.category}-total`}
-                                  className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div
-                                      className="h-3 w-3 rounded-full"
-                                      style={{ backgroundColor: category.color ?? '#71717a' }}
-                                    />
-                                    <span className="font-medium text-foreground">{category.category}</span>
+                            {activeInvoice.analysis.categoryTotals &&
+                            activeInvoice.analysis.categoryTotals.filter((c) => c.type === 'investment').length > 0 ? (
+                              activeInvoice.analysis.categoryTotals
+                                .filter((c) => c.type === 'investment')
+                                .map((category) => (
+                                  <div
+                                    key={`${category.categoryId ?? 'uncategorized'}:${category.category}-total`}
+                                    className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className="h-3 w-3 rounded-full"
+                                        style={{ backgroundColor: category.color ?? '#10b981' }}
+                                      />
+                                      <div>
+                                        <span className="font-medium text-foreground">{category.category}</span>
+                                        {(category.oneTimeTotal ?? 0) > 0 && (
+                                          <span className="ml-2 inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 bg-amber-500/10 text-[10px] text-amber-300 font-mono">
+                                            <Zap size={9} />
+                                            {formatINR(category.oneTimeTotal ?? 0)} one-time
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="font-mono text-emerald-400 font-semibold">{formatINR(category.total)}</span>
                                   </div>
-                                  <span className="font-mono text-rose-400">{formatINR(category.total)}</span>
-                                </div>
-                              ))
+                                ))
                             ) : (
-                              <p className="text-xs text-muted-foreground text-center py-4">No category data available.</p>
+                              <p className="text-xs text-muted-foreground text-center py-4">No investment categories in this invoice.</p>
                             )}
                           </div>
                         </div>
                       </div>
 
+                      {/* Who spent how much in each category? */}
                       <div className="mt-6 rounded-2xl border border-border bg-background/70 p-5">
                         <div className="flex items-center gap-2">
                           <Tag size={15} className="text-muted-foreground" />
@@ -1635,7 +1989,12 @@ export default function InvoicesPage() {
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-3">
-                                    <span className="font-mono font-bold text-foreground">{formatINR(owner.total)}</span>
+                                    <span className={cn(
+                                      "font-mono font-bold",
+                                      owner.total < 0 ? "text-emerald-400" : "text-foreground"
+                                    )}>
+                                      {owner.total < 0 ? '−' : ''}{formatINR(owner.total)}
+                                    </span>
                                     <ChevronDown
                                       size={16}
                                       className={cn(
@@ -1664,6 +2023,8 @@ export default function InvoicesPage() {
                                         )
                                       })
 
+                                      const isInv = category.type === 'investment'
+
                                       return (
                                         <div
                                           key={expandKey}
@@ -1676,10 +2037,22 @@ export default function InvoicesPage() {
                                           >
                                             <div className="flex items-center gap-2">
                                               <span className="text-sm font-medium text-foreground">{category.category}</span>
+                                              {isInv && (
+                                                <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 bg-emerald-500/10 text-[10px] text-emerald-400 font-medium">
+                                                  <TrendingUp size={10} />
+                                                  Savings
+                                                </span>
+                                              )}
+                                              {(category.oneTimeTotal ?? 0) > 0 && (
+                                                <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 bg-amber-500/10 text-[10px] text-amber-300 font-mono">
+                                                  <Zap size={10} />
+                                                  {formatINR(category.oneTimeTotal ?? 0)} one-time
+                                                </span>
+                                              )}
                                               <span className="text-xs text-muted-foreground">({matchingTxns.length} items)</span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                              <span className="font-mono text-sm text-foreground">
+                                              <span className={cn("font-mono text-sm font-semibold", isInv ? "text-emerald-400" : "text-foreground")}>
                                                 {formatINR(category.total)}
                                               </span>
                                               <ChevronDown
@@ -1707,7 +2080,15 @@ export default function InvoicesPage() {
                                                   return (
                                                     <div key={txn.id} className="flex items-center justify-between p-2.5 text-xs">
                                                       <div className="min-w-0 flex-1 pr-3">
-                                                        <p className="truncate font-medium text-foreground">{txn.description}</p>
+                                                        <div className="flex items-center gap-1.5">
+                                                          <p className="truncate font-medium text-foreground">{txn.description}</p>
+                                                          {txn.isOneTime && (
+                                                            <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1.5 py-0.2 text-[9px] font-semibold text-amber-300">
+                                                              <Zap size={9} />
+                                                              One-Time
+                                                            </span>
+                                                          )}
+                                                        </div>
                                                         <p className="mt-0.5 text-[10px] text-muted-foreground">
                                                           {formatShortDate(txn.date)}
                                                           {ownerShare && (
@@ -1719,7 +2100,7 @@ export default function InvoicesPage() {
                                                       </div>
                                                       <span className={cn(
                                                         "font-mono whitespace-nowrap font-semibold",
-                                                        signedAmount < 0 ? "text-emerald-400" : "text-rose-400"
+                                                        signedAmount < 0 ? "text-emerald-400" : isInv ? "text-emerald-400" : "text-rose-400"
                                                       )}>
                                                         {signedAmount < 0 ? '−' : '+'}
                                                         {formatINR(Math.abs(signedAmount))}

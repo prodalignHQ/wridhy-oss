@@ -26,6 +26,7 @@ const listQuerySchema = z.object({
   endDate: z.string().optional(),
   categoryId: z.string().uuid().optional(),
   ownerId: z.string().uuid().optional(),
+  isOneTime: z.string().optional().transform((v) => v === 'true' ? true : v === 'false' ? false : undefined),
   search: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(200).default(50),
@@ -33,13 +34,14 @@ const listQuerySchema = z.object({
 
 transactionsRoute.get('/', zValidator('query', listQuerySchema), async (c) => {
   const userId = c.get('userId')
-  const { accountId, startDate, endDate, categoryId, ownerId, search, page, limit } =
+  const { accountId, startDate, endDate, categoryId, ownerId, isOneTime, search, page, limit } =
     c.req.valid('query')
 
   const conditions = [eq(transactions.userId, userId)]
 
   if (accountId) conditions.push(eq(transactions.accountId, accountId))
   if (categoryId) conditions.push(eq(transactions.categoryId, categoryId))
+  if (isOneTime !== undefined) conditions.push(eq(transactions.isOneTime, isOneTime))
   if (search) conditions.push(ilike(transactions.description, `%${search}%`))
   if (startDate) conditions.push(gte(transactions.date, new Date(startDate)))
   if (endDate) conditions.push(lte(transactions.date, new Date(endDate)))
@@ -71,7 +73,7 @@ transactionsRoute.get('/', zValidator('query', listQuerySchema), async (c) => {
       limit,
       offset,
       with: {
-        category: { columns: { id: true, name: true, color: true, icon: true } },
+        category: { columns: { id: true, name: true, color: true, icon: true, type: true } },
         transactionOwners: {
           with: {
             owner: { columns: { id: true, name: true, color: true, isDefault: true } },
@@ -104,17 +106,53 @@ transactionsRoute.get('/', zValidator('query', listQuerySchema), async (c) => {
 const updateTxnSchema = z.object({
   comment: z.string().nullable().optional(),
   categoryId: z.string().uuid().nullable().optional(),
+  isOneTime: z.boolean().optional(),
 })
 
 const bulkUpdateTxnCategorySchema = z.object({
   transactionIds: z.array(z.string().uuid()).min(1),
   categoryId: z.string().uuid().nullable(),
 })
- 
+
+const bulkUpdateTxnOneTimeSchema = z.object({
+  transactionIds: z.array(z.string().uuid()).min(1),
+  isOneTime: z.boolean(),
+})
+
 const bulkUpdateTxnOwnersSchema = z.object({
   transactionIds: z.array(z.string().uuid()).min(1),
   ownerIds: z.array(z.string().uuid()).min(1),
 })
+
+transactionsRoute.patch(
+  '/bulk/one-time',
+  zValidator('json', bulkUpdateTxnOneTimeSchema),
+  async (c) => {
+    const userId = c.get('userId')
+    const { transactionIds, isOneTime } = c.req.valid('json')
+    const uniqueTransactionIds = Array.from(new Set(transactionIds))
+
+    const updated = await db
+      .update(transactions)
+      .set({ isOneTime, updatedAt: new Date() })
+      .where(and(eq(transactions.userId, userId), inArray(transactions.id, uniqueTransactionIds as string[])))
+      .returning({ id: transactions.id })
+
+    if (updated.length === 0) {
+      return c.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'No transactions found' } },
+        404
+      )
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        updatedCount: updated.length,
+      },
+    })
+  }
+)
 
 transactionsRoute.patch(
   '/bulk/category',

@@ -24,6 +24,7 @@ export interface Category {
   name: string
   color: string
   icon: string | null
+  type?: 'expense' | 'investment' | 'income' | 'transfer'
 }
 
 export interface Transaction {
@@ -36,6 +37,7 @@ export interface Transaction {
   merchant: string | null
   amount: string
   type: 'debit' | 'credit'
+  isOneTime: boolean
   categoryId: string | null
   comment: string | null
   dedupHash: string
@@ -51,6 +53,7 @@ export interface TransactionFilters {
   endDate?: string
   categoryId?: string
   ownerId?: string
+  isOneTime?: boolean
   search?: string
   page: number
   limit: number
@@ -67,6 +70,7 @@ interface TransactionsState {
   fetchTransactions: () => Promise<void>
   updateTransactionOwners: (txnId: string, ownerIds: string[]) => Promise<void>
   updateTransactionCategory: (txnId: string, categoryId: string | null) => Promise<void>
+  updateTransactionOneTime: (txnId: string, isOneTime: boolean) => Promise<void>
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -104,6 +108,7 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
     if (filters.endDate) params.set('endDate', filters.endDate)
     if (filters.categoryId) params.set('categoryId', filters.categoryId)
     if (filters.ownerId) params.set('ownerId', filters.ownerId)
+    if (filters.isOneTime !== undefined) params.set('isOneTime', String(filters.isOneTime))
     if (filters.search) params.set('search', filters.search)
     params.set('page', String(filters.page))
     params.set('limit', String(filters.limit))
@@ -141,6 +146,17 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
     const updated = await apiClient.fetch<Transaction>(`/v1/transactions/${txnId}`, {
       method: 'PATCH',
       body: JSON.stringify({ categoryId }),
+    })
+
+    set((state) => ({
+      transactions: state.transactions.map((t) => (t.id === txnId ? updated : t)),
+    }))
+  },
+
+  updateTransactionOneTime: async (txnId, isOneTime) => {
+    const updated = await apiClient.fetch<Transaction>(`/v1/transactions/${txnId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isOneTime }),
     })
 
     set((state) => ({

@@ -30,6 +30,7 @@ interface Category {
   name: string
   color: string
   icon: string | null
+  type?: 'expense' | 'investment' | 'income' | 'transfer'
   isSystem: boolean
 }
 
@@ -204,6 +205,7 @@ export default function RulesPage() {
   // Category form state
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
   const [categoryName, setCategoryName] = useState('')
+  const [categoryType, setCategoryType] = useState<'expense' | 'investment' | 'income' | 'transfer'>('expense')
   const [categoryColor, setCategoryColor] = useState('#6366f1')
   const [categoryIcon, setCategoryIcon] = useState('📂')
   const [categoryLoading, setCategoryLoading] = useState(false)
@@ -356,12 +358,14 @@ export default function RulesPage() {
         method: 'POST',
         body: JSON.stringify({
           name: categoryName.trim(),
+          type: categoryType,
           color: categoryColor,
           icon: categoryIcon,
         }),
       })
       toast.success('Category created')
       setCategoryName('')
+      setCategoryType('expense')
       setCategoryDialogOpen(false)
       fetchData()
     } catch (err) {
@@ -574,6 +578,15 @@ export default function RulesPage() {
                 style={{ backgroundColor: cat.color }}
               />
               {cat.name}
+              {cat.type && cat.type !== 'expense' && (
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.2 rounded font-medium uppercase tracking-wider",
+                  cat.type === 'investment' ? "bg-emerald-500/15 text-emerald-300" :
+                  cat.type === 'income' ? "bg-sky-500/15 text-sky-300" : "bg-purple-500/15 text-purple-300"
+                )}>
+                  {cat.type}
+                </span>
+              )}
               {cat.isSystem ? (
                 <Lock className="w-3 h-3 text-muted-foreground/70" />
               ) : (
@@ -782,9 +795,35 @@ export default function RulesPage() {
               <Input
                 value={categoryName}
                 onChange={(e) => setCategoryName(e.target.value)}
-                placeholder="e.g. Gifts, Hobbies"
+                placeholder="e.g. Gifts, Mutual Funds, Salary"
                 className="bg-muted border-border"
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-muted-foreground">Category Type</label>
+              <Select
+                value={categoryType}
+                onValueChange={(v) => setCategoryType((v as 'expense' | 'investment' | 'income' | 'transfer') || 'expense')}
+              >
+                <SelectTrigger className="bg-muted border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="expense" className="text-foreground/90">
+                    Expense (Default)
+                  </SelectItem>
+                  <SelectItem value="investment" className="text-foreground/90">
+                    Investment / Savings (Tracked separately in Invoices & Insights)
+                  </SelectItem>
+                  <SelectItem value="income" className="text-foreground/90">
+                    Income
+                  </SelectItem>
+                  <SelectItem value="transfer" className="text-foreground/90">
+                    Transfer
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

@@ -22,6 +22,7 @@ export const assetTypeEnum = pgEnum('asset_type', [
 ])
 export const liabilityTypeEnum = pgEnum('liability_type', ['home_loan', 'car_loan', 'credit_card', 'student_loan', 'personal_loan', 'other'])
 export const equityDebtTagEnum = pgEnum('equity_debt_tag', ['equity', 'debt', 'mixed', 'cash'])
+export const categoryTypeEnum = pgEnum('category_type', ['expense', 'investment', 'income', 'transfer'])
 export const invoiceStatusEnum = pgEnum('invoice_status', ['draft', 'generated'])
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -107,6 +108,7 @@ export const categories = pgTable('categories', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }), // NULL = system
   name: text('name').notNull(),
+  type: categoryTypeEnum('type').notNull().default('expense'),
   icon: text('icon'), // emoji or icon name
   color: text('color').notNull().default('#6366f1'),
   parentId: uuid('parent_id'), // self-referencing for subcategories
@@ -170,6 +172,7 @@ export const transactions = pgTable('transactions', {
   merchant: text('merchant'), // normalized merchant name
   amount: numeric('amount', { precision: 15, scale: 2 }).notNull(),
   type: transactionTypeEnum('type').notNull(),
+  isOneTime: boolean('is_one_time').notNull().default(false),
   categoryId: uuid('category_id').references(() => categories.id),
   comment: text('comment'), // user comment field
   dedupHash: text('dedup_hash').notNull().unique(), // hash(accountId+date+amount+descriptionHash)
@@ -220,9 +223,11 @@ export const invoiceItems = pgTable('invoice_items', {
   description: text('description').notNull(),
   amount: numeric('amount', { precision: 15, scale: 2 }).notNull(),
   type: transactionTypeEnum('type').notNull(),
+  isOneTime: boolean('is_one_time').notNull().default(false),
   categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
   categoryName: text('category_name').notNull().default('Uncategorized'),
   categoryColor: text('category_color'),
+  categoryType: text('category_type').notNull().default('expense'),
   owners: jsonb('owners')
     .notNull()
     .$type<Array<{ ownerId: string | null; name: string; color: string | null; amount: string; percentage: string }>>(),

@@ -27,8 +27,9 @@ type InvoiceTransactionPayload = {
   description: string
   amount: string
   type: 'debit' | 'credit'
+  isOneTime: boolean
   categoryId: string | null
-  category: { id: string | null; name: string; color: string | null } | null
+  category: { id: string | null; name: string; color: string | null; type?: string | null } | null
   owners: InvoiceOwnerSnapshot[]
 }
 
@@ -82,7 +83,24 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
       name: string
       color: string | null
       total: number
-      categories: Map<string, { categoryId: string | null; category: string; total: number }>
+      spendingTotal: number
+      regularSpendingTotal: number
+      oneTimeSpendingTotal: number
+      investmentTotal: number
+      regularInvestmentTotal: number
+      oneTimeInvestmentTotal: number
+      categories: Map<
+        string,
+        {
+          categoryId: string | null
+          category: string
+          color: string | null
+          type: string
+          total: number
+          regularTotal: number
+          oneTimeTotal: number
+        }
+      >
     }
   >()
 
@@ -92,7 +110,10 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
       categoryId: string | null
       category: string
       color: string | null
+      type: string
       total: number
+      regularTotal: number
+      oneTimeTotal: number
     }
   >()
 
@@ -103,6 +124,9 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
     const categoryName = transaction.category?.name ?? 'Uncategorized'
     const categoryId = transaction.category?.id ?? null
     const categoryColor = transaction.category?.color ?? null
+    const categoryType = transaction.category?.type ?? 'expense'
+    const isInvestment = categoryType === 'investment'
+    const isOneTime = Boolean(transaction.isOneTime)
 
     for (const owner of transaction.owners) {
       const ownerKey = owner.ownerId ?? owner.name
@@ -115,6 +139,12 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
           name: owner.name,
           color: owner.color,
           total: 0,
+          spendingTotal: 0,
+          regularSpendingTotal: 0,
+          oneTimeSpendingTotal: 0,
+          investmentTotal: 0,
+          regularInvestmentTotal: 0,
+          oneTimeInvestmentTotal: 0,
           categories: new Map(),
         })
       }
@@ -122,16 +152,42 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
       const ownerBucket = ownerTotals.get(ownerKey)!
       ownerBucket.total += adjustedAmount
 
+      if (isInvestment) {
+        ownerBucket.investmentTotal += adjustedAmount
+        if (isOneTime) {
+          ownerBucket.oneTimeInvestmentTotal += adjustedAmount
+        } else {
+          ownerBucket.regularInvestmentTotal += adjustedAmount
+        }
+      } else {
+        ownerBucket.spendingTotal += adjustedAmount
+        if (isOneTime) {
+          ownerBucket.oneTimeSpendingTotal += adjustedAmount
+        } else {
+          ownerBucket.regularSpendingTotal += adjustedAmount
+        }
+      }
+
       const categoryKey = `${categoryId ?? 'uncategorized'}:${categoryName}`
       if (!ownerBucket.categories.has(categoryKey)) {
         ownerBucket.categories.set(categoryKey, {
           categoryId,
           category: categoryName,
+          color: categoryColor,
+          type: categoryType,
           total: 0,
+          regularTotal: 0,
+          oneTimeTotal: 0,
         })
       }
 
-      ownerBucket.categories.get(categoryKey)!.total += adjustedAmount
+      const ownerCat = ownerBucket.categories.get(categoryKey)!
+      ownerCat.total += adjustedAmount
+      if (isOneTime) {
+        ownerCat.oneTimeTotal += adjustedAmount
+      } else {
+        ownerCat.regularTotal += adjustedAmount
+      }
 
       // Calculate overall category totals from owner-allocated shares
       if (!categoryTotalsMap.has(categoryKey)) {
@@ -139,10 +195,19 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
           categoryId,
           category: categoryName,
           color: categoryColor,
+          type: categoryType,
           total: 0,
+          regularTotal: 0,
+          oneTimeTotal: 0,
         })
       }
-      categoryTotalsMap.get(categoryKey)!.total += adjustedAmount
+      const overallCat = categoryTotalsMap.get(categoryKey)!
+      overallCat.total += adjustedAmount
+      if (isOneTime) {
+        overallCat.oneTimeTotal += adjustedAmount
+      } else {
+        overallCat.regularTotal += adjustedAmount
+      }
     }
   }
 
@@ -152,6 +217,12 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
       name: owner.name,
       color: owner.color,
       total: owner.total,
+      spendingTotal: owner.spendingTotal,
+      regularSpendingTotal: owner.regularSpendingTotal,
+      oneTimeSpendingTotal: owner.oneTimeSpendingTotal,
+      investmentTotal: owner.investmentTotal,
+      regularInvestmentTotal: owner.regularInvestmentTotal,
+      oneTimeInvestmentTotal: owner.oneTimeInvestmentTotal,
       categories: Array.from(owner.categories.values()).sort((a, b) => b.total - a.total),
     }))
     .sort((a, b) => b.total - a.total)
@@ -159,12 +230,33 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
   const categoryTotals = Array.from(categoryTotalsMap.values())
     .sort((a, b) => b.total - a.total)
 
+  const totalSpend = ownerBreakdown.reduce((acc, o) => acc + o.spendingTotal, 0)
+  const regularSpend = ownerBreakdown.reduce((acc, o) => acc + o.regularSpendingTotal, 0)
+  const oneTimeSpend = ownerBreakdown.reduce((acc, o) => acc + o.oneTimeSpendingTotal, 0)
+  const totalInvestments = ownerBreakdown.reduce((acc, o) => acc + o.investmentTotal, 0)
+  const regularInvestments = ownerBreakdown.reduce((acc, o) => acc + o.regularInvestmentTotal, 0)
+  const oneTimeInvestments = ownerBreakdown.reduce((acc, o) => acc + o.oneTimeInvestmentTotal, 0)
+  const totalOutflow = ownerBreakdown.reduce((acc, o) => acc + o.total, 0)
+
   return {
+    totalSpend,
+    regularSpend,
+    oneTimeSpend,
+    totalInvestments,
+    regularInvestments,
+    oneTimeInvestments,
+    totalOutflow,
     ownerTotals: ownerBreakdown.map((owner) => ({
       ownerId: owner.ownerId,
       name: owner.name,
       color: owner.color,
       total: owner.total,
+      spendingTotal: owner.spendingTotal,
+      regularSpendingTotal: owner.regularSpendingTotal,
+      oneTimeSpendingTotal: owner.oneTimeSpendingTotal,
+      investmentTotal: owner.investmentTotal,
+      regularInvestmentTotal: owner.regularInvestmentTotal,
+      oneTimeInvestmentTotal: owner.oneTimeInvestmentTotal,
     })),
     ownerCategoryTotals: ownerBreakdown,
     categoryTotals,
@@ -239,6 +331,7 @@ async function loadLiveTransactions(userId: string, statementIds: string[]) {
           id: true,
           name: true,
           color: true,
+          type: true,
         },
       },
       transactionOwners: {
@@ -262,12 +355,14 @@ async function loadLiveTransactions(userId: string, statementIds: string[]) {
     description: row.description,
     amount: amountString(row.amount),
     type: row.type,
+    isOneTime: Boolean(row.isOneTime),
     categoryId: row.categoryId,
     category: row.category
       ? {
         id: row.category.id,
         name: row.category.name,
         color: row.category.color,
+        type: row.category.type,
       }
       : null,
     owners: row.transactionOwners.map((item) => ({
@@ -495,9 +590,11 @@ invoicesRoute.post('/:id/generate', async (c) => {
         description: transaction.description,
         amount: transaction.amount,
         type: transaction.type,
+        isOneTime: transaction.isOneTime,
         categoryId: transaction.categoryId,
         categoryName: transaction.category?.name ?? 'Uncategorized',
         categoryColor: transaction.category?.color ?? null,
+        categoryType: transaction.category?.type ?? 'expense',
         owners: transaction.owners,
       }))
     )
@@ -612,11 +709,13 @@ invoicesRoute.get('/:id', async (c) => {
     description: item.description,
     amount: amountString(item.amount),
     type: item.type,
+    isOneTime: Boolean(item.isOneTime),
     categoryId: item.categoryId,
     category: {
       id: item.categoryId,
       name: item.categoryName,
       color: item.categoryColor,
+      type: item.categoryType,
     },
     owners: item.owners,
   }))

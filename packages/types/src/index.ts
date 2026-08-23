@@ -47,12 +47,14 @@ export const CreateAccountSchema = z.object({
 })
 export type CreateAccount = z.infer<typeof CreateAccountSchema>
 
-// ─── Category ────────────────────────────────────────────────────────────────
+export const CategoryTypeSchema = z.enum(['expense', 'investment', 'income', 'transfer'])
+export type CategoryType = z.infer<typeof CategoryTypeSchema>
 
 export const CategorySchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid().nullable(),
   name: z.string().min(1).max(100),
+  type: CategoryTypeSchema.default('expense'),
   icon: z.string().nullable(),
   color: z.string(),
   parentId: z.string().uuid().nullable(),
@@ -108,6 +110,7 @@ export const TransactionSchema = z.object({
   merchant: z.string().nullable(),
   amount: z.string(), // numeric string from DB
   type: TransactionTypeSchema,
+  isOneTime: z.boolean().default(false),
   categoryId: z.string().uuid().nullable(),
   comment: z.string().nullable(),
   dedupHash: z.string(),
@@ -175,6 +178,7 @@ export type NetWorthSnapshot = z.infer<typeof NetWorthSnapshotSchema>
 
 export const MonthlyInsightSchema = z.object({
   totalSpend: z.string(),
+  totalInvestments: z.string().optional(),
   totalIncome: z.string(),
   netFlow: z.string(),
   topCategories: z.array(z.object({

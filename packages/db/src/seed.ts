@@ -1,21 +1,28 @@
+import { eq } from 'drizzle-orm'
 import { db } from './index.js'
 import { categories, categorizationRules, merchants } from './schema.js'
 
 async function seedSystemCategories() {
   console.log('🌱 Seeding system categories...')
 
-  const defaultCategories = [
-    { name: 'Food & Dining', icon: '🍔', color: '#f43f5e' },
-    { name: 'Transport', icon: '🚗', color: '#3b82f6' },
-    { name: 'Shopping', icon: '🛍️', color: '#eab308' },
-    { name: 'Entertainment', icon: '🍿', color: '#a855f7' },
-    { name: 'Utilities', icon: '⚡', color: '#06b6d4' },
-    { name: 'Health', icon: '⚕️', color: '#10b981' },
-    { name: 'Travel', icon: '✈️', color: '#f97316' },
-    { name: 'Income', icon: '💰', color: '#84cc16' },
-    { name: 'Transfers', icon: '🔄', color: '#64748b' },
-    { name: 'Subscriptions', icon: '📅', color: '#ec4899' },
-    { name: 'Uncategorized', icon: '❓', color: '#94a3b8' },
+  const defaultCategories: Array<{
+    name: string
+    icon: string
+    color: string
+    type: 'expense' | 'investment' | 'income' | 'transfer'
+  }> = [
+    { name: 'Food & Dining', icon: '🍔', color: '#f43f5e', type: 'expense' },
+    { name: 'Transport', icon: '🚗', color: '#3b82f6', type: 'expense' },
+    { name: 'Shopping', icon: '🛍️', color: '#eab308', type: 'expense' },
+    { name: 'Entertainment', icon: '🍿', color: '#a855f7', type: 'expense' },
+    { name: 'Utilities', icon: '⚡', color: '#06b6d4', type: 'expense' },
+    { name: 'Health', icon: '⚕️', color: '#10b981', type: 'expense' },
+    { name: 'Travel', icon: '✈️', color: '#f97316', type: 'expense' },
+    { name: 'Investments', icon: '📈', color: '#10b981', type: 'investment' },
+    { name: 'Income', icon: '💰', color: '#84cc16', type: 'income' },
+    { name: 'Transfers', icon: '🔄', color: '#64748b', type: 'transfer' },
+    { name: 'Subscriptions', icon: '📅', color: '#ec4899', type: 'expense' },
+    { name: 'Uncategorized', icon: '❓', color: '#94a3b8', type: 'expense' },
   ]
 
   for (const cat of defaultCategories) {
@@ -29,11 +36,15 @@ async function seedSystemCategories() {
         name: cat.name,
         icon: cat.icon,
         color: cat.color,
+        type: cat.type,
         isSystem: true,
       })
       console.log(`✅ Inserted category: ${cat.name}`)
     } else {
-      console.log(`⏭️ Category already exists: ${cat.name}`)
+      await db.update(categories)
+        .set({ type: cat.type })
+        .where(eq(categories.id, existing.id))
+      console.log(`⏭️ Updated category type: ${cat.name} -> ${cat.type}`)
     }
   }
 

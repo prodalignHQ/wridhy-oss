@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Search, Download, MoreHorizontal, ArrowLeftRight, ChevronLeft, ChevronRight, RefreshCw, Loader2 } from 'lucide-react'
+import { Search, Download, MoreHorizontal, ArrowLeftRight, ChevronLeft, ChevronRight, RefreshCw, Loader2, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,7 +59,7 @@ interface FinancialAccount { id: string; accountName: string; bankName: string }
 export default function TransactionsPage() {
   const {
     transactions, total, totalPages, isLoading, filters,
-    setFilters, fetchTransactions, updateTransactionOwners, updateTransactionCategory,
+    setFilters, fetchTransactions, updateTransactionOwners, updateTransactionCategory, updateTransactionOneTime,
   } = useTransactionsStore()
 
   const [owners, setOwners] = useState<Owner[]>([])
@@ -284,9 +284,17 @@ export default function TransactionsPage() {
                     })}
                   </td>
                   <td className="px-4 py-2.5 text-foreground/90 max-w-xs">
-                    <span className="truncate block" title={txn.description}>
-                      {txn.description.length > 60 ? txn.description.slice(0, 60) + '…' : txn.description}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate block" title={txn.description}>
+                        {txn.description.length > 60 ? txn.description.slice(0, 60) + '…' : txn.description}
+                      </span>
+                      {txn.isOneTime && (
+                        <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1.5 py-0.2 text-[9px] font-semibold text-amber-300 shrink-0">
+                          <Zap size={9} />
+                          One-Time
+                        </span>
+                      )}
+                    </div>
                     {txn.comment && (
                       <span className="text-xs text-muted-foreground truncate block">{txn.comment}</span>
                     )}
@@ -322,12 +330,25 @@ export default function TransactionsPage() {
                       <DropdownMenuTrigger className="w-7 h-7 rounded hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground/90 transition-colors outline-none cursor-pointer">
                         <MoreHorizontal size={15} />
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-card border-border w-40">
+                      <DropdownMenuContent align="end" className="bg-card border-border w-44">
                         <DropdownMenuItem
                           onClick={() => setSplitTarget(txn)}
                           className="text-foreground/80 focus:bg-muted focus:text-foreground"
                         >
                           Assign Owners
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            try {
+                              await updateTransactionOneTime(txn.id, !txn.isOneTime)
+                              toast.success(txn.isOneTime ? 'Marked as regular' : 'Marked as one-time')
+                            } catch {
+                              toast.error('Failed to update transaction')
+                            }
+                          }}
+                          className="text-foreground/80 focus:bg-muted focus:text-foreground"
+                        >
+                          {txn.isOneTime ? 'Mark as Regular' : '⚡ Mark as One-Time'}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

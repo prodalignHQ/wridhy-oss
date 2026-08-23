@@ -16,6 +16,7 @@ categoriesRoute.use('*', authMiddleware)
 
 const insertCategorySchema = z.object({
   name: z.string().min(1),
+  type: z.enum(['expense', 'investment', 'income', 'transfer']).default('expense'),
   icon: z.string().nullable().optional(),
   color: z.string().min(1).default('#6366f1'),
 })
@@ -45,6 +46,7 @@ categoriesRoute.post('/', zValidator('json', insertCategorySchema), async (c) =>
     .values({
       userId,
       name: body.name.trim(),
+      type: body.type ?? 'expense',
       icon: body.icon ?? null,
       color: body.color,
       isSystem: false,
@@ -63,6 +65,7 @@ categoriesRoute.patch('/:id', zValidator('json', updateCategorySchema), async (c
     .update(categories)
     .set({
       ...(body.name ? { name: body.name.trim() } : {}),
+      ...(body.type ? { type: body.type } : {}),
       ...(body.icon !== undefined ? { icon: body.icon } : {}),
       ...(body.color ? { color: body.color } : {}),
     })
