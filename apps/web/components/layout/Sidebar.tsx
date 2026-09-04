@@ -57,8 +57,8 @@ function NavItem({
   disabled?: boolean
 }) {
   const classes = cn(
-    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
-    isCollapsed && "justify-center px-2",
+    "flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-300",
+    isCollapsed ? "justify-center px-2" : "gap-3",
     disabled
       ? "cursor-not-allowed text-muted-foreground/60"
       : active
@@ -71,12 +71,19 @@ function NavItem({
       <Icon
         size={16}
         className={cn(
-          "flex-shrink-0",
+          "flex-shrink-0 transition-colors",
           disabled ? "text-muted-foreground/60" : active ? "text-primary" : "text-muted-foreground"
         )}
       />
-      {!isCollapsed && <span className="truncate">{label}</span>}
-      {!isCollapsed && disabled && <Lock size={12} className="ml-auto text-muted-foreground/60" />}
+      <div
+        className={cn(
+          "flex items-center overflow-hidden transition-all duration-300 ease-in-out",
+          isCollapsed ? "w-0 opacity-0" : "w-[200px] opacity-100 flex-1"
+        )}
+      >
+        <span className="truncate">{label}</span>
+        {disabled && <Lock size={12} className="ml-auto text-muted-foreground/60" />}
+      </div>
     </>
   )
 
@@ -137,18 +144,23 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
       {/* Logo */}
       <div
         className={cn(
-          "flex items-center gap-2.5 border-b border-sidebar-border px-4 py-5",
-          isSidebarCollapsed && "justify-center px-2"
+          "flex items-center border-b border-sidebar-border px-4 py-5 transition-all duration-300",
+          isSidebarCollapsed ? "justify-center px-2" : "gap-2.5"
         )}
       >
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary">
           <span className="text-white font-bold text-sm">₹</span>
         </div>
-        {!isSidebarCollapsed && (
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-300 ease-in-out",
+            isSidebarCollapsed ? "w-0 opacity-0" : "w-[200px] opacity-100 flex-1"
+          )}
+        >
           <span className="text-base font-semibold tracking-tight text-foreground truncate">
             MoMoney
           </span>
-        )}
+        </div>
       </div>
 
       {/* Navigation */}
@@ -210,32 +222,42 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
 
           <div
             className={cn(
-              "flex items-center gap-3 rounded-lg bg-muted/60 px-2 py-2",
-              isSidebarCollapsed && "justify-center px-1.5"
+              "flex items-center rounded-lg bg-muted/60 px-2 py-2 transition-all duration-300",
+              isSidebarCollapsed ? "justify-center px-1.5" : "gap-3"
             )}
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-secondary">
               <span className="text-xs font-semibold text-secondary-foreground">{initials}</span>
             </div>
-            {!isSidebarCollapsed && (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-              </div>
-            )}
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-300 ease-in-out min-w-0",
+                isSidebarCollapsed ? "w-0 opacity-0" : "w-[200px] opacity-100 flex-1"
+              )}
+            >
+              <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+            </div>
           </div>
 
           <Button
             type="button"
             variant="ghost"
             className={cn(
-              "w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
-              isSidebarCollapsed && "justify-center px-0"
+              "w-full justify-start rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-300",
+              isSidebarCollapsed ? "justify-center px-0" : "gap-3"
             )}
             onClick={() => void logout()}
           >
             <LogOut size={16} className="text-muted-foreground flex-shrink-0" />
-            {!isSidebarCollapsed && <span>Logout</span>}
+            <div
+              className={cn(
+                "overflow-hidden text-left transition-all duration-300 ease-in-out",
+                isSidebarCollapsed ? "w-0 opacity-0" : "w-[200px] opacity-100 flex-1"
+              )}
+            >
+              <span>Logout</span>
+            </div>
           </Button>
 
           <Button

@@ -85,7 +85,7 @@ export function DashboardVerificationNotice({ email }: DashboardVerificationNoti
         <div className="flex flex-col gap-3 sm:flex-row">
           <Button
             type="button"
-            className="bg-indigo-500 text-white hover:bg-indigo-600"
+            className="bg-primary text-white hover:bg-primary"
             disabled={checking}
             onClick={refreshVerificationStatus}
           >

@@ -72,15 +72,15 @@ export function DataTable<T extends Record<string, unknown>>({
     <div className={cn("space-y-3", className)}>
       {filterBar && <div className="flex flex-wrap gap-2">{filterBar}</div>}
 
-      <div className="rounded-xl border border-zinc-800 overflow-hidden">
+      <div className="rounded-xl border border-border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="border-zinc-800 hover:bg-transparent">
+            <TableRow className="border-border hover:bg-transparent">
               {columns.map((col) => (
                 <TableHead
                   key={col.key}
                   className={cn(
-                    "text-xs font-medium uppercase tracking-wide text-zinc-400 bg-zinc-900/60",
+                    "text-xs font-medium uppercase tracking-wide text-muted-foreground bg-muted/50",
                     col.sortable && "cursor-pointer select-none",
                     col.className
                   )}
@@ -93,7 +93,7 @@ export function DataTable<T extends Record<string, unknown>>({
                         size={12}
                         className={cn(
                           "text-zinc-600",
-                          sortKey === col.key && "text-indigo-400"
+                          sortKey === col.key && "text-primary"
                         )}
                       />
                     )}
@@ -116,7 +116,7 @@ export function DataTable<T extends Record<string, unknown>>({
               paginated.map((row, i) => (
                 <TableRow
                   key={i}
-                  className="border-zinc-800 hover:bg-zinc-900/60 h-11 transition-colors"
+                  className="border-border hover:bg-muted/50 h-11 transition-colors"
                 >
                   {columns.map((col) => (
                     <TableCell
@@ -145,11 +145,11 @@ export function DataTable<T extends Record<string, unknown>>({
               size="sm"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="h-8 w-8 p-0 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               <ChevronLeft size={16} />
             </Button>
-            <span className="text-xs text-zinc-400 px-2">
+            <span className="text-xs text-muted-foreground px-2">
               {page} / {totalPages}
             </span>
             <Button
@@ -157,7 +157,7 @@ export function DataTable<T extends Record<string, unknown>>({
               size="sm"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="h-8 w-8 p-0 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               <ChevronRight size={16} />
             </Button>

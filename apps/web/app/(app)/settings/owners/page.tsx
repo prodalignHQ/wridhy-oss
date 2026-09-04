@@ -44,7 +44,7 @@ interface Owner {
 }
 
 const colorMap: Record<string, string> = {
-  indigo: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
+  indigo: 'bg-primary/20 text-primary border-primary/30',
   emerald: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   rose: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
   amber: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
@@ -219,7 +219,7 @@ export default function OwnersPage() {
           <form onSubmit={handleSubmit(onSubmitAdd)} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" placeholder="e.g. Priya" className="bg-background border-border focus-visible:ring-indigo-500" {...register('name')} />
+              <Input id="name" placeholder="e.g. Priya" className="bg-background border-border focus-visible:ring-primary" {...register('name')} />
               {errors.name && <p className="text-rose-400 text-xs">{errors.name.message}</p>}
             </div>
             <div className="space-y-2">
@@ -227,14 +227,14 @@ export default function OwnersPage() {
               <Input 
                 id="notes" 
                 placeholder="Short note (max 40 chars)" 
-                className="bg-background border-border focus-visible:ring-indigo-500" 
+                className="bg-background border-border focus-visible:ring-primary" 
                 {...register('notes')} 
               />
               {errors.notes && <p className="text-rose-400 text-xs">{errors.notes.message}</p>}
             </div>
             <DialogFooter className="pt-4">
               <Button type="button" variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-indigo-500 hover:bg-indigo-600 text-white">Add Member</Button>
+              <Button type="submit" className="bg-primary hover:bg-primary text-white">Add Member</Button>
             </DialogFooter>
           </form>
         </DialogContent>

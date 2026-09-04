@@ -94,7 +94,7 @@ function LoginForm() {
                 id="email"
                 type="email"
                 placeholder="m@example.com"
-                className="bg-background border-border focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-primary"
                 {...register('email')}
               />
               {errors.email && <p className="text-rose-400 text-xs mt-1">{errors.email.message}</p>}
@@ -106,14 +106,14 @@ function LoginForm() {
               <Input
                 id="password"
                 type="password"
-                className="bg-background border-border focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-primary"
                 {...register('password')}
               />
               {errors.password && <p className="text-rose-400 text-xs mt-1">{errors.password.message}</p>}
             </div>
             <Button
               type="submit"
-              className="w-full bg-indigo-500 hover:bg-indigo-600 text-white"
+              className="w-full bg-primary hover:bg-primary text-white"
               disabled={loading}
             >
               {loading ? 'Signing in...' : 'Sign in'}
@@ -123,7 +123,7 @@ function LoginForm() {
         <CardFooter className="flex justify-center border-t border-border pt-6">
           <p className="text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium">
+            <Link href="/signup" className="text-primary hover:text-primary font-medium">
               Sign up
             </Link>
           </p>

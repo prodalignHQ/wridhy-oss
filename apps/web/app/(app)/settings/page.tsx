@@ -48,7 +48,7 @@ export default function SettingsPage() {
               </p>
               <div className="mt-auto">
                 <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded ${
-                  section.status === "Available" ? "bg-emerald-500/10 text-emerald-500" : "bg-zinc-800 text-zinc-500"
+                  section.status === "Available" ? "bg-emerald-500/10 text-emerald-500" : "bg-card text-muted-foreground"
                 }`}>
                   {section.status}
                 </span>

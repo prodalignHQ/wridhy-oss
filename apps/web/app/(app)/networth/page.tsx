@@ -82,7 +82,7 @@ interface Owner {
 }
 
 const colorMap: Record<string, string> = {
-  indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  indigo: 'bg-primary/10 text-primary border-primary/20',
   emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   rose: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
   amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -91,7 +91,7 @@ const colorMap: Record<string, string> = {
 }
 
 const AVATAR_COLOR_MAP: Record<string, string> = {
-  indigo: 'bg-indigo-500',
+  indigo: 'bg-primary',
   emerald: 'bg-emerald-500',
   rose: 'bg-rose-500',
   amber: 'bg-amber-500',
@@ -589,7 +589,7 @@ export default function NetWorthPage() {
                 className={cn(
                   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all',
                   isAllSelected
-                    ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                    ? 'bg-primary text-white font-semibold shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 )}
               >
@@ -602,7 +602,7 @@ export default function NetWorthPage() {
               {owners.map((owner) => {
                 const isSelected = !isAllSelected && selectedOwnerIds.includes(owner.id)
                 const initials = owner.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
-                const avatarBg = AVATAR_COLOR_MAP[owner.color] ?? 'bg-indigo-500'
+                const avatarBg = AVATAR_COLOR_MAP[owner.color] ?? 'bg-primary'
 
                 return (
                   <button
@@ -612,7 +612,7 @@ export default function NetWorthPage() {
                     className={cn(
                       'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all border',
                       isSelected
-                        ? 'border-indigo-500/80 bg-indigo-500/15 text-foreground ring-1 ring-indigo-500/30 font-semibold'
+                        ? 'border-primary/80 bg-primary/15 text-foreground ring-1 ring-primary/30 font-semibold'
                         : isAllSelected
                         ? 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60'
                         : 'border-transparent text-muted-foreground/60 opacity-60 hover:opacity-100 hover:text-foreground hover:bg-muted/40'
@@ -626,7 +626,7 @@ export default function NetWorthPage() {
                       <span className="text-[10px] text-muted-foreground font-normal">(Self)</span>
                     )}
                     {isSelected && (
-                      <Check size={12} className="text-indigo-400 ml-0.5 stroke-[2.5]" />
+                      <Check size={12} className="text-primary ml-0.5 stroke-[2.5]" />
                     )}
                   </button>
                 )
@@ -641,7 +641,7 @@ export default function NetWorthPage() {
               className="inline-flex items-center justify-center h-10 px-3.5 rounded-2xl border border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/60 gap-1.5 shadow-sm font-medium text-xs cursor-pointer transition-colors disabled:opacity-50 disabled:pointer-events-none"
             >
               {exportingPdf ? (
-                <Loader2 size={13} className="animate-spin text-indigo-400" />
+                <Loader2 size={13} className="animate-spin text-primary" />
               ) : (
                 <Download size={13} />
               )}
@@ -654,7 +654,7 @@ export default function NetWorthPage() {
                 disabled={exportingPdf || !data}
                 className="cursor-pointer gap-2.5 p-2 rounded-lg hover:bg-muted/80 focus:bg-muted/80"
               >
-                <FileText size={15} className="text-indigo-400 shrink-0" />
+                <FileText size={15} className="text-primary shrink-0" />
                 <div className="flex flex-col text-left">
                   <span className="font-semibold text-foreground text-xs">Export PDF</span>
                   <span className="text-[10px] text-muted-foreground">Multi-page styled statement</span>
@@ -744,7 +744,7 @@ export default function NetWorthPage() {
                       setSnapshotDialogOpen(true)
                     }}
                     disabled={savingSnapshot}
-                    className="bg-indigo-600 hover:bg-indigo-500 gap-1.5"
+                    className="bg-primary hover:bg-primary gap-1.5"
                   >
                     {savingSnapshot ? (
                       <Loader2 size={13} className="animate-spin" />
@@ -780,7 +780,7 @@ export default function NetWorthPage() {
               assets={data?.assets ?? []}
               onAdd={handleSaveAsset}
               onDelete={handleDeleteAsset}
-              owners={contextOwners}
+              owners={owners}
               defaultOwnerId={contextDefaultOwnerId}
               inlineEdit={isEditingValues}
             />
@@ -803,7 +803,7 @@ export default function NetWorthPage() {
                 liabilities={data?.liabilities ?? []}
                 onAdd={handleSaveLiability}
                 onDelete={handleDeleteLiability}
-                owners={contextOwners}
+                owners={owners}
                 defaultOwnerId={contextDefaultOwnerId}
                 inlineEdit={isEditingValues}
               />
@@ -887,7 +887,7 @@ export default function NetWorthPage() {
                                 {singleOwnerId === snap.ownerId && (
                                   <button
                                     onClick={() => setRestoreSnapshotId(snap.id)}
-                                    className="p-1.5 text-muted-foreground hover:text-indigo-400 hover:bg-muted rounded transition-colors"
+                                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded transition-colors"
                                     title="Restore snapshot to live draft"
                                   >
                                     <CalendarClock size={14} />
@@ -941,7 +941,7 @@ export default function NetWorthPage() {
                               <td className="px-4 py-3 text-foreground font-medium flex items-center gap-2">
                                 <div className="p-1 rounded hover:bg-muted text-muted-foreground">
                                   {isExpanded ? (
-                                    <ChevronDown size={15} className="text-indigo-400" />
+                                    <ChevronDown size={15} className="text-primary" />
                                   ) : (
                                     <ChevronRight size={15} />
                                   )}
@@ -957,7 +957,7 @@ export default function NetWorthPage() {
                                     const owner = owners.find(o => o.id === s.ownerId)
                                     if (!owner) return null
                                     const initials = owner.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-                                    const avatarBg = AVATAR_COLOR_MAP[owner.color] ?? 'bg-indigo-500'
+                                    const avatarBg = AVATAR_COLOR_MAP[owner.color] ?? 'bg-primary'
                                     return (
                                       <span
                                         key={s.id}
@@ -1011,8 +1011,8 @@ export default function NetWorthPage() {
                                   </td>
                                   <td className="px-4 py-2.5">
                                     {owner ? (
-                                      <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-medium", colorMap[owner.color] || "bg-indigo-500/10 text-indigo-400 border-indigo-500/20")}>
-                                        <span className={cn("w-2 h-2 rounded-full", AVATAR_COLOR_MAP[owner.color] || "bg-indigo-500")} />
+                                      <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-medium", colorMap[owner.color] || "bg-primary/10 text-primary border-primary/20")}>
+                                        <span className={cn("w-2 h-2 rounded-full", AVATAR_COLOR_MAP[owner.color] || "bg-primary")} />
                                         {owner.name} {owner.isDefault ? '(Self)' : ''}
                                       </span>
                                     ) : (
@@ -1062,7 +1062,7 @@ export default function NetWorthPage() {
         {addLiability && (
           <AddLiabilityModal
             open
-            owners={contextOwners}
+            owners={owners}
             defaultOwnerId={contextDefaultOwnerId}
             onClose={() => setAddLiability(false)}
             onSave={async (data, id) => { await handleSaveLiability(data, id); setAddLiability(false) }}
@@ -1086,7 +1086,7 @@ export default function NetWorthPage() {
                   type="date"
                   value={selectedSnapshotDate}
                   onChange={(e) => setSelectedSnapshotDate(e.target.value)}
-                  className="bg-background border-border focus-visible:ring-indigo-500 text-foreground"
+                  className="bg-background border-border focus-visible:ring-primary text-foreground"
                 />
               </div>
             </div>
@@ -1096,7 +1096,7 @@ export default function NetWorthPage() {
               </Button>
               <Button
                 onClick={handleConfirmSaveSnapshot}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="bg-primary hover:bg-primary text-white"
               >
                 Save Snapshot
               </Button>
@@ -1167,7 +1167,7 @@ export default function NetWorthPage() {
                   })
 
                   const splits = [
-                    { label: 'Equity', value: equityTotal, color: 'text-indigo-400', bg: 'bg-indigo-500' },
+                    { label: 'Equity', value: equityTotal, color: 'text-primary', bg: 'bg-primary' },
                     { label: 'Debt', value: debtTotal, color: 'text-amber-400', bg: 'bg-amber-500' },
                     { label: 'Cash', value: cashTotal, color: 'text-emerald-400', bg: 'bg-emerald-500' },
                     ...(mixedTotal > 0 ? [{ label: 'Mixed', value: mixedTotal, color: 'text-purple-400', bg: 'bg-purple-500' }] : []),
@@ -1294,7 +1294,7 @@ export default function NetWorthPage() {
           onClick={() => detailsSnapshot && handleExportSnapshotPdf(detailsSnapshot)}
           className="cursor-pointer gap-2 p-2 text-xs"
         >
-          <FileText size={14} className="text-indigo-400" />
+          <FileText size={14} className="text-primary" />
           <span>Export PDF Statement</span>
         </DropdownMenuItem>
         <DropdownMenuItem

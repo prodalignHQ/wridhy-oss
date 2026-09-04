@@ -124,7 +124,7 @@ function RuleRow({
             <Switch
               checked={rule.isActive}
               onCheckedChange={(checked) => onToggle(rule, checked)}
-              className="data-[state=checked]:bg-indigo-500"
+              className="data-[state=checked]:bg-primary"
             />
             <Button
               variant="ghost"
@@ -449,7 +449,7 @@ export default function RulesPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
-        <div className="w-8 h-8 border-2 border-border border-t-indigo-500 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
         <p className="text-sm text-muted-foreground">Loading rules...</p>
       </div>
     )
@@ -479,7 +479,7 @@ export default function RulesPage() {
             )}
             Re-apply Rules
           </Button>
-          <Button className="bg-indigo-600 hover:bg-indigo-700 gap-2" onClick={openCreateDialog}>
+          <Button className="bg-primary hover:bg-primary gap-2" onClick={openCreateDialog}>
             <Plus className="w-4 h-4" />
             New Rule
           </Button>
@@ -488,11 +488,11 @@ export default function RulesPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="my-rules" className="w-full">
-        <TabsList className="bg-muted">
-          <TabsTrigger value="my-rules" className="data-[state=active]:bg-secondary">
+        <TabsList variant="line" className="mb-4">
+          <TabsTrigger value="my-rules">
             My Rules ({userRules.length})
           </TabsTrigger>
-          <TabsTrigger value="system-rules" className="data-[state=active]:bg-secondary">
+          <TabsTrigger value="system-rules">
             System Rules ({systemRules.length})
           </TabsTrigger>
         </TabsList>
@@ -505,7 +505,7 @@ export default function RulesPage() {
               <p className="text-sm text-muted-foreground max-w-sm mb-4">
                 Create rules like &quot;description contains NETFLIX → Subscriptions&quot; to auto-categorize transactions
               </p>
-              <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreateDialog}>
+              <Button className="bg-primary hover:bg-primary" onClick={openCreateDialog}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create First Rule
               </Button>
@@ -721,7 +721,7 @@ export default function RulesPage() {
 
               {previewLoading ? (
                 <div className="h-32 flex items-center justify-center">
-                  <div className="w-6 h-6 border-2 border-border border-t-indigo-500 rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
                 </div>
               ) : preview ? (
                 <>
@@ -762,7 +762,7 @@ export default function RulesPage() {
             <Button
               onClick={handleSave}
               disabled={!formMatchValue || !formCategoryId}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-primary"
             >
               {editingRule ? 'Save Changes' : 'Create Rule'}
             </Button>
@@ -851,7 +851,7 @@ export default function RulesPage() {
                     key={icon}
                     className={cn(
                       "w-8 h-8 rounded-md bg-muted flex items-center justify-center border-2 transition-all hover:bg-secondary",
-                      categoryIcon === icon ? "border-indigo-500 bg-secondary" : "border-transparent"
+                      categoryIcon === icon ? "border-primary bg-secondary" : "border-transparent"
                     )}
                     onClick={() => setCategoryIcon(icon)}
                   >
@@ -873,7 +873,7 @@ export default function RulesPage() {
             <Button
               onClick={handleCreateCategory}
               disabled={!categoryName || categoryLoading}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-primary"
             >
               {categoryLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Create Category

@@ -55,11 +55,11 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-zinc-900 border-zinc-800">
+      <DialogContent className="sm:max-w-md bg-card border-border">
         <DialogHeader>
-          <DialogTitle className="text-zinc-50">{title}</DialogTitle>
+          <DialogTitle className="text-foreground">{title}</DialogTitle>
           {description && (
-            <DialogDescription className="text-zinc-400">
+            <DialogDescription className="text-muted-foreground">
               {description}
             </DialogDescription>
           )}
@@ -67,9 +67,9 @@ export function ConfirmDialog({
 
         {confirmPhrase && (
           <div className="space-y-2 py-2">
-            <Label className="text-zinc-300 text-xs">
+            <Label className="text-muted-foreground text-xs">
               Type{" "}
-              <code className="font-mono text-rose-400 bg-zinc-800 px-1.5 py-0.5 rounded">
+              <code className="font-mono text-rose-400 bg-muted px-1.5 py-0.5 rounded">
                 {confirmPhrase}
               </code>{" "}
               to confirm
@@ -78,7 +78,7 @@ export function ConfirmDialog({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={confirmPhrase}
-              className="font-mono bg-zinc-800 border-zinc-700 text-zinc-50 placeholder:text-zinc-600"
+              className="font-mono bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
         )}
@@ -88,7 +88,7 @@ export function ConfirmDialog({
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={loading}
-            className="text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+            className="text-muted-foreground hover:text-muted-foreground hover:bg-muted"
           >
             {cancelLabel}
           </Button>
@@ -97,7 +97,7 @@ export function ConfirmDialog({
             onClick={handleConfirm}
             disabled={!canConfirm || loading}
             className={cn(
-              !destructive && "bg-indigo-500 hover:bg-indigo-600 text-white"
+              !destructive && "bg-primary hover:bg-primary text-white"
             )}
           >
             {loading ? "Processing..." : confirmLabel}

@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { resolveAssetTag, ASSET_TAG_COLORS, ASSET_TAG_LABELS } from '@momoney/utils'
 
 const colorMap: Record<string, string> = {
-  indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  indigo: 'bg-primary/10 text-primary border-primary/20',
   emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   rose: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
   amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -61,7 +61,7 @@ export function MutualFundsTable({ assets, onAdd, onDelete, owners, defaultOwner
         <p>No mutual funds added.</p>
         <button
           onClick={() => setIsAdding(true)}
-          className="mt-2 text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 mx-auto"
+          className="mt-2 text-primary hover:text-primary text-xs flex items-center gap-1 mx-auto"
         >
           <Plus size={12} /> Add Mutual Fund
         </button>
@@ -87,7 +87,7 @@ export function MutualFundsTable({ assets, onAdd, onDelete, owners, defaultOwner
         </div>
         <button
           onClick={() => setIsAdding(true)}
-          className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+          className="flex items-center gap-1 text-xs text-primary hover:text-primary transition-colors"
         >
           <Plus size={12} />
           Add Fund

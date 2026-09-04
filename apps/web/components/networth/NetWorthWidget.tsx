@@ -80,7 +80,7 @@ export function NetWorthWidget() {
   const prevDateLabel = previous ? format(new Date(previous.snapshotDate), 'dd MMM') : 'start'
 
   return (
-    <Link href="/networth" className="block focus:outline-none focus:ring-2 focus:ring-indigo-500/50 rounded-xl">
+    <Link href="/networth" className="block focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-xl">
       <Card className="bg-card border-border hover:border-border transition-all duration-300 cursor-pointer group h-full">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -91,8 +91,8 @@ export function NetWorthWidget() {
                   isNeutral
                     ? 'text-muted-foreground bg-muted/50'
                     : isPositive
-                    ? 'text-emerald-400 bg-emerald-400/10'
-                    : 'text-rose-400 bg-rose-400/10'
+                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-400/10'
+                    : 'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-400/10'
                 }`}
               >
                 {isNeutral ? (
@@ -116,7 +116,7 @@ export function NetWorthWidget() {
           </div>
           
           <div className="flex flex-col">
-            <span className={`text-2xl font-semibold tracking-tight font-mono ${latest && netWorthValue < 0 ? 'text-rose-400' : 'text-foreground'}`}>
+            <span className={`text-2xl font-semibold tracking-tight font-mono ${latest && netWorthValue < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-foreground'}`}>
               {latest ? formatINR(netWorthValue) : '—'}
             </span>
             

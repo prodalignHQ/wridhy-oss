@@ -14,7 +14,7 @@ export function CategoryBadge({ name, color = "#6366f1", className }: CategoryBa
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700",
+        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground border border-border shadow-sm",
         className
       )}
     >

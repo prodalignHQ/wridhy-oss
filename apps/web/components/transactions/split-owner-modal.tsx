@@ -29,7 +29,7 @@ interface SplitOwnerModalProps {
 // ─── Color Pill ───────────────────────────────────────────────────────────────
 
 const COLOR_MAP: Record<string, string> = {
-  indigo: 'bg-indigo-500',
+  indigo: 'bg-primary',
   emerald: 'bg-emerald-500',
   rose: 'bg-rose-500',
   amber: 'bg-amber-500',
@@ -141,8 +141,8 @@ export function SplitOwnerModal({
                 className={cn(
                   'w-full flex items-center gap-3 px-4 h-12 rounded-lg border transition-all text-left',
                   isSelected
-                    ? 'bg-indigo-950 border-indigo-700 text-foreground'
-                    : 'bg-muted/50 border-border text-foreground/80 hover:bg-muted hover:border-border'
+                    ? 'bg-primary/15 border-primary text-foreground font-semibold shadow-sm'
+                    : 'bg-card border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                 )}
               >
                 <OwnerInitialCircle owner={owner} />
@@ -151,7 +151,7 @@ export function SplitOwnerModal({
                 <div
                   className={cn(
                     'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
-                    isSelected ? 'bg-indigo-500 border-indigo-500' : 'border-border'
+                    isSelected ? 'bg-primary border-primary' : 'border-border'
                   )}
                 >
                   {isSelected && (
@@ -173,7 +173,7 @@ export function SplitOwnerModal({
 
         {/* Equal split summary */}
         {n > 1 && (
-          <div className="rounded-lg bg-muted/60 border border-border px-4 py-3 text-sm font-semibold text-emerald-400">
+          <div className="rounded-lg bg-muted/60 border border-border px-4 py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
             Split equally — {formatINR(shareAmount)} each ({n} owners)
           </div>
         )}
@@ -185,7 +185,7 @@ export function SplitOwnerModal({
           <Button
             onClick={handleSave}
             disabled={isSaving || selectedIds.size === 0}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white"
+            className="bg-primary hover:bg-primary text-white"
           >
             {isSaving ? 'Saving…' : 'Save'}
           </Button>

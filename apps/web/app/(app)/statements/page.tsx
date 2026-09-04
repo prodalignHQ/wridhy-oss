@@ -187,7 +187,7 @@ function StatementHistory({
                   <Link
                     href={`/invoices?month=${month}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center rounded-full border border-border px-2.5 py-1 text-xs font-medium text-foreground/80 hover:border-indigo-500/50 hover:text-foreground"
+                    className="inline-flex items-center rounded-full border border-border px-2.5 py-1 text-xs font-medium text-foreground/80 hover:border-primary/50 hover:text-foreground"
                   >
                     Create invoice
                   </Link>
@@ -440,7 +440,7 @@ export default function StatementsPage() {
         {/* Parsing indicator */}
         {isParsing && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-4 h-4 border-2 border-border border-t-indigo-500 rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-border border-t-primary rounded-full animate-spin" />
             Parsing statement…
           </div>
         )}
@@ -453,7 +453,7 @@ export default function StatementsPage() {
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground/90 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground/90 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
         )}
@@ -467,7 +467,7 @@ export default function StatementsPage() {
         {totalParsed > 0 && !isParsing && (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm">
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/15 text-primary border border-primary/20">
                 {totalParsed} transactions ready
               </span>
               <span className="text-muted-foreground/70">from {selectedFile?.name}</span>
@@ -475,7 +475,7 @@ export default function StatementsPage() {
             <Button
               onClick={handleImport}
               disabled={!canImport || isImporting}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white gap-2"
+              className="bg-primary hover:bg-primary text-white gap-2"
             >
               <UploadCloud size={16} />
               {isImporting ? 'Importing…' : 'Confirm Import'}

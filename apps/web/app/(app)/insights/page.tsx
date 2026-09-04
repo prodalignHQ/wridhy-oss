@@ -20,7 +20,7 @@ const formatINR = (value: string | number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(String(value)))
 
 const COLOR_MAP: Record<string, string> = {
-  indigo: 'bg-indigo-500',
+  indigo: 'bg-primary',
   emerald: 'bg-emerald-500',
   rose: 'bg-rose-500',
   amber: 'bg-amber-500',
@@ -110,7 +110,7 @@ export default function InsightsPage() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-muted/50 p-1.5 rounded-lg border border-border focus-within:ring-1 focus-within:ring-indigo-500/50 transition-all">
+          <div className="flex items-center gap-1.5 bg-muted/50 p-1.5 rounded-lg border border-border focus-within:ring-1 focus-within:ring-primary/50 transition-all">
             <Calendar size={14} className="text-muted-foreground ml-1" />
             <Input
               type="month"
@@ -133,18 +133,18 @@ export default function InsightsPage() {
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border whitespace-nowrap',
                   selectedOwners.includes(owner.id)
-                    ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.1)]'
+                    ? 'border-primary bg-primary/10 text-primary shadow-[0_0_10px_rgba(99,102,241,0.1)]'
                     : 'border-border bg-muted/50 text-muted-foreground hover:text-foreground/90 hover:border-muted-foreground/30'
                 )}
               >
-                <span className={cn('w-2 h-2 rounded-full', COLOR_MAP[owner.color] || 'bg-zinc-500')} />
+                <span className={cn('w-2 h-2 rounded-full', COLOR_MAP[owner.color] || 'bg-card')} />
                 {owner.name}
               </button>
             ))}
             {selectedOwners.length > 0 && (
               <button 
                 onClick={() => setSelectedOwners([])}
-                className="text-[10px] text-muted-foreground hover:text-indigo-400 underline px-1 transition-colors"
+                className="text-[10px] text-muted-foreground hover:text-primary underline px-1 transition-colors"
               >
                 Clear all
               </button>
@@ -156,8 +156,8 @@ export default function InsightsPage() {
       {isLoading && !monthlyData ? (
         <div className="flex flex-col items-center justify-center py-32 gap-3">
           <div className="relative">
-            <Loader2 size={32} className="animate-spin text-indigo-500" />
-            <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full animate-pulse" />
+            <Loader2 size={32} className="animate-spin text-primary" />
+            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
           </div>
           <p className="text-sm text-muted-foreground animate-pulse">Analyzing your finances…</p>
         </div>
@@ -199,11 +199,11 @@ export default function InsightsPage() {
             <Card className="bg-card/40 backdrop-blur-sm border-border/50 hover:bg-card/60 transition-colors">
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
-                  <Wallet size={14} className="text-indigo-500" /> Net Flow
+                  <Wallet size={14} className="text-primary" /> Net Flow
                 </CardDescription>
                 <CardTitle className={cn(
                   "text-2xl font-bold tabular-nums pt-1",
-                  parseFloat(monthlyData?.netFlow || '0') >= 0 ? "text-indigo-400" : "text-rose-400"
+                  parseFloat(monthlyData?.netFlow || '0') >= 0 ? "text-primary" : "text-rose-400"
                 )}>
                   {formatINR(monthlyData?.netFlow || '0')}
                 </CardTitle>

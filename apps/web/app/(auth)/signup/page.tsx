@@ -84,7 +84,7 @@ export default function SignupPage() {
               <Input
                 id="name"
                 placeholder="John Doe"
-                className="bg-background border-border focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-primary"
                 {...register('name')}
               />
               {errors.name && <p className="text-rose-400 text-xs mt-1">{errors.name.message}</p>}
@@ -95,7 +95,7 @@ export default function SignupPage() {
                 id="email"
                 type="email"
                 placeholder="m@example.com"
-                className="bg-background border-border focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-primary"
                 {...register('email')}
               />
               {errors.email && <p className="text-rose-400 text-xs mt-1">{errors.email.message}</p>}
@@ -105,7 +105,7 @@ export default function SignupPage() {
               <Input
                 id="password"
                 type="password"
-                className="bg-background border-border focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-primary"
                 {...register('password')}
               />
               {errors.password && <p className="text-rose-400 text-xs mt-1">{errors.password.message}</p>}
@@ -115,7 +115,7 @@ export default function SignupPage() {
               <Input
                 id="confirmPassword"
                 type="password"
-                className="bg-background border-border focus-visible:ring-indigo-500"
+                className="bg-background border-border focus-visible:ring-primary"
                 {...register('confirmPassword')}
               />
               {errors.confirmPassword && (
@@ -124,7 +124,7 @@ export default function SignupPage() {
             </div>
             <Button
               type="submit"
-              className="w-full bg-indigo-500 hover:bg-indigo-600 text-white"
+              className="w-full bg-primary hover:bg-primary text-white"
               disabled={loading}
             >
               {loading ? 'Creating account...' : 'Sign up'}
@@ -134,7 +134,7 @@ export default function SignupPage() {
         <CardFooter className="flex justify-center border-t border-border pt-6">
           <p className="text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">
+            <Link href="/login" className="text-primary hover:text-primary font-medium">
               Sign in
             </Link>
           </p>

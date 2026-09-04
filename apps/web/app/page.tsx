@@ -6,7 +6,7 @@ export default function HomePage() {
       <div className="text-center space-y-6 max-w-md px-4">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
             <span className="text-white font-bold text-lg">₹</span>
           </div>
           <span className="text-2xl font-semibold text-foreground">MoMoney</span>
@@ -14,7 +14,7 @@ export default function HomePage() {
 
         <h1 className="text-4xl font-semibold text-foreground">
           Your money,{" "}
-          <span className="text-indigo-400">your rules.</span>
+          <span className="text-primary">your rules.</span>
         </h1>
         <p className="text-muted-foreground text-lg leading-relaxed">
           Privacy-first personal finance. Import bank statements, auto-categorize
@@ -24,7 +24,7 @@ export default function HomePage() {
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
           <Link
             href="/dashboard"
-            className="px-6 py-3 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-medium transition-colors duration-150"
+            className="px-6 py-3 rounded-lg bg-primary hover:bg-primary text-white font-medium transition-colors duration-150"
           >
             Open Dashboard
           </Link>

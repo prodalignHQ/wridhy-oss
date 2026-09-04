@@ -47,7 +47,7 @@ function SignupSuccessContent() {
         <CardFooter className="flex flex-col gap-3 border-t border-border bg-transparent pt-6 sm:flex-row sm:justify-center">
           <Link
             href={loginHref}
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-indigo-500 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-600"
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-5 text-sm font-medium text-white transition-colors hover:bg-primary"
           >
             Go to login
           </Link>

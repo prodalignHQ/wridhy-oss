@@ -90,8 +90,8 @@ export function NetWorthAllocation({ assets, totalAssets, netWorth, className }:
       icon: TrendingUp,
       data: allocation.equity,
       color: ASSET_TAG_COLORS.equity,
-      barBg: 'bg-indigo-500',
-      badgeBg: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+      barBg: 'bg-primary',
+      badgeBg: 'bg-primary/10 text-primary border-primary/20',
       description: 'Stocks, Equity Mutual Funds, Crypto',
     },
     {
@@ -135,7 +135,7 @@ export function NetWorthAllocation({ assets, totalAssets, netWorth, className }:
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-lg bg-secondary text-foreground">
-            <PieChart size={18} className="text-indigo-400" />
+            <PieChart size={18} className="text-primary" />
           </div>
           <div>
             <h2 className="text-base font-semibold text-foreground">Asset Allocation</h2>

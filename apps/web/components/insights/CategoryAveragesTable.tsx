@@ -11,7 +11,7 @@ const formatINR = (value: string | number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(String(value)))
 
 const COLOR_MAP: Record<string, string> = {
-  indigo: 'bg-indigo-500',
+  indigo: 'bg-primary',
   emerald: 'bg-emerald-500',
   rose: 'bg-rose-500',
   amber: 'bg-amber-500',
@@ -63,8 +63,8 @@ export function CategoryAveragesTable({ data }: CategoryAveragesTableProps) {
               <tr key={item.id} className="hover:bg-muted/50 transition-colors group">
                 <td className="py-4 px-4 whitespace-nowrap">
                   <div className="flex items-center gap-3">
-                    <div className={cn("w-2 h-2 rounded-full", COLOR_MAP[item.color || ''] || 'bg-zinc-500')} />
-                    <span className="text-sm font-medium text-foreground group-hover:text-indigo-400 transition-colors">
+                    <div className={cn("w-2 h-2 rounded-full", COLOR_MAP[item.color || ''] || 'bg-card')} />
+                    <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
                       {item.name}
                     </span>
                   </div>

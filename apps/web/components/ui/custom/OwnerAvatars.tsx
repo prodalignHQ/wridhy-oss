@@ -2,7 +2,7 @@ import { UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const COLOR_MAP: Record<string, { bg: string; text: string }> = {
-  indigo: { bg: "bg-indigo-500", text: "text-indigo-50" },
+  indigo: { bg: "bg-primary", text: "text-indigo-50" },
   emerald: { bg: "bg-emerald-500", text: "text-emerald-50" },
   rose: { bg: "bg-rose-500", text: "text-rose-50" },
   amber: { bg: "bg-amber-500", text: "text-amber-50" },
@@ -93,7 +93,7 @@ export function OwnerAvatars({
       {overflow > 0 && (
         <div
           className={cn(
-            "-ml-1.5 rounded-full bg-zinc-700 ring-2 ring-zinc-900 flex items-center justify-center font-semibold text-zinc-300",
+            "-ml-1.5 rounded-full bg-card ring-2 ring-zinc-900 flex items-center justify-center font-semibold text-zinc-300",
             size === "sm" ? "w-6 h-6 text-[9px]" : "w-8 h-8 text-xs"
           )}
         >

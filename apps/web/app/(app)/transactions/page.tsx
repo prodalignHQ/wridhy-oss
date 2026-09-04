@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const COLOR_MAP: Record<string, string> = {
-  indigo: 'bg-indigo-500',
+  indigo: 'bg-primary',
   emerald: 'bg-emerald-500',
   rose: 'bg-rose-500',
   amber: 'bg-amber-500',
@@ -40,7 +40,7 @@ function OwnerFilterPill({ owner, selected, onClick }: { owner: Owner; selected:
       className={cn(
         'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border',
         selected
-          ? 'border-indigo-500 bg-secondary text-foreground ring-2 ring-indigo-500/50'
+          ? 'border-primary bg-secondary text-foreground ring-2 ring-primary/50'
           : 'border-border bg-muted text-muted-foreground hover:text-foreground/90'
       )}
     >
@@ -222,7 +222,7 @@ export default function TransactionsPage() {
               className={cn(
                 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-all border',
                 !filters.ownerId
-                  ? 'border-indigo-500 bg-secondary text-foreground ring-2 ring-indigo-500/50'
+                  ? 'border-primary bg-secondary text-foreground ring-2 ring-primary/50'
                   : 'border-border bg-muted text-muted-foreground hover:text-foreground/90'
               )}
             >
@@ -243,7 +243,7 @@ export default function TransactionsPage() {
       {/* ── Table ── */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-3">
-          <div className="w-8 h-8 border-2 border-border border-t-indigo-500 rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
           <p className="text-sm text-muted-foreground">Loading transactions…</p>
         </div>
       ) : transactions.length === 0 ? (

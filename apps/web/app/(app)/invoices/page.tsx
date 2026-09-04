@@ -231,7 +231,7 @@ function InvoiceListSection({
                 className={cn(
                   'w-full rounded-xl border px-4 py-3 text-left transition-colors',
                   active
-                    ? 'border-indigo-500/60 bg-indigo-500/10'
+                    ? 'border-primary/60 bg-primary/10'
                     : 'border-border bg-card/50 hover:bg-card'
                 )}
               >
@@ -1008,7 +1008,7 @@ export default function InvoicesPage() {
             setActiveInvoiceId(null)
             setActiveInvoice(null)
           }}
-          className="gap-2 bg-indigo-600 text-white hover:bg-indigo-500"
+          className="gap-2 bg-primary text-white hover:bg-primary"
         >
           <Plus size={16} />
           Create Invoice
@@ -1041,7 +1041,7 @@ export default function InvoicesPage() {
           {composerOpen ? (
             <div className="rounded-2xl border border-border bg-card/50 p-6">
               <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-300">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary">
                   <Receipt size={22} />
                 </div>
                 <div className="space-y-1">
@@ -1104,7 +1104,7 @@ export default function InvoicesPage() {
                               className={cn(
                                 'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
                                 checked
-                                  ? 'border-indigo-500/50 bg-indigo-500/10'
+                                  ? 'border-primary/50 bg-primary/10'
                                   : 'border-border bg-background/70 hover:bg-card'
                               )}
                             >
@@ -1118,7 +1118,7 @@ export default function InvoicesPage() {
                                       : prev.filter((value) => value !== statement.id)
                                   )
                                 }}
-                                className="mt-1 h-4 w-4 rounded border-border bg-card text-indigo-500"
+                                className="mt-1 h-4 w-4 rounded border-border bg-card text-primary"
                               />
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-semibold text-foreground">
@@ -1165,7 +1165,7 @@ export default function InvoicesPage() {
                   <Button
                     onClick={() => void handleCreateInvoice()}
                     disabled={creating || !newInvoiceName.trim() || newStatementIds.length === 0}
-                    className="mt-6 w-full gap-2 bg-indigo-600 text-white hover:bg-indigo-500"
+                    className="mt-6 w-full gap-2 bg-primary text-white hover:bg-primary"
                   >
                     <Plus size={16} />
                     {creating ? 'Creating Draft...' : 'Create Invoice'}
@@ -1305,7 +1305,7 @@ export default function InvoicesPage() {
                             className={cn(
                               'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
                               checked
-                                ? 'border-indigo-500/50 bg-indigo-500/10'
+                                ? 'border-primary/50 bg-primary/10'
                                 : 'border-border bg-background/70 hover:bg-card'
                             )}
                           >
@@ -1318,7 +1318,7 @@ export default function InvoicesPage() {
                                   return prev.filter((value) => value !== statement.id)
                                 })
                               }}
-                              className="mt-1 h-4 w-4 rounded border-border bg-card text-indigo-500"
+                              className="mt-1 h-4 w-4 rounded border-border bg-card text-primary"
                             />
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-semibold text-foreground">
@@ -1387,7 +1387,7 @@ export default function InvoicesPage() {
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Total Cash Outflow
                     </span>
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <Receipt size={14} />
                     </div>
                   </div>
@@ -1401,7 +1401,7 @@ export default function InvoicesPage() {
               </div>
 
               <Tabs defaultValue="transactions" className="w-full space-y-4">
-                <TabsList className="bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+                <TabsList variant="line" className="mb-4">
                   <TabsTrigger value="transactions" className="flex items-center gap-2">
                     <Receipt size={14} />
                     Transactions
@@ -1573,7 +1573,7 @@ export default function InvoicesPage() {
                                     type="checkbox"
                                     checked={allFilteredSelected}
                                     onChange={(e) => toggleFilteredSelection(e.target.checked)}
-                                    className="h-4 w-4 rounded border-border bg-card text-indigo-500"
+                                    className="h-4 w-4 rounded border-border bg-card text-primary"
                                     aria-label="Select all filtered transactions"
                                   />
                                 </th>
@@ -1585,7 +1585,7 @@ export default function InvoicesPage() {
                                 <div className="flex items-center gap-1.5">
                                   <span>Date</span>
                                   {sortField === 'date' ? (
-                                    sortDirection === 'asc' ? <ArrowUp size={12} className="text-indigo-400" /> : <ArrowDown size={12} className="text-indigo-400" />
+                                    sortDirection === 'asc' ? <ArrowUp size={12} className="text-primary" /> : <ArrowDown size={12} className="text-primary" />
                                   ) : (
                                     <ArrowUpDown size={12} className="opacity-40" />
                                   )}
@@ -1613,7 +1613,7 @@ export default function InvoicesPage() {
                                 <div className="flex items-center justify-end gap-1.5">
                                   <span>Amount</span>
                                   {sortField === 'amount' ? (
-                                    sortDirection === 'asc' ? <ArrowUp size={12} className="text-indigo-400" /> : <ArrowDown size={12} className="text-indigo-400" />
+                                    sortDirection === 'asc' ? <ArrowUp size={12} className="text-primary" /> : <ArrowDown size={12} className="text-primary" />
                                   ) : (
                                     <ArrowUpDown size={12} className="opacity-40" />
                                   )}
@@ -1632,7 +1632,7 @@ export default function InvoicesPage() {
                                       onChange={(e) =>
                                         toggleTransactionSelection(transaction.id, e.target.checked)
                                       }
-                                      className="mt-0.5 h-4 w-4 rounded border-border bg-card text-indigo-500"
+                                      className="mt-0.5 h-4 w-4 rounded border-border bg-card text-primary"
                                       aria-label={`Select transaction ${transaction.description}`}
                                     />
                                   </td>
@@ -2205,7 +2205,7 @@ export default function InvoicesPage() {
             <Button
               onClick={() => void handleApplyToSelectedRows()}
               disabled={applyingCategoryChange}
-              className="bg-indigo-600 text-white hover:bg-indigo-500"
+              className="bg-primary text-white hover:bg-primary"
             >
               {applyingCategoryChange ? 'Applying...' : 'Yes'}
             </Button>
@@ -2250,7 +2250,7 @@ export default function InvoicesPage() {
             <Button
               onClick={() => void handleApplyOwnersToSelectedRows()}
               disabled={applyingOwnerChange}
-              className="bg-indigo-600 text-white hover:bg-indigo-500"
+              className="bg-primary text-white hover:bg-primary"
             >
               {applyingOwnerChange ? 'Applying...' : 'Yes'}
             </Button>

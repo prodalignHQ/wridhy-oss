@@ -136,7 +136,7 @@ export default function AccountsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-foreground">Accounts</h1>
-        <Button onClick={() => setIsAddOpen(true)} className="bg-indigo-500 hover:bg-indigo-600">
+        <Button onClick={() => setIsAddOpen(true)} className="bg-primary hover:bg-primary">
           <Plus className="mr-2 h-4 w-4" /> Add Account
         </Button>
       </div>
@@ -213,7 +213,7 @@ export default function AccountsPage() {
                   if (bank) setValue('bankName', bank.label.replace(' — ', ' ') as any)
                 }}
               >
-                <SelectTrigger className="bg-background border-border focus:ring-indigo-500">
+                <SelectTrigger className="bg-background border-border focus:ring-primary">
                   <SelectValue>
                     {BANKS.find(b => b.id === watchedBankId)?.label || 'Select bank and account type'}
                   </SelectValue>
@@ -228,7 +228,7 @@ export default function AccountsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="accountName">Account Name</Label>
-              <Input id="accountName" placeholder="e.g. Savings - 1234" className="bg-background border-border focus-visible:ring-indigo-500" {...register('accountName')} />
+              <Input id="accountName" placeholder="e.g. Savings - 1234" className="bg-background border-border focus-visible:ring-primary" {...register('accountName')} />
               {errors.accountName && <p className="text-rose-400 text-xs">{errors.accountName.message}</p>}
             </div>
             <div className="space-y-2">
@@ -237,7 +237,7 @@ export default function AccountsPage() {
                 value={watchedAccountType} 
                 onValueChange={(val) => setValue('accountType', val as any)}
               >
-                <SelectTrigger className="bg-background border-border focus:ring-indigo-500">
+                <SelectTrigger className="bg-background border-border focus:ring-primary">
                   <SelectValue>
                     {watchedAccountType === 'bank' && 'Bank Account'}
                     {watchedAccountType === 'credit_card' && 'Credit Card'}
@@ -255,11 +255,11 @@ export default function AccountsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="currency">Currency</Label>
-              <Input id="currency" defaultValue="INR" className="bg-background border-border focus-visible:ring-indigo-500 font-mono" {...register('currency')} />
+              <Input id="currency" defaultValue="INR" className="bg-background border-border focus-visible:ring-primary font-mono" {...register('currency')} />
             </div>
             <DialogFooter className="pt-4">
               <Button type="button" variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-indigo-500 hover:bg-indigo-600 text-white">Save Account</Button>
+              <Button type="submit" className="bg-primary hover:bg-primary text-white">Save Account</Button>
             </DialogFooter>
           </form>
         </DialogContent>

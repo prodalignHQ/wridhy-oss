@@ -44,8 +44,8 @@ export function UploadDropzone({ onFileSelect, selectedFile, onClear, accept }: 
   if (selectedFile) {
     return (
       <div className="border-2 border-border rounded-xl p-6 flex items-center gap-4 bg-card/50">
-        <div className="w-12 h-12 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-          <FileText size={22} className="text-indigo-400" />
+        <div className="w-12 h-12 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+          <FileText size={22} className="text-primary" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground/90 truncate">{selectedFile.name}</p>
@@ -72,19 +72,19 @@ export function UploadDropzone({ onFileSelect, selectedFile, onClear, accept }: 
       className={cn(
         'border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center cursor-pointer transition-all duration-200',
         isDragOver
-          ? 'border-indigo-500 bg-indigo-500/5 scale-[1.01]'
+          ? 'border-primary bg-primary/5 scale-[1.01]'
           : 'border-border hover:border-border bg-card/30 hover:bg-card/50'
       )}
     >
       <div
         className={cn(
           'w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-colors',
-          isDragOver ? 'bg-indigo-500/20' : 'bg-muted'
+          isDragOver ? 'bg-primary/20' : 'bg-muted'
         )}
       >
         <UploadCloud
           size={32}
-          className={cn('transition-colors', isDragOver ? 'text-indigo-400' : 'text-muted-foreground')}
+          className={cn('transition-colors', isDragOver ? 'text-primary' : 'text-muted-foreground')}
         />
       </div>
       <p className="text-base font-semibold text-foreground/90 mb-1">
