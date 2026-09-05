@@ -5,25 +5,14 @@ import {
   categories,
   statements,
 } from '@momoney/db'
-import { eq, and, or, inArray, gte, lte, sql, desc, isNull } from 'drizzle-orm'
+import { eq, and, or, inArray, gte, lte, lt, sql, desc, isNull } from 'drizzle-orm'
 import { MonthlyInsight, YearlyInsight, CategoryComparison, CategoryAverage } from '@momoney/types'
 
 /**
- * The insights date for a transaction:
- *  - If the transaction has a linked statement, use statementMonth (user-tagged billing month).
- *  - Otherwise fall back to the raw transaction date.
- *
- * This lets credit-card purchases in April show up as May outflows
- * when the statement for April is tagged to May.
- *
- * Both branches resolve to PG `date`.  All comparisons use plain YYYY-MM-DD
- * strings — Drizzle serialises JS Date objects with timezone info that PG
- * `date` columns cannot parse.
+ * The insights date for a transaction resolves to the transaction's actual date (PG date).
+ * All comparisons use plain YYYY-MM-DD strings to avoid timezone shift issues.
  */
-const insightsDate = sql<Date>`CASE
-  WHEN ${statements.id} IS NOT NULL THEN ${statements.statementMonth}
-  ELSE ${transactions.date}::date
-END`
+const insightsDate = sql<Date>`${transactions.date}::date`
 
 /** Convert a Date to a plain 'YYYY-MM-DD' string (avoids Drizzle timezone serialisation). */
 const toISODate = (d: Date) => d.toISOString().slice(0, 10)
@@ -42,7 +31,7 @@ export class InsightsService {
     const conditions = [
       eq(transactions.userId, userId),
       gte(insightsDate, startDate),
-      lte(insightsDate, endDate),
+      lt(insightsDate, endDate),
     ]
 
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
@@ -86,7 +75,9 @@ export class InsightsService {
           totalSpendNum += amt
         }
       } else if (r.type === 'credit') {
-        totalIncomeNum += amt
+        if (r.categoryType !== 'transfer') {
+          totalIncomeNum += amt
+        }
       }
     }
 
@@ -206,7 +197,7 @@ export class InsightsService {
         const amt = parseFloat(r.amount || '0')
         if (r.type === 'debit' && r.categoryType === 'expense') {
           monthData.spend = (parseFloat(monthData.spend) + amt).toFixed(2)
-        } else if (r.type === 'credit') {
+        } else if (r.type === 'credit' && r.categoryType !== 'transfer') {
           monthData.income = (parseFloat(monthData.income) + amt).toFixed(2)
         }
       }
@@ -233,7 +224,7 @@ export class InsightsService {
     const conditions = [
       eq(transactions.userId, userId),
       gte(insightsDate, startDateISO),
-      lte(insightsDate, endDateISO),
+      lt(insightsDate, endDateISO),
       eq(transactions.type, 'debit'),
     ]
 

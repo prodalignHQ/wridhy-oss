@@ -19,7 +19,7 @@ const insertRuleSchema = z.object({
   matchType: z.enum(['contains', 'equals', 'regex', 'gt', 'lt']),
   matchValue: z.string().min(1).refine(v => v.trim().length > 0, { message: 'matchValue cannot be blank' }),
   categoryId: z.string().uuid(),
-  priority: z.number().int().min(1).max(999).default(100),
+  priority: z.number().int().min(1).max(9999).default(100),
 })
 
 const updateRuleSchema = z.object({
@@ -27,7 +27,7 @@ const updateRuleSchema = z.object({
   matchType: z.enum(['contains', 'equals', 'regex', 'gt', 'lt']).optional(),
   matchValue: z.string().min(1).optional(),
   categoryId: z.string().uuid().optional(),
-  priority: z.number().int().min(1).max(999).optional(),
+  priority: z.number().int().min(1).max(9999).optional(),
   isActive: z.boolean().optional(),
 })
 
@@ -101,7 +101,10 @@ rulesRoute.patch('/:id', zValidator('json', updateRuleSchema), async (c) => {
   const existing = await db.query.categorizationRules.findFirst({
     where: and(
       eq(categorizationRules.id, ruleId),
-      eq(categorizationRules.userId, userId)
+      or(
+        eq(categorizationRules.userId, userId),
+        isNull(categorizationRules.userId)
+      )
     ),
   })
 
@@ -109,13 +112,6 @@ rulesRoute.patch('/:id', zValidator('json', updateRuleSchema), async (c) => {
     return c.json(
       { success: false, error: { code: 'NOT_FOUND', message: 'Rule not found' } },
       404
-    )
-  }
-
-  if (existing.source === 'system') {
-    return c.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Cannot modify system rules' } },
-      403
     )
   }
 
@@ -130,7 +126,7 @@ rulesRoute.patch('/:id', zValidator('json', updateRuleSchema), async (c) => {
       ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
       updatedAt: new Date(),
     })
-    .where(and(eq(categorizationRules.id, ruleId), eq(categorizationRules.userId, userId)))
+    .where(eq(categorizationRules.id, ruleId))
     .returning()
 
   if (!rule) {
@@ -157,7 +153,10 @@ rulesRoute.delete('/:id', async (c) => {
   const existing = await db.query.categorizationRules.findFirst({
     where: and(
       eq(categorizationRules.id, ruleId),
-      eq(categorizationRules.userId, userId)
+      or(
+        eq(categorizationRules.userId, userId),
+        isNull(categorizationRules.userId)
+      )
     ),
   })
 
@@ -168,16 +167,9 @@ rulesRoute.delete('/:id', async (c) => {
     )
   }
 
-  if (existing.source === 'system') {
-    return c.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Cannot delete system rules' } },
-      403
-    )
-  }
-
   await db
     .delete(categorizationRules)
-    .where(and(eq(categorizationRules.id, ruleId), eq(categorizationRules.userId, userId)))
+    .where(eq(categorizationRules.id, ruleId))
 
   return c.json({ success: true, data: null })
 })

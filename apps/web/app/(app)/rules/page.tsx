@@ -34,6 +34,22 @@ interface Category {
   isSystem: boolean
 }
 
+function isProtectedCategory(cat: Category): boolean {
+  if (!cat.isSystem) return false
+  const lowerName = cat.name.trim().toLowerCase()
+  return (
+    lowerName === 'income' ||
+    lowerName === 'investments' ||
+    lowerName === 'investment' ||
+    lowerName === 'transfers' ||
+    lowerName === 'transfer' ||
+    lowerName === 'uncategorized' ||
+    cat.type === 'income' ||
+    cat.type === 'investment' ||
+    cat.type === 'transfer'
+  )
+}
+
 interface Rule {
   id: string
   matchField: 'merchant' | 'description' | 'amount'
@@ -117,33 +133,34 @@ function RuleRow({
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        {isSystem ? (
-          <Lock className="w-4 h-4 text-muted-foreground/70" />
-        ) : (
-          <>
-            <Switch
-              checked={rule.isActive}
-              onCheckedChange={(checked) => onToggle(rule, checked)}
-              className="data-[state=checked]:bg-primary"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground/80"
-              onClick={() => onEdit(rule)}
-            >
-              <Edit2 size={14} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-rose-400"
-              onClick={() => onDelete(rule)}
-            >
-              <Trash2 size={14} />
-            </Button>
-          </>
+        {isSystem && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-muted text-muted-foreground/80 uppercase tracking-wider">
+            Default
+          </span>
         )}
+        <Switch
+          checked={rule.isActive}
+          onCheckedChange={(checked) => onToggle(rule, checked)}
+          className="data-[state=checked]:bg-primary"
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground/80"
+          onClick={() => onEdit(rule)}
+          title="Edit Rule"
+        >
+          <Edit2 size={14} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-rose-400"
+          onClick={() => onDelete(rule)}
+          title="Delete Rule"
+        >
+          <Trash2 size={14} />
+        </Button>
       </div>
     </div>
   )
@@ -209,6 +226,18 @@ export default function RulesPage() {
   const [categoryColor, setCategoryColor] = useState('#6366f1')
   const [categoryIcon, setCategoryIcon] = useState('📂')
   const [categoryLoading, setCategoryLoading] = useState(false)
+
+  // Category deletion state
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<Category | null>(null)
+  const [categoryUsage, setCategoryUsage] = useState<{
+    transactionCount: number
+    ruleCount: number
+    isProtected: boolean
+  } | null>(null)
+  const [loadingCategoryUsage, setLoadingCategoryUsage] = useState(false)
+  const [categoryRemapTargetId, setCategoryRemapTargetId] = useState<string>('')
+  const [reassignAction, setReassignAction] = useState<'remap' | 'uncategorize'>('remap')
+  const [deletingCategory, setDeletingCategory] = useState(false)
 
   const PRESET_COLORS = [
     '#6366f1', // Indigo
@@ -376,17 +405,65 @@ export default function RulesPage() {
     }
   }
 
-  const handleDeleteCategory = async (cat: Category) => {
-    if (cat.isSystem) return
+  const handleInitiateDeleteCategory = async (cat: Category) => {
+    if (isProtectedCategory(cat)) return
+    setDeleteCategoryTarget(cat)
+    setCategoryUsage(null)
+    setCategoryRemapTargetId('')
+    setReassignAction('remap')
+    setLoadingCategoryUsage(true)
     try {
-      await apiClient.fetch(`/v1/categories/${cat.id}`, {
-        method: 'DELETE',
-      })
-      toast.success('Category deleted')
-      fetchData()
+      const res = await apiClient.fetch<{
+        transactionCount: number
+        ruleCount: number
+        isProtected: boolean
+      }>(`/v1/categories/${cat.id}/usage`)
+      setCategoryUsage(res)
+      const otherCats = categories.filter(c => c.id !== cat.id)
+      if (otherCats.length > 0) {
+        setCategoryRemapTargetId(otherCats[0].id)
+      }
     } catch (err) {
+      console.error('Failed to fetch category usage:', err)
+      toast.error('Failed to check category usage')
+    } finally {
+      setLoadingCategoryUsage(false)
+    }
+  }
+
+  const handleConfirmDeleteCategory = async () => {
+    if (!deleteCategoryTarget) return
+    setDeletingCategory(true)
+    try {
+      let moveToCategoryId: string | null | undefined = undefined
+      if (categoryUsage && categoryUsage.transactionCount > 0) {
+        moveToCategoryId = reassignAction === 'remap' ? categoryRemapTargetId : null
+      }
+
+      const res = await apiClient.fetch<{
+        deletedCategoryId: string
+        remappedToCategoryId: string | null
+        remappedTransactionsCount: number
+      }>(`/v1/categories/${deleteCategoryTarget.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ moveToCategoryId }),
+      })
+
+      if (res.remappedTransactionsCount > 0) {
+        toast.success(
+          `Category deleted and ${res.remappedTransactionsCount} transaction${res.remappedTransactionsCount > 1 ? 's' : ''} remapped`
+        )
+      } else {
+        toast.success('Category deleted')
+      }
+
+      setDeleteCategoryTarget(null)
+      fetchData()
+    } catch (err: any) {
       console.error('Failed to delete category:', err)
-      toast.error('Failed to delete category')
+      toast.error(err?.message || 'Failed to delete category')
+    } finally {
+      setDeletingCategory(false)
     }
   }
 
@@ -563,42 +640,48 @@ export default function RulesPage() {
         </div>
         <div className="flex flex-wrap gap-2">
 
-          {categories.map(cat => (
-            <div
-              key={cat.id}
-              className={cn(
-                'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm',
-                cat.isSystem
-                  ? 'bg-muted text-foreground/80'
-                  : 'bg-muted/60 text-foreground/80 border border-border'
-              )}
-            >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: cat.color }}
-              />
-              {cat.name}
-              {cat.type && cat.type !== 'expense' && (
-                <span className={cn(
-                  "text-[10px] px-1.5 py-0.2 rounded font-medium uppercase tracking-wider",
-                  cat.type === 'investment' ? "bg-emerald-500/15 text-emerald-300" :
-                  cat.type === 'income' ? "bg-sky-500/15 text-sky-300" : "bg-purple-500/15 text-purple-300"
-                )}>
-                  {cat.type}
-                </span>
-              )}
-              {cat.isSystem ? (
-                <Lock className="w-3 h-3 text-muted-foreground/70" />
-              ) : (
-                <button
-                  onClick={() => handleDeleteCategory(cat)}
-                  className="hover:text-rose-400 transition-colors ml-1"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          ))}
+          {categories.map(cat => {
+            const isProtected = isProtectedCategory(cat)
+            return (
+              <div
+                key={cat.id}
+                className={cn(
+                  'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm',
+                  cat.isSystem
+                    ? 'bg-muted text-foreground/80'
+                    : 'bg-muted/60 text-foreground/80 border border-border'
+                )}
+              >
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: cat.color }}
+                />
+                {cat.name}
+                {cat.type && cat.type !== 'expense' && (
+                  <span className={cn(
+                    "text-[10px] px-1.5 py-0.2 rounded font-medium uppercase tracking-wider",
+                    cat.type === 'investment' ? "bg-emerald-500/15 text-emerald-300" :
+                    cat.type === 'income' ? "bg-sky-500/15 text-sky-300" : "bg-purple-500/15 text-purple-300"
+                  )}>
+                    {cat.type}
+                  </span>
+                )}
+                {isProtected ? (
+                  <span title="Core system category (required for accounting & reports)">
+                    <Lock className="w-3 h-3 text-muted-foreground/70" />
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleInitiateDeleteCategory(cat)}
+                    className="hover:text-rose-400 transition-colors ml-1"
+                    title={cat.isSystem ? 'Delete system category' : 'Delete category'}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -877,6 +960,167 @@ export default function RulesPage() {
             >
               {categoryLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Create Category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Deletion / Remapping Dialog */}
+      <Dialog
+        open={!!deleteCategoryTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteCategoryTarget(null)
+            setCategoryUsage(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-md bg-card border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-rose-400" />
+              Delete Category
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {deleteCategoryTarget && (
+                <span>
+                  Deleting <strong className="text-foreground">{deleteCategoryTarget.name}</strong>
+                  {deleteCategoryTarget.isSystem && (
+                    <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
+                      system
+                    </span>
+                  )}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingCategoryUsage ? (
+            <div className="py-8 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              <span>Checking assigned transactions and rules...</span>
+            </div>
+          ) : categoryUsage && categoryUsage.transactionCount > 0 ? (
+            <div className="space-y-4 py-2">
+              <div className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm space-y-1">
+                <p className="font-semibold text-amber-300 flex items-center gap-1.5">
+                  <span>⚠️</span> {categoryUsage.transactionCount} Transaction{categoryUsage.transactionCount > 1 ? 's' : ''} Affected
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  There are currently {categoryUsage.transactionCount} transaction{categoryUsage.transactionCount > 1 ? 's' : ''} categorized under &quot;{deleteCategoryTarget?.name}&quot;. Choose how you would like to handle them:
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-1">
+                {/* Option 1: Remap */}
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/40 cursor-pointer hover:bg-muted/70 transition-colors">
+                  <input
+                    type="radio"
+                    name="categoryAction"
+                    checked={reassignAction === 'remap'}
+                    onChange={() => setReassignAction('remap')}
+                    className="mt-1"
+                  />
+                  <div className="flex-1 space-y-2">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">Reassign to another category</div>
+                      <div className="text-xs text-muted-foreground">Map all existing transactions to a different category</div>
+                    </div>
+                    {reassignAction === 'remap' && (
+                      <Select
+                        value={categoryRemapTargetId}
+                        onValueChange={(val) => setCategoryRemapTargetId(val || '')}
+                      >
+                        <SelectTrigger className="w-full bg-background border-border">
+                          <SelectValue placeholder="Select target category" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {categories
+                            .filter(c => c.id !== deleteCategoryTarget?.id)
+                            .map(cat => (
+                              <SelectItem key={cat.id} value={cat.id}>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: cat.color }}
+                                  />
+                                  <span>{cat.name}</span>
+                                  {cat.type && cat.type !== 'expense' && (
+                                    <span className="text-[10px] px-1 py-0.2 rounded font-mono text-muted-foreground uppercase">
+                                      {cat.type}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </label>
+
+                {/* Option 2: Uncategorized */}
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/40 cursor-pointer hover:bg-muted/70 transition-colors">
+                  <input
+                    type="radio"
+                    name="categoryAction"
+                    checked={reassignAction === 'uncategorize'}
+                    onChange={() => setReassignAction('uncategorize')}
+                    className="mt-1"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Move to Uncategorized</div>
+                    <div className="text-xs text-muted-foreground">Reset these transactions to Uncategorized status</div>
+                  </div>
+                </label>
+              </div>
+
+              {categoryUsage.ruleCount > 0 && (
+                <p className="text-xs text-muted-foreground italic">
+                  Note: {categoryUsage.ruleCount} categorization rule{categoryUsage.ruleCount > 1 ? 's' : ''} pointing to this category will also be updated.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="py-4 text-sm text-muted-foreground">
+              Are you sure you want to delete <strong className="text-foreground">{deleteCategoryTarget?.name}</strong>?
+              {categoryUsage && categoryUsage.transactionCount === 0 && (
+                <span className="block mt-1 text-xs text-muted-foreground">
+                  This category has no assigned transactions.
+                </span>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteCategoryTarget(null)}
+              disabled={deletingCategory}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteCategory}
+              disabled={
+                Boolean(
+                  deletingCategory ||
+                  loadingCategoryUsage ||
+                  (categoryUsage && categoryUsage.transactionCount > 0 && reassignAction === 'remap' && !categoryRemapTargetId)
+                )
+              }
+            >
+              {deletingCategory ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : categoryUsage && categoryUsage.transactionCount > 0 ? (
+                'Reassign & Delete'
+              ) : (
+                'Delete Category'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
