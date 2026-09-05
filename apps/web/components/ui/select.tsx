@@ -6,7 +6,71 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+function extractTextFromNode(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node)
+  }
+  if (!node || typeof node === "boolean") {
+    return ""
+  }
+  if (Array.isArray(node)) {
+    return node.map(extractTextFromNode).join("")
+  }
+  if (React.isValidElement(node)) {
+    const props = node.props as { children?: React.ReactNode }
+    if (props && props.children) {
+      return extractTextFromNode(props.children)
+    }
+  }
+  return ""
+}
+
+function extractItemsFromChildren(
+  children: React.ReactNode,
+  map: Record<string, React.ReactNode> = {}
+): Record<string, React.ReactNode> {
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return
+
+    const props = child.props as Record<string, any>
+
+    if (props && "value" in props && props.value !== undefined) {
+      const val = String(props.value)
+      const label =
+        props.label ??
+        (typeof props.children === "string"
+          ? props.children
+          : extractTextFromNode(props.children) || undefined)
+
+      if (label !== undefined) {
+        map[val] = label
+      }
+    }
+
+    if (props && props.children) {
+      extractItemsFromChildren(props.children, map)
+    }
+  })
+  return map
+}
+
+function Select<Value = any, Multiple extends boolean | undefined = false>({
+  items: itemsProp,
+  children,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const items = React.useMemo(() => {
+    if (itemsProp) return itemsProp
+    const extracted = extractItemsFromChildren(children)
+    return Object.keys(extracted).length > 0 ? extracted : undefined
+  }, [itemsProp, children])
+
+  return (
+    <SelectPrimitive.Root items={items} {...(props as any)}>
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -113,7 +177,9 @@ function SelectItem({
   children,
   ...props
 }: SelectPrimitive.Item.Props & { label?: string }) {
-  const labelText = props.label || (typeof children === "string" ? children : undefined)
+  const labelText =
+    props.label ||
+    (typeof children === "string" ? children : extractTextFromNode(children) || undefined)
   
   return (
     <SelectPrimitive.Item

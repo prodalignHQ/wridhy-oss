@@ -1480,11 +1480,7 @@ export default function InvoicesPage() {
                           <SelectTrigger className="w-[160px] border-border bg-background text-foreground/90 text-xs">
                             <div className="flex items-center gap-2 truncate">
                               <Filter size={13} className="text-muted-foreground shrink-0" />
-                              <SelectValue placeholder="Category">
-                                {categoryFilter === 'all'
-                                  ? 'All categories'
-                                  : categoryOptions.find((o) => o.value === categoryFilter)?.label ?? 'Category'}
-                              </SelectValue>
+                              <SelectValue placeholder="Category" />
                             </div>
                           </SelectTrigger>
                           <SelectContent className="border-border bg-card">

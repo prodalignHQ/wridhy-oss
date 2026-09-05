@@ -412,9 +412,7 @@ export default function StatementsPage() {
         {/* Account selector */}
         <Select value={selectedAccountId} onValueChange={(v) => setSelectedAccountId(v || '')}>
           <SelectTrigger className="bg-muted border-border text-foreground/90 w-full sm:w-[300px]" disabled={accounts.length === 0}>
-            <SelectValue>
-              {selectedAccountId ? accounts.find(a => a.id === selectedAccountId)?.accountName + ' — ' + accounts.find(a => a.id === selectedAccountId)?.bankName : (accounts.length === 0 ? 'No accounts yet' : 'Select account')}
-            </SelectValue>
+            <SelectValue placeholder={accounts.length === 0 ? 'No accounts yet' : 'Select account'} />
           </SelectTrigger>
           <SelectContent className="bg-card border-border">
             {accounts.map((a) => (

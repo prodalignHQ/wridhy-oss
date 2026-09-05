@@ -108,9 +108,7 @@ export function AddAccountDialog({ open, onOpenChange, onSuccess }: AddAccountDi
               }}
             >
               <SelectTrigger className="bg-background border-border focus:ring-primary">
-                <SelectValue>
-                  {BANKS.find(b => b.id === watchedBankId)?.label || 'Select bank and statement type'}
-                </SelectValue>
+                <SelectValue placeholder="Select bank and statement type" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border text-foreground">
                 {BANKS.map((b) => (
@@ -139,12 +137,7 @@ export function AddAccountDialog({ open, onOpenChange, onSuccess }: AddAccountDi
               onValueChange={(val) => setValue('accountType', val as any)}
             >
               <SelectTrigger className="bg-background border-border focus:ring-primary">
-                <SelectValue>
-                  {watchedAccountType === 'bank' && 'Bank Account (Savings / Checking)'}
-                  {watchedAccountType === 'credit_card' && 'Credit Card'}
-                  {watchedAccountType === 'wallet' && 'Digital Wallet'}
-                  {watchedAccountType === 'investment' && 'Investment Account'}
-                </SelectValue>
+                <SelectValue placeholder="Select classification" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border text-foreground">
                 <SelectItem value="bank">Bank Account (Savings / Checking)</SelectItem>

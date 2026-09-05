@@ -709,11 +709,7 @@ export default function RulesPage() {
                 <label className="text-sm text-muted-foreground">Match Field</label>
                 <Select value={formMatchField} onValueChange={(v) => setFormMatchField(v || 'description')}>
                   <SelectTrigger className="bg-muted border-border">
-                    <SelectValue>
-                      {formMatchField === 'description' && 'Description'}
-                      {formMatchField === 'merchant' && 'Merchant'}
-                      {formMatchField === 'amount' && 'Amount'}
-                    </SelectValue>
+                    <SelectValue placeholder="Select field" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="description" className="text-foreground/90">Description</SelectItem>
@@ -728,11 +724,7 @@ export default function RulesPage() {
                 <label className="text-sm text-muted-foreground">Match Type</label>
                 <Select value={formMatchType} onValueChange={(v) => setFormMatchType(v || 'contains')}>
                   <SelectTrigger className="bg-muted border-border">
-                    <SelectValue>
-                      {formMatchType === 'contains' && 'Contains'}
-                      {formMatchType === 'equals' && 'Equals'}
-                      {formMatchType === 'regex' && 'Regex'}
-                    </SelectValue>
+                    <SelectValue placeholder="Select match type" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="contains" className="text-foreground/90">Contains</SelectItem>
@@ -758,13 +750,11 @@ export default function RulesPage() {
                 <label className="text-sm text-muted-foreground">Assign Category</label>
                 <Select value={formCategoryId} onValueChange={(v) => v && setFormCategoryId(v)}>
                   <SelectTrigger className="bg-muted border-border">
-                    <SelectValue>
-                      {categories.find(c => c.id === formCategoryId)?.name || 'Select Category'}
-                    </SelectValue>
+                    <SelectValue placeholder="Select Category" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     {categories.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id} className="flex items-center gap-2">
+                      <SelectItem key={cat.id} value={cat.id} label={cat.name} className="flex items-center gap-2">
                         <span className="flex items-center gap-2">
                           <span
                             className="w-2 h-2 rounded-full"
@@ -1038,7 +1028,7 @@ export default function RulesPage() {
                           {categories
                             .filter(c => c.id !== deleteCategoryTarget?.id)
                             .map(cat => (
-                              <SelectItem key={cat.id} value={cat.id}>
+                              <SelectItem key={cat.id} value={cat.id} label={cat.name}>
                                 <div className="flex items-center gap-2">
                                   <span
                                     className="w-2.5 h-2.5 rounded-full flex-shrink-0"

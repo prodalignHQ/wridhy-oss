@@ -196,11 +196,7 @@ export default function TransactionsPage() {
             onValueChange={(v) => setFilters({ accountId: v === 'all' || v === null ? undefined : v, page: 1 })}
           >
             <SelectTrigger className="w-40 bg-muted border-border text-foreground/90 text-sm">
-              <SelectValue>
-                {filters.accountId && filters.accountId !== 'all' 
-                  ? accounts.find(a => a.id === filters.accountId)?.accountName 
-                  : 'All Accounts'}
-              </SelectValue>
+              <SelectValue placeholder="All Accounts" />
             </SelectTrigger>
             <SelectContent className="bg-card border-border">
               <SelectItem value="all" className="text-foreground/80 focus:bg-muted">All Accounts</SelectItem>
