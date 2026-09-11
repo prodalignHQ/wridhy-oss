@@ -7,9 +7,12 @@ import {
   ArrowUp,
   ArrowUpDown,
   ChevronDown,
+  ChevronUp,
   FileText,
   Filter,
   Layers,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Receipt,
   Save,
@@ -202,69 +205,122 @@ function InvoiceListSection({
   invoices,
   activeInvoiceId,
   onSelect,
+  isCollapsed = false,
+  onToggleCollapse,
 }: {
   title: string
   invoices: InvoiceSummary[]
   activeInvoiceId: string | null
   onSelect: (invoiceId: string) => void
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }) {
+  const activeInvoice = activeInvoiceId
+    ? invoices.find((inv) => inv.id === activeInvoiceId)
+    : null
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{title}</h2>
-        <span className="text-xs text-muted-foreground/70">{invoices.length}</span>
-      </div>
-
-      {invoices.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground/70">
-          Nothing here yet.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {invoices.map((invoice) => {
-            const active = invoice.id === activeInvoiceId
-
-            return (
-              <button
-                key={invoice.id}
-                onClick={() => onSelect(invoice.id)}
+      <button
+        type="button"
+        onClick={onToggleCollapse}
+        className={cn(
+          'group flex w-full items-center justify-between rounded-lg py-1 text-left transition-colors',
+          onToggleCollapse ? 'cursor-pointer hover:bg-muted/40 px-1.5 -mx-1.5' : 'cursor-default'
+        )}
+        aria-expanded={!isCollapsed}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {onToggleCollapse && (
+            <ChevronDown
+              size={14}
+              className={cn(
+                'text-muted-foreground transition-transform duration-200 group-hover:text-foreground shrink-0',
+                isCollapsed && '-rotate-90'
+              )}
+            />
+          )}
+          <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground group-hover:text-foreground truncate">
+            {title}
+          </h2>
+          {isCollapsed && activeInvoice && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0',
+                activeInvoice.status === 'draft'
+                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+              )}
+            >
+              <span
                 className={cn(
-                  'w-full rounded-xl border px-4 py-3 text-left transition-colors',
-                  active
-                    ? 'border-primary/60 bg-primary/10'
-                    : 'border-border bg-card/50 hover:bg-card'
+                  'h-1.5 w-1.5 rounded-full animate-pulse',
+                  activeInvoice.status === 'draft' ? 'bg-amber-400' : 'bg-emerald-400'
                 )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{invoice.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{formatMonth(invoice.invoiceMonth)}</p>
-                  </div>
-                  <span
+              />
+              Active
+            </span>
+          )}
+        </div>
+        <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground/80 shrink-0">
+          {invoices.length}
+        </span>
+      </button>
+
+      {!isCollapsed && (
+        <>
+          {invoices.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground/70">
+              Nothing here yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {invoices.map((invoice) => {
+                const active = invoice.id === activeInvoiceId
+
+                return (
+                  <button
+                    key={invoice.id}
+                    onClick={() => onSelect(invoice.id)}
                     className={cn(
-                      'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                      invoice.status === 'draft'
-                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                        : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                      'w-full rounded-xl border px-4 py-3 text-left transition-colors',
+                      active
+                        ? 'border-primary/60 bg-primary/10'
+                        : 'border-border bg-card/50 hover:bg-card'
                     )}
                   >
-                    {invoice.status}
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {invoice.statements.map((statement) => (
-                    <span
-                      key={statement.id}
-                      className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[11px] text-muted-foreground"
-                    >
-                      {statement.accountName}
-                    </span>
-                  ))}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{invoice.name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{formatMonth(invoice.invoiceMonth)}</p>
+                      </div>
+                      <span
+                        className={cn(
+                          'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                          invoice.status === 'draft'
+                            ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                        )}
+                      >
+                        {invoice.status}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {invoice.statements.map((statement) => (
+                        <span
+                          key={statement.id}
+                          className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[11px] text-muted-foreground"
+                        >
+                          {statement.accountName}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -290,6 +346,64 @@ export default function InvoicesPage() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [collapsedOwners, setCollapsedOwners] = useState<Set<string>>(new Set())
   const [applyingCategoryChange, setApplyingCategoryChange] = useState(false)
+
+  const [isDraftsCollapsed, setIsDraftsCollapsed] = useState(false)
+  const [isGeneratedCollapsed, setIsGeneratedCollapsed] = useState(false)
+  const [isInvoicesSidebarCollapsed, setIsInvoicesSidebarCollapsed] = useState(false)
+  const [isStatementsSelectorCollapsed, setIsStatementsSelectorCollapsed] = useState(false)
+
+  useEffect(() => {
+    try {
+      const draftsStored = localStorage.getItem('momoney:invoices:drafts-collapsed')
+      if (draftsStored !== null) setIsDraftsCollapsed(draftsStored === 'true')
+      const genStored = localStorage.getItem('momoney:invoices:generated-collapsed')
+      if (genStored !== null) setIsGeneratedCollapsed(genStored === 'true')
+      const sidebarStored = localStorage.getItem('momoney:invoices:sidebar-collapsed')
+      if (sidebarStored !== null) setIsInvoicesSidebarCollapsed(sidebarStored === 'true')
+      const statementsStored = localStorage.getItem('momoney:invoices:statements-collapsed')
+      if (statementsStored !== null) setIsStatementsSelectorCollapsed(statementsStored === 'true')
+    } catch {}
+  }, [])
+
+  const toggleDraftsCollapse = () => {
+    setIsDraftsCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('momoney:invoices:drafts-collapsed', String(next))
+      } catch {}
+      return next
+    })
+  }
+
+  const toggleGeneratedCollapse = () => {
+    setIsGeneratedCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('momoney:invoices:generated-collapsed', String(next))
+      } catch {}
+      return next
+    })
+  }
+
+  const toggleInvoicesSidebarCollapse = () => {
+    setIsInvoicesSidebarCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('momoney:invoices:sidebar-collapsed', String(next))
+      } catch {}
+      return next
+    })
+  }
+
+  const toggleStatementsSelectorCollapse = () => {
+    setIsStatementsSelectorCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('momoney:invoices:statements-collapsed', String(next))
+      } catch {}
+      return next
+    })
+  }
 
   const toggleCategoryExpand = (ownerKey: string, categoryId: string | null, categoryName: string) => {
     const key = `${ownerKey}:${categoryId ?? 'uncategorized'}:${categoryName}`
@@ -1002,40 +1116,77 @@ export default function InvoicesPage() {
             Build invoice drafts from monthly statements, then generate a stored snapshot.
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setComposerOpen(true)
-            setActiveInvoiceId(null)
-            setActiveInvoice(null)
-          }}
-          className="gap-2 bg-primary text-white hover:bg-primary"
-        >
-          <Plus size={16} />
-          Create Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          {isInvoicesSidebarCollapsed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleInvoicesSidebarCollapse}
+              className="gap-2 border-border text-foreground/90 hover:bg-muted"
+            >
+              <PanelLeftOpen size={15} />
+              Show Invoices ({invoices.length})
+            </Button>
+          )}
+          <Button
+            onClick={() => {
+              setComposerOpen(true)
+              setActiveInvoiceId(null)
+              setActiveInvoice(null)
+            }}
+            className="gap-2 bg-primary text-white hover:bg-primary"
+          >
+            <Plus size={16} />
+            Create Invoice
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-5 rounded-2xl border border-border bg-card/40 p-4">
-          <InvoiceListSection
-            title="Drafts"
-            invoices={drafts}
-            activeInvoiceId={composerOpen ? null : activeInvoiceId}
-            onSelect={(invoiceId) => {
-              setComposerOpen(false)
-              setActiveInvoiceId(invoiceId)
-            }}
-          />
-          <InvoiceListSection
-            title="Generated"
-            invoices={generatedInvoices}
-            activeInvoiceId={composerOpen ? null : activeInvoiceId}
-            onSelect={(invoiceId) => {
-              setComposerOpen(false)
-              setActiveInvoiceId(invoiceId)
-            }}
-          />
-        </aside>
+      <div
+        className={cn(
+          'grid gap-6 transition-all duration-200',
+          isInvoicesSidebarCollapsed ? 'grid-cols-1' : 'lg:grid-cols-[320px_minmax(0,1fr)]'
+        )}
+      >
+        {!isInvoicesSidebarCollapsed && (
+          <aside className="space-y-5 rounded-2xl border border-border bg-card/40 p-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Invoices
+              </span>
+              <button
+                type="button"
+                onClick={toggleInvoicesSidebarCollapse}
+                title="Collapse invoice list"
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <PanelLeftClose size={15} />
+              </button>
+            </div>
+            <InvoiceListSection
+              title="Drafts"
+              invoices={drafts}
+              activeInvoiceId={composerOpen ? null : activeInvoiceId}
+              isCollapsed={isDraftsCollapsed}
+              onToggleCollapse={toggleDraftsCollapse}
+              onSelect={(invoiceId) => {
+                setComposerOpen(false)
+                setActiveInvoiceId(invoiceId)
+              }}
+            />
+            <InvoiceListSection
+              title="Generated"
+              invoices={generatedInvoices}
+              activeInvoiceId={composerOpen ? null : activeInvoiceId}
+              isCollapsed={isGeneratedCollapsed}
+              onToggleCollapse={toggleGeneratedCollapse}
+              onSelect={(invoiceId) => {
+                setComposerOpen(false)
+                setActiveInvoiceId(invoiceId)
+              }}
+            />
+          </aside>
+        )}
 
         <section className="space-y-6">
           {composerOpen ? (
@@ -1279,9 +1430,21 @@ export default function InvoicesPage() {
                 </div>
 
                 <div className="mt-5 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    <FileText size={14} />
-                    Statements
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                      <FileText size={14} />
+                      Statements
+                    </div>
+                    {activeInvoice.status === 'draft' && activeInvoiceAvailableStatements.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={toggleStatementsSelectorCollapse}
+                        className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                      >
+                        <span>{isStatementsSelectorCollapsed ? 'Edit statements' : 'Collapse statement selection'}</span>
+                        {isStatementsSelectorCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                      </button>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {activeInvoice.statements.map((statement) => (
@@ -1294,7 +1457,7 @@ export default function InvoicesPage() {
                     ))}
                   </div>
 
-                  {activeInvoice.status === 'draft' ? (
+                  {activeInvoice.status === 'draft' && !isStatementsSelectorCollapsed ? (
                     <div className="grid gap-2 pt-2 md:grid-cols-2">
                       {activeInvoiceAvailableStatements.map((statement) => {
                         const checked = draftStatementIds.includes(statement.id)
