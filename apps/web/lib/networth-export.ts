@@ -65,10 +65,27 @@ export function formatPdfGain(gain: number, inv: number): string {
   return `${sign}Rs. ${formatted} (${sign}${Math.abs(gainPct).toFixed(1)}%)`
 }
 
+const OWNER_PDF_COLORS: Record<string, [number, number, number]> = {
+  indigo: [99, 102, 241],
+  emerald: [16, 185, 129],
+  rose: [244, 63, 94],
+  amber: [245, 158, 11],
+  sky: [14, 165, 233],
+  violet: [139, 92, 246],
+}
+
 function getOwnerName(ownerId: string | null | undefined, owners: NetWorthExportOptions['owners']): string {
-  if (!ownerId) return 'Self'
+  if (!ownerId) {
+    const def = owners.find(o => o.isDefault)
+    return def ? `${def.name}${def.isDefault ? ' (Self)' : ''}` : 'Self'
+  }
   const owner = owners.find(o => o.id === ownerId)
   return owner ? `${owner.name}${owner.isDefault ? ' (Self)' : ''}` : 'Self'
+}
+
+function getAssetOwnerId(assetOwnerId: string | null | undefined, defaultOwnerId?: string): string {
+  if (assetOwnerId) return assetOwnerId
+  return defaultOwnerId || ''
 }
 
 function getScopeLabel(options: NetWorthExportOptions): string {
@@ -87,12 +104,499 @@ function getScopeLabel(options: NetWorthExportOptions): string {
   return `Selected Members (${names})`
 }
 
+interface MemberMetrics {
+  member: NetWorthExportOptions['owners'][0]
+  assets: any[]
+  liabilities: any[]
+  totalAssets: number
+  totalLiabilities: number
+  netWorth: number
+  shareOfNetWorth: number
+  shareOfAssets: number
+  allocation: {
+    equity: number
+    debt: number
+    cash: number
+    mixed: number
+    eqPct: number
+    debtPct: number
+    cashPct: number
+    mixedPct: number
+  }
+}
+
+function computeMemberMetrics(options: NetWorthExportOptions): {
+  selectedMembers: NetWorthExportOptions['owners']
+  isMultiMember: boolean
+  memberMetrics: MemberMetrics[]
+} {
+  const { data, owners, selectedOwnerIds, isAllSelected } = options
+  const defaultOwner = owners.find(o => o.isDefault) || owners[0]
+  const defaultOwnerId = defaultOwner?.id
+
+  let selectedMembers = owners
+  if (!isAllSelected && selectedOwnerIds.length > 0) {
+    selectedMembers = owners.filter(o => selectedOwnerIds.includes(o.id))
+  }
+  if (selectedMembers.length === 0) {
+    selectedMembers = owners.length > 0 ? owners : [{ id: 'default', name: 'Self', color: 'indigo', isDefault: true }]
+  }
+
+  const isMultiMember = selectedMembers.length > 1
+
+  const memberMetrics: MemberMetrics[] = selectedMembers.map(m => {
+    const mAssets = data.assets.filter(a => getAssetOwnerId(a.ownerId, defaultOwnerId) === m.id)
+    const mLiabilities = data.liabilities.filter(l => getAssetOwnerId(l.ownerId, defaultOwnerId) === m.id)
+
+    const mTotalAssets = mAssets.reduce((s, a) => s + parseFloat(a.value || '0'), 0)
+    const mTotalLiabilities = mLiabilities.reduce((s, l) => s + parseFloat(l.outstandingAmount || '0'), 0)
+    const mNetWorth = mTotalAssets - mTotalLiabilities
+
+    let mEquity = 0
+    let mDebt = 0
+    let mCash = 0
+    let mMixed = 0
+    for (const a of mAssets) {
+      const val = parseFloat(a.value || '0')
+      const tag = resolveAssetTag(a.type, a.metadata, a.equityDebtTag)
+      if (tag === 'equity') mEquity += val
+      else if (tag === 'debt') mDebt += val
+      else if (tag === 'cash') mCash += val
+      else if (tag === 'mixed') mMixed += val
+    }
+    const safeAssetTotal = mTotalAssets > 0 ? mTotalAssets : 1
+    const eqPct = (mEquity / safeAssetTotal) * 100
+    const debtPct = (mDebt / safeAssetTotal) * 100
+    const cashPct = (mCash / safeAssetTotal) * 100
+    const mixedPct = (mMixed / safeAssetTotal) * 100
+
+    return {
+      member: m,
+      assets: mAssets,
+      liabilities: mLiabilities,
+      totalAssets: mTotalAssets,
+      totalLiabilities: mTotalLiabilities,
+      netWorth: mNetWorth,
+      shareOfNetWorth: data.netWorth !== 0 ? (mNetWorth / data.netWorth) * 100 : 0,
+      shareOfAssets: data.totalAssets !== 0 ? (mTotalAssets / data.totalAssets) * 100 : 0,
+      allocation: {
+        equity: mEquity,
+        debt: mDebt,
+        cash: mCash,
+        mixed: mMixed,
+        eqPct,
+        debtPct,
+        cashPct,
+        mixedPct,
+      },
+    }
+  })
+
+  return {
+    selectedMembers,
+    isMultiMember,
+    memberMetrics,
+  }
+}
+
+interface DetailedHoldingsParams {
+  doc: jsPDF
+  startY: number
+  assets: any[]
+  liabilities: any[]
+  pageWidth: number
+  pageHeight: number
+  margin: number
+  emptyMessage: string
+  drawPageHeader: () => void
+}
+
+function renderDetailedHoldings(params: DetailedHoldingsParams) {
+  const { doc, assets, liabilities, pageWidth, pageHeight, margin, emptyMessage, drawPageHeader } = params
+  let currentY = params.startY
+
+  const mfAssets = assets.filter(a => a.type === 'mutual_fund')
+  const stockAssets = assets.filter(a => a.type === 'stock')
+  const depositAssets = assets.filter(a => ['fixed_deposit', 'recurring_deposit', 'ppf'].includes(a.type))
+  const savingsAssets = assets.filter(a => a.type === 'savings_account')
+  const genericAssets = assets.filter(a => ['real_estate', 'crypto', 'cash', 'other'].includes(a.type))
+
+  const mfTotal = mfAssets.reduce((s, a) => s + parseFloat(a.value || '0'), 0)
+  const stockTotal = stockAssets.reduce((s, a) => s + parseFloat(a.value || '0'), 0)
+  const depositTotal = depositAssets.reduce((s, a) => s + parseFloat(a.value || '0'), 0)
+  const savingsTotal = savingsAssets.reduce((s, a) => s + parseFloat(a.value || '0'), 0)
+  const genericTotal = genericAssets.reduce((s, a) => s + parseFloat(a.value || '0'), 0)
+  const liabTotal = liabilities.reduce((s, l) => s + parseFloat(l.outstandingAmount || '0'), 0)
+
+  const hasAnyItems = assets.length > 0 || liabilities.length > 0
+
+  if (!hasAnyItems) {
+    doc.setFillColor(248, 250, 252)
+    doc.setDrawColor(226, 232, 240)
+    doc.roundedRect(margin, currentY, pageWidth - margin * 2, 40, 4, 4, 'FD')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(100, 116, 139)
+    doc.text(emptyMessage, margin + 16, currentY + 24)
+    return
+  }
+
+  // 1. Mutual Funds Details
+  if (mfAssets.length > 0) {
+    if (currentY > pageHeight - 120) {
+      doc.addPage()
+      drawPageHeader()
+      currentY = 40
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(15, 23, 42)
+    doc.text(`1. Mutual Funds (${mfAssets.length})`, margin, currentY)
+    doc.setFontSize(8.5)
+    doc.setTextColor(5, 150, 105)
+    doc.text(`Subtotal: ${formatPdfCurrency(mfTotal)}`, pageWidth - margin, currentY, { align: 'right' })
+
+    const mfHead = ['Fund Name', 'Category / Folio', 'Tag', 'Invested', 'Present Value', 'Gain / Loss']
+    const mfRows = mfAssets.map((asset) => {
+      const inv = asset.metadata?.investedAmount || 0
+      const pres = parseFloat(asset.value || '0')
+      const gain = pres - inv
+      const gainStr = formatPdfGain(gain, inv)
+      const tag = resolveAssetTag(asset.type, asset.metadata, asset.equityDebtTag)
+      const tagLabel = ASSET_TAG_LABELS[tag] || 'Equity'
+      const catFolio = [asset.metadata?.category, asset.metadata?.folioNumber ? `Folio: ${asset.metadata.folioNumber}` : null]
+        .filter(Boolean)
+        .join(' | ') || '-'
+
+      return [asset.name, catFolio, tagLabel, inv > 0 ? formatPdfCurrency(inv) : '-', formatPdfCurrency(pres), gainStr]
+    })
+
+    autoTable(doc, {
+      startY: currentY + 6,
+      margin: { left: margin, right: margin },
+      head: [mfHead],
+      body: mfRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+        cellPadding: 4,
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        cellPadding: 3.5,
+      },
+      columnStyles: {
+        0: { cellWidth: 160 },
+        1: { cellWidth: 95 },
+        2: { halign: 'center', cellWidth: 45 },
+        3: { halign: 'right', cellWidth: 70 },
+        4: { halign: 'right', fontStyle: 'bold', cellWidth: 75 },
+        5: { halign: 'right', cellWidth: 78 },
+      },
+      didDrawPage: () => drawPageHeader(),
+    })
+
+    currentY = (doc as any).lastAutoTable.finalY + 18
+  }
+
+  // 2. Direct Stocks & Equities
+  if (stockAssets.length > 0) {
+    if (currentY > pageHeight - 120) {
+      doc.addPage()
+      drawPageHeader()
+      currentY = 40
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(15, 23, 42)
+    doc.text(`2. Stocks & Direct Equities (${stockAssets.length})`, margin, currentY)
+    doc.setFontSize(8.5)
+    doc.setTextColor(5, 150, 105)
+    doc.text(`Subtotal: ${formatPdfCurrency(stockTotal)}`, pageWidth - margin, currentY, { align: 'right' })
+
+    const stockHead = ['Stock Name', 'Qty', 'Avg Price', 'LTP', 'Invested', 'Present Value', 'Gain / Loss']
+    const stockRows = stockAssets.map((asset) => {
+      const qty = asset.metadata?.quantity || 0
+      const avgPrice = asset.metadata?.averageBuyPrice || 0
+      const ltp = asset.metadata?.ltp || 0
+      const inv = asset.metadata?.investedAmount || (qty && avgPrice ? qty * avgPrice : 0)
+      const pres = parseFloat(asset.value || '0')
+      const gain = pres - inv
+      const gainStr = formatPdfGain(gain, inv)
+
+      return [
+        asset.name,
+        qty ? formatIndianNumber(qty) : '-',
+        avgPrice ? formatPdfCurrency(avgPrice) : '-',
+        ltp ? formatPdfCurrency(ltp) : '-',
+        inv > 0 ? formatPdfCurrency(inv) : '-',
+        formatPdfCurrency(pres),
+        gainStr,
+      ]
+    })
+
+    autoTable(doc, {
+      startY: currentY + 6,
+      margin: { left: margin, right: margin },
+      head: [stockHead],
+      body: stockRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+        cellPadding: 4,
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        cellPadding: 3.5,
+      },
+      columnStyles: {
+        0: { cellWidth: 153 },
+        1: { halign: 'right', cellWidth: 40 },
+        2: { halign: 'right', cellWidth: 60 },
+        3: { halign: 'right', cellWidth: 60 },
+        4: { halign: 'right', cellWidth: 65 },
+        5: { halign: 'right', fontStyle: 'bold', cellWidth: 70 },
+        6: { halign: 'right', cellWidth: 75 },
+      },
+      didDrawPage: () => drawPageHeader(),
+    })
+
+    currentY = (doc as any).lastAutoTable.finalY + 18
+  }
+
+  // 3. Fixed Deposits, RD & PPF
+  if (depositAssets.length > 0) {
+    if (currentY > pageHeight - 120) {
+      doc.addPage()
+      drawPageHeader()
+      currentY = 40
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(15, 23, 42)
+    doc.text(`3. Fixed Deposits & PPF (${depositAssets.length})`, margin, currentY)
+    doc.setFontSize(8.5)
+    doc.setTextColor(5, 150, 105)
+    doc.text(`Subtotal: ${formatPdfCurrency(depositTotal)}`, pageWidth - margin, currentY, { align: 'right' })
+
+    const depHead = ['Deposit Name / Type', 'Account #', 'Rate', 'Invested', 'Maturity Date', 'Maturity Amt', 'Present Value']
+    const depRows = depositAssets.map((asset) => {
+      const typeLabel = asset.type === 'ppf' ? 'PPF' : asset.type === 'recurring_deposit' ? 'RD' : 'FD'
+      const inv = asset.metadata?.investedAmount || 0
+      const pres = parseFloat(asset.value || '0')
+      const rate = asset.metadata?.interestRate ? `${asset.metadata.interestRate}%` : '-'
+      const matDate = asset.metadata?.maturityDate ? format(new Date(asset.metadata.maturityDate), 'dd MMM yyyy') : '-'
+      const matAmt = asset.metadata?.maturityAmount ? formatPdfCurrency(asset.metadata.maturityAmount) : '-'
+      const acc = asset.metadata?.accountNumber || '-'
+
+      return [`${asset.name} (${typeLabel})`, acc, rate, inv > 0 ? formatPdfCurrency(inv) : '-', matDate, matAmt, formatPdfCurrency(pres)]
+    })
+
+    autoTable(doc, {
+      startY: currentY + 6,
+      margin: { left: margin, right: margin },
+      head: [depHead],
+      body: depRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+        cellPadding: 4,
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        cellPadding: 3.5,
+      },
+      columnStyles: {
+        0: { cellWidth: 143 },
+        1: { cellWidth: 65 },
+        2: { halign: 'center', cellWidth: 45 },
+        3: { halign: 'right', cellWidth: 65 },
+        4: { halign: 'center', cellWidth: 65 },
+        5: { halign: 'right', cellWidth: 65 },
+        6: { halign: 'right', fontStyle: 'bold', cellWidth: 75 },
+      },
+      didDrawPage: () => drawPageHeader(),
+    })
+
+    currentY = (doc as any).lastAutoTable.finalY + 18
+  }
+
+  // 4. Savings Accounts
+  if (savingsAssets.length > 0) {
+    if (currentY > pageHeight - 120) {
+      doc.addPage()
+      drawPageHeader()
+      currentY = 40
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(15, 23, 42)
+    doc.text(`4. Savings Bank Accounts (${savingsAssets.length})`, margin, currentY)
+    doc.setFontSize(8.5)
+    doc.setTextColor(5, 150, 105)
+    doc.text(`Subtotal: ${formatPdfCurrency(savingsTotal)}`, pageWidth - margin, currentY, { align: 'right' })
+
+    const savHead = ['Bank / Account Name', 'Account #', 'Balance (INR)']
+    const savRows = savingsAssets.map((asset) => {
+      const pres = parseFloat(asset.value || '0')
+      const acc = asset.metadata?.accountNumber || '-'
+      return [asset.name, acc, formatPdfCurrency(pres)]
+    })
+
+    autoTable(doc, {
+      startY: currentY + 6,
+      margin: { left: margin, right: margin },
+      head: [savHead],
+      body: savRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+        cellPadding: 4,
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        cellPadding: 3.5,
+      },
+      columnStyles: {
+        0: { cellWidth: 263 },
+        1: { cellWidth: 130 },
+        2: { halign: 'right', fontStyle: 'bold', cellWidth: 130 },
+      },
+      didDrawPage: () => drawPageHeader(),
+    })
+
+    currentY = (doc as any).lastAutoTable.finalY + 18
+  }
+
+  // 5. Real Estate & Other Assets
+  if (genericAssets.length > 0) {
+    if (currentY > pageHeight - 120) {
+      doc.addPage()
+      drawPageHeader()
+      currentY = 40
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(15, 23, 42)
+    doc.text(`5. Real Estate & Other Assets (${genericAssets.length})`, margin, currentY)
+    doc.setFontSize(8.5)
+    doc.setTextColor(5, 150, 105)
+    doc.text(`Subtotal: ${formatPdfCurrency(genericTotal)}`, pageWidth - margin, currentY, { align: 'right' })
+
+    const genHead = ['Asset Name', 'Category', 'Comments', 'Valuation (INR)']
+    const genRows = genericAssets.map((asset) => {
+      const pres = parseFloat(asset.value || '0')
+      const cat = asset.type.replace('_', ' ').toUpperCase()
+      const comm = asset.metadata?.comments || '-'
+      return [asset.name, cat, comm, formatPdfCurrency(pres)]
+    })
+
+    autoTable(doc, {
+      startY: currentY + 6,
+      margin: { left: margin, right: margin },
+      head: [genHead],
+      body: genRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+        cellPadding: 4,
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        cellPadding: 3.5,
+      },
+      columnStyles: {
+        0: { cellWidth: 173 },
+        1: { cellWidth: 90 },
+        2: { cellWidth: 140 },
+        3: { halign: 'right', fontStyle: 'bold', cellWidth: 120 },
+      },
+      didDrawPage: () => drawPageHeader(),
+    })
+
+    currentY = (doc as any).lastAutoTable.finalY + 18
+  }
+
+  // 6. Liabilities & Outstanding Loans
+  if (liabilities.length > 0) {
+    if (currentY > pageHeight - 120) {
+      doc.addPage()
+      drawPageHeader()
+      currentY = 40
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(15, 23, 42)
+    doc.text(`6. Liabilities & Loans (${liabilities.length})`, margin, currentY)
+    doc.setFontSize(8.5)
+    doc.setTextColor(225, 29, 72)
+    doc.text(`Subtotal: ${formatPdfCurrency(liabTotal)}`, pageWidth - margin, currentY, { align: 'right' })
+
+    const liabHead = ['Liability / Loan Name', 'Type', 'Interest Rate', 'Monthly EMI', 'Outstanding Amount']
+    const liabRows = liabilities.map((liab) => {
+      const amt = parseFloat(liab.outstandingAmount || '0')
+      const typeLabel = (liab.type || '').replace('_', ' ').toUpperCase()
+      const rate = liab.interestRate ? `${liab.interestRate}%` : '-'
+      const emi = liab.monthlyPayment ? formatPdfCurrency(parseFloat(liab.monthlyPayment)) : '-'
+      return [liab.name, typeLabel, rate, emi, formatPdfCurrency(amt)]
+    })
+
+    autoTable(doc, {
+      startY: currentY + 6,
+      margin: { left: margin, right: margin },
+      head: [liabHead],
+      body: liabRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [159, 18, 57], // Rose-900
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+        cellPadding: 4,
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        cellPadding: 3.5,
+      },
+      columnStyles: {
+        0: { cellWidth: 183 },
+        1: { cellWidth: 80 },
+        2: { halign: 'center', cellWidth: 70 },
+        3: { halign: 'right', cellWidth: 80 },
+        4: { halign: 'right', fontStyle: 'bold', cellWidth: 110 },
+      },
+      didDrawPage: () => drawPageHeader(),
+    })
+  }
+}
+
 /**
  * Generates and downloads a rich, multi-page Net Worth PDF Statement
  */
 export async function exportNetWorthPdf(options: NetWorthExportOptions) {
   const { data, owners, snapshots = [], statementDate = new Date() } = options
-  const isMultiMember = options.selectedOwnerIds.length !== 1 && owners.length > 1
+  const { isMultiMember, memberMetrics } = computeMemberMetrics(options)
   const scopeLabel = getScopeLabel(options)
   const dateStr = format(statementDate, 'dd MMM yyyy')
   const timestampStr = format(new Date(), 'dd MMM yyyy, h:mm a')
@@ -109,7 +613,7 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
   const contentWidth = pageWidth - margin * 2
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PAGE 1: EXECUTIVE SUMMARY
+  // PAGE 1: EXECUTIVE SUMMARY & COMBINED NET WORTH
   // ═══════════════════════════════════════════════════════════════════════════
 
   // Top Accent Bar
@@ -157,7 +661,7 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   doc.setTextColor(100, 116, 139) // Slate-500
-  doc.text('TOTAL ASSETS', margin + 22, cardY + 21)
+  doc.text(isMultiMember ? 'COMBINED TOTAL ASSETS' : 'TOTAL ASSETS', margin + 22, cardY + 21)
   doc.setFontSize(13)
   doc.setTextColor(5, 150, 105) // Emerald-600
   doc.text(formatPdfCurrency(data.totalAssets), margin + 14, cardY + 45)
@@ -171,7 +675,7 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   doc.setTextColor(100, 116, 139)
-  doc.text('TOTAL LIABILITIES', card2X + 22, cardY + 21)
+  doc.text(isMultiMember ? 'COMBINED LIABILITIES' : 'TOTAL LIABILITIES', card2X + 22, cardY + 21)
   doc.setFontSize(13)
   doc.setTextColor(225, 29, 72) // Rose-600
   doc.text(formatPdfCurrency(data.totalLiabilities), card2X + 14, cardY + 45)
@@ -185,9 +689,9 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   doc.setTextColor(100, 116, 139)
-  doc.text('NET WORTH', card3X + 22, cardY + 21)
+  doc.text(isMultiMember ? 'COMBINED NET WORTH' : 'NET WORTH', card3X + 22, cardY + 21)
   doc.setFontSize(13)
-  doc.setTextColor(data.netWorth >= 0 ? 15 : 225, data.netWorth >= 0 ? 23 : 29, data.netWorth >= 0 ? 42 : 72) // Slate-900 or Rose
+  doc.setTextColor(data.netWorth >= 0 ? 15 : 225, data.netWorth >= 0 ? 23 : 29, data.netWorth >= 0 ? 42 : 72)
   doc.text(formatPdfCurrency(data.netWorth), card3X + 14, cardY + 45)
 
   // ─── Asset Allocation Split (Equity, Debt, Cash, Mixed) ────────────────────
@@ -219,7 +723,7 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   doc.setTextColor(15, 23, 42)
-  doc.text('Asset Allocation Split', margin + 14, allocY + 18)
+  doc.text(isMultiMember ? 'Combined Asset Allocation Split' : 'Asset Allocation Split', margin + 14, allocY + 18)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
@@ -303,7 +807,7 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
   autoTable(doc, {
     startY: 270,
     margin: { left: margin, right: margin },
-    head: [['Asset / Liability Category', 'Holdings', 'Value (INR)', '% Portfolio']],
+    head: [[isMultiMember ? 'Combined Asset / Liability Category' : 'Asset / Liability Category', 'Holdings', 'Value (INR)', '% Portfolio']],
     body: categoryRows,
     theme: 'grid',
     headStyles: {
@@ -311,35 +815,31 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 8.5,
-      cellPadding: 5,
+      cellPadding: 4.5,
     },
     bodyStyles: {
       fontSize: 8,
-      cellPadding: 4.5,
+      cellPadding: 4,
       textColor: [30, 41, 59],
     },
     columnStyles: {
       0: { fontStyle: 'bold', cellWidth: 180 },
       1: { cellWidth: 100 },
       2: { halign: 'right', fontStyle: 'bold', cellWidth: 130 },
-      3: { halign: 'right', cellWidth: 80 },
+      3: { halign: 'right', cellWidth: 113 },
     },
     didParseCell: (hookData) => {
-      // Highlight Total Assets, Liabilities, and Net Worth rows
       if (hookData.section === 'body') {
         const rowIndex = hookData.row.index
         if (rowIndex === 5) {
-          // Total Assets row
           hookData.cell.styles.fillColor = [240, 253, 244] // Emerald-50
           hookData.cell.styles.fontStyle = 'bold'
           if (hookData.column.index === 2) hookData.cell.styles.textColor = [5, 150, 105]
         } else if (rowIndex === 6) {
-          // Total Liabilities row
           hookData.cell.styles.fillColor = [255, 241, 242] // Rose-50
           hookData.cell.styles.fontStyle = 'bold'
           if (hookData.column.index === 2) hookData.cell.styles.textColor = [225, 29, 72]
         } else if (rowIndex === 7) {
-          // Net Worth row
           hookData.cell.styles.fillColor = [238, 242, 255] // Indigo-50
           hookData.cell.styles.fontStyle = 'bold'
           if (hookData.column.index === 2) hookData.cell.styles.textColor = [67, 56, 202]
@@ -348,9 +848,89 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
     },
   })
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 2: INDIVIDUAL NET WORTH OF MEMBERS (WHEN MULTI-MEMBER)
+  // ═══════════════════════════════════════════════════════════════════════════
+  let nextSectionY = (doc as any).lastAutoTable?.finalY || 450
+
+  if (isMultiMember) {
+    if (nextSectionY > pageHeight - 160) {
+      doc.addPage()
+      doc.setFillColor(99, 102, 241)
+      doc.rect(0, 0, pageWidth, 3, 'F')
+      nextSectionY = 40
+    } else {
+      nextSectionY += 16
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(15, 23, 42)
+    doc.text('Individual Member Net Worth Overview', margin, nextSectionY)
+
+    const memberOverviewRows = memberMetrics.map(m => [
+      `${m.member.name}${m.member.isDefault ? ' (Self)' : ''}`,
+      formatPdfCurrency(m.totalAssets),
+      formatPdfCurrency(m.totalLiabilities),
+      formatPdfCurrency(m.netWorth),
+      `${m.shareOfNetWorth.toFixed(1)}%`,
+      `${m.allocation.eqPct.toFixed(0)}% Eq | ${m.allocation.debtPct.toFixed(0)}% Debt | ${m.allocation.cashPct.toFixed(0)}% Cash`,
+    ])
+
+    memberOverviewRows.push([
+      'Combined Total',
+      formatPdfCurrency(data.totalAssets),
+      formatPdfCurrency(data.totalLiabilities),
+      formatPdfCurrency(data.netWorth),
+      '100.0%',
+      '-',
+    ])
+
+    autoTable(doc, {
+      startY: nextSectionY + 6,
+      margin: { left: margin, right: margin },
+      head: [['Member', 'Total Assets', 'Total Liabilities', 'Net Worth', '% Share', 'Asset Allocation']],
+      body: memberOverviewRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [15, 23, 42],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8,
+        cellPadding: 4,
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        cellPadding: 3.5,
+        textColor: [30, 41, 59],
+      },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 110 },
+        1: { halign: 'right', fontStyle: 'bold', cellWidth: 85 },
+        2: { halign: 'right', fontStyle: 'bold', cellWidth: 85 },
+        3: { halign: 'right', fontStyle: 'bold', cellWidth: 85 },
+        4: { halign: 'right', cellWidth: 45 },
+        5: { halign: 'center', fontSize: 7, textColor: [100, 116, 139], cellWidth: 113 },
+      },
+      didParseCell: (hookData) => {
+        if (hookData.section === 'body') {
+          const isTotalRow = hookData.row.index === memberOverviewRows.length - 1
+          if (isTotalRow) {
+            hookData.cell.styles.fillColor = [238, 242, 255]
+            hookData.cell.styles.fontStyle = 'bold'
+            if (hookData.column.index === 1) hookData.cell.styles.textColor = [5, 150, 105]
+            if (hookData.column.index === 2) hookData.cell.styles.textColor = [225, 29, 72]
+            if (hookData.column.index === 3) hookData.cell.styles.textColor = [67, 56, 202]
+          }
+        }
+      },
+    })
+
+    nextSectionY = (doc as any).lastAutoTable?.finalY || nextSectionY
+  }
+
   // ─── Recent Snapshot History (if any) ──────────────────────────────────────
-  const finalY = (doc as any).lastAutoTable?.finalY || 450
-  if (snapshots.length > 0 && finalY < pageHeight - 140) {
+  if (snapshots.length > 0 && nextSectionY < pageHeight - 120) {
     const historyData = [...snapshots].reverse().slice(0, 5).map((snap) => {
       const d = format(new Date(snap.snapshotDate), 'dd MMM yyyy')
       const assetsVal = formatPdfCurrency(parseFloat(snap.totalAssets || '0'))
@@ -363,12 +943,12 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
     const histHead = isMultiMember ? ['Snapshot Date', 'Member', 'Assets', 'Liabilities', 'Net Worth'] : ['Snapshot Date', 'Assets', 'Liabilities', 'Net Worth']
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
+    doc.setFontSize(8.5)
     doc.setTextColor(15, 23, 42)
-    doc.text('Recent Snapshot Trajectory', margin, finalY + 18)
+    doc.text('Recent Snapshot Trajectory', margin, nextSectionY + 14)
 
     autoTable(doc, {
-      startY: finalY + 24,
+      startY: nextSectionY + 18,
       margin: { left: margin, right: margin },
       head: [histHead],
       body: historyData,
@@ -382,7 +962,7 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
       },
       bodyStyles: {
         fontSize: 7.5,
-        cellPadding: 3.5,
+        cellPadding: 3,
         textColor: [51, 65, 85],
       },
       columnStyles: isMultiMember
@@ -392,7 +972,7 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SUBSEQUENT PAGES: DETAILED INVESTMENTS & LIABILITIES
+  // SECTION 3: DETAILED BREAKDOWN AT INDIVIDUAL LEVEL
   // ═══════════════════════════════════════════════════════════════════════════
 
   const drawSubsequentHeader = () => {
@@ -412,357 +992,132 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
     doc.line(margin, 28, pageWidth - margin, 28)
   }
 
-  // Add Page 2
-  doc.addPage()
-  drawSubsequentHeader()
-
-  let currentY = 40
-
-  // ─── 1. Mutual Funds Details ───────────────────────────────────────────────
-  if (mfAssets.length > 0) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(15, 23, 42)
-    doc.text(`1. Mutual Funds (${mfAssets.length})`, margin, currentY)
-    doc.setFontSize(8.5)
-    doc.setTextColor(5, 150, 105)
-    doc.text(`Subtotal: ${formatPdfCurrency(mfTotal)}`, pageWidth - margin, currentY, { align: 'right' })
-
-    const mfHead = isMultiMember
-      ? ['Fund Name', 'Member', 'Category / Folio', 'Tag', 'Invested', 'Present Value', 'Gain / Loss']
-      : ['Fund Name', 'Category / Folio', 'Tag', 'Invested', 'Present Value', 'Gain / Loss']
-
-    const mfRows = mfAssets.map((asset) => {
-      const inv = asset.metadata?.investedAmount || 0
-      const pres = parseFloat(asset.value || '0')
-      const gain = pres - inv
-      const gainStr = formatPdfGain(gain, inv)
-      const tag = resolveAssetTag(asset.type, asset.metadata, asset.equityDebtTag)
-      const tagLabel = ASSET_TAG_LABELS[tag] || 'Equity'
-      const catFolio = [asset.metadata?.category, asset.metadata?.folioNumber ? `Folio: ${asset.metadata.folioNumber}` : null]
-        .filter(Boolean)
-        .join(' | ') || '-'
-
-      return isMultiMember
-        ? [asset.name, getOwnerName(asset.ownerId, owners), catFolio, tagLabel, inv > 0 ? formatPdfCurrency(inv) : '-', formatPdfCurrency(pres), gainStr]
-        : [asset.name, catFolio, tagLabel, inv > 0 ? formatPdfCurrency(inv) : '-', formatPdfCurrency(pres), gainStr]
-    })
-
-    autoTable(doc, {
-      startY: currentY + 6,
-      margin: { left: margin, right: margin },
-      head: [mfHead],
-      body: mfRows,
-      theme: 'striped',
-      headStyles: {
-        fillColor: [30, 41, 59],
-        textColor: [255, 255, 255],
-        fontSize: 7.5,
-        fontStyle: 'bold',
-        cellPadding: 4,
-      },
-      bodyStyles: {
-        fontSize: 7.5,
-        cellPadding: 3.5,
-      },
-      columnStyles: isMultiMember
-        ? { 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' }, 6: { halign: 'right' } }
-        : { 3: { halign: 'right' }, 4: { halign: 'right', fontStyle: 'bold' }, 5: { halign: 'right' } },
-      didDrawPage: () => drawSubsequentHeader(),
-    })
-
-    currentY = (doc as any).lastAutoTable.finalY + 18
-  }
-
-  // ─── 2. Direct Stocks & Equities ───────────────────────────────────────────
-  if (stockAssets.length > 0) {
-    if (currentY > pageHeight - 120) {
+  if (isMultiMember) {
+    // Member-by-Member Detailed Portfolio Breakdowns
+    for (const m of memberMetrics) {
       doc.addPage()
-      drawSubsequentHeader()
-      currentY = 40
+      const memberColor = OWNER_PDF_COLORS[m.member.color] || [99, 102, 241]
+      const [r, g, b] = memberColor
+
+      const drawMemberPageHeader = () => {
+        doc.setFillColor(r, g, b)
+        doc.rect(0, 0, pageWidth, 3, 'F')
+
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.setTextColor(100, 116, 139)
+        doc.text(`MOMONEY NET WORTH STATEMENT — ${m.member.name.toUpperCase()}${m.member.isDefault ? ' (SELF)' : ''}`, margin, 24)
+
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7.5)
+        doc.text(`Individual Portfolio Breakdown | As of ${dateStr}`, pageWidth - margin, 24, { align: 'right' })
+
+        doc.setDrawColor(226, 232, 240)
+        doc.line(margin, 28, pageWidth - margin, 28)
+      }
+
+      // Top Accent Bar with Member's color
+      doc.setFillColor(r, g, b)
+      doc.rect(0, 0, pageWidth, 4, 'F')
+
+      // Member Header Banner
+      const bannerY = 22
+      const bannerH = 58
+      doc.setFillColor(15, 23, 42) // Slate-900
+      doc.roundedRect(margin, bannerY, contentWidth, bannerH, 6, 6, 'F')
+
+      // Member Color Accent Chip
+      doc.setFillColor(r, g, b)
+      doc.roundedRect(margin + 12, bannerY + 12, 6, bannerH - 24, 3, 3, 'F')
+
+      // Member Title
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(13)
+      doc.setTextColor(255, 255, 255)
+      doc.text(`${m.member.name.toUpperCase()}${m.member.isDefault ? ' (SELF)' : ''}`, margin + 26, bannerY + 26)
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(148, 163, 184)
+      doc.text(`Individual Portfolio Breakdown | Share of Combined Net Worth: ${m.shareOfNetWorth.toFixed(1)}%`, margin + 26, bannerY + 44)
+      doc.text(`Statement Date: ${dateStr}`, pageWidth - margin - 14, bannerY + 26, { align: 'right' })
+      doc.text(`Generated: ${timestampStr}`, pageWidth - margin - 14, bannerY + 44, { align: 'right' })
+
+      // Mini KPI Strip for this Member
+      const mCardY = bannerY + bannerH + 10
+      const mCardGap = 10
+      const mCardWidth = (contentWidth - mCardGap * 2) / 3
+      const mCardHeight = 44
+
+      // Card 1: Assets
+      doc.setFillColor(248, 250, 252)
+      doc.setDrawColor(226, 232, 240)
+      doc.roundedRect(margin, mCardY, mCardWidth, mCardHeight, 4, 4, 'FD')
+      doc.setFillColor(16, 185, 129)
+      doc.circle(margin + 12, mCardY + 14, 2.5, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(100, 116, 139)
+      doc.text('TOTAL ASSETS', margin + 18, mCardY + 16)
+      doc.setFontSize(11)
+      doc.setTextColor(5, 150, 105)
+      doc.text(formatPdfCurrency(m.totalAssets), margin + 12, mCardY + 34)
+
+      // Card 2: Liabilities
+      const mCard2X = margin + mCardWidth + mCardGap
+      doc.setFillColor(248, 250, 252)
+      doc.roundedRect(mCard2X, mCardY, mCardWidth, mCardHeight, 4, 4, 'FD')
+      doc.setFillColor(244, 63, 94)
+      doc.circle(mCard2X + 12, mCardY + 14, 2.5, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(100, 116, 139)
+      doc.text('TOTAL LIABILITIES', mCard2X + 18, mCardY + 16)
+      doc.setFontSize(11)
+      doc.setTextColor(225, 29, 72)
+      doc.text(formatPdfCurrency(m.totalLiabilities), mCard2X + 12, mCardY + 34)
+
+      // Card 3: Net Worth
+      const mCard3X = margin + (mCardWidth + mCardGap) * 2
+      doc.setFillColor(248, 250, 252)
+      doc.roundedRect(mCard3X, mCardY, mCardWidth, mCardHeight, 4, 4, 'FD')
+      doc.setFillColor(r, g, b)
+      doc.circle(mCard3X + 12, mCardY + 14, 2.5, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(100, 116, 139)
+      doc.text('NET WORTH', mCard3X + 18, mCardY + 16)
+      doc.setFontSize(11)
+      doc.setTextColor(m.netWorth >= 0 ? 15 : 225, m.netWorth >= 0 ? 23 : 29, m.netWorth >= 0 ? 42 : 72)
+      doc.text(formatPdfCurrency(m.netWorth), mCard3X + 12, mCardY + 34)
+
+      // Detailed Holdings for Member
+      renderDetailedHoldings({
+        doc,
+        startY: mCardY + mCardHeight + 14,
+        assets: m.assets,
+        liabilities: m.liabilities,
+        pageWidth,
+        pageHeight,
+        margin,
+        emptyMessage: `No individual assets or liabilities recorded for ${m.member.name}.`,
+        drawPageHeader: drawMemberPageHeader,
+      })
     }
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(15, 23, 42)
-    doc.text(`2. Stocks & Direct Equities (${stockAssets.length})`, margin, currentY)
-    doc.setFontSize(8.5)
-    doc.setTextColor(5, 150, 105)
-    doc.text(`Subtotal: ${formatPdfCurrency(stockTotal)}`, pageWidth - margin, currentY, { align: 'right' })
-
-    const stockHead = isMultiMember
-      ? ['Stock Name', 'Member', 'Qty', 'Avg Price', 'LTP', 'Invested', 'Present Value', 'Gain / Loss']
-      : ['Stock Name', 'Qty', 'Avg Price', 'LTP', 'Invested', 'Present Value', 'Gain / Loss']
-
-    const stockRows = stockAssets.map((asset) => {
-      const qty = asset.metadata?.quantity || 0
-      const avgPrice = asset.metadata?.averageBuyPrice || 0
-      const ltp = asset.metadata?.ltp || 0
-      const inv = asset.metadata?.investedAmount || (qty && avgPrice ? qty * avgPrice : 0)
-      const pres = parseFloat(asset.value || '0')
-      const gain = pres - inv
-      const gainStr = formatPdfGain(gain, inv)
-
-      return isMultiMember
-        ? [
-            asset.name,
-            getOwnerName(asset.ownerId, owners),
-            qty ? formatIndianNumber(qty) : '-',
-            avgPrice ? formatPdfCurrency(avgPrice) : '-',
-            ltp ? formatPdfCurrency(ltp) : '-',
-            inv > 0 ? formatPdfCurrency(inv) : '-',
-            formatPdfCurrency(pres),
-            gainStr,
-          ]
-        : [
-            asset.name,
-            qty ? formatIndianNumber(qty) : '-',
-            avgPrice ? formatPdfCurrency(avgPrice) : '-',
-            ltp ? formatPdfCurrency(ltp) : '-',
-            inv > 0 ? formatPdfCurrency(inv) : '-',
-            formatPdfCurrency(pres),
-            gainStr,
-          ]
-    })
-
-    autoTable(doc, {
-      startY: currentY + 6,
-      margin: { left: margin, right: margin },
-      head: [stockHead],
-      body: stockRows,
-      theme: 'striped',
-      headStyles: {
-        fillColor: [30, 41, 59],
-        textColor: [255, 255, 255],
-        fontSize: 7.5,
-        fontStyle: 'bold',
-        cellPadding: 4,
-      },
-      bodyStyles: {
-        fontSize: 7.5,
-        cellPadding: 3.5,
-      },
-      columnStyles: isMultiMember
-        ? { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right', fontStyle: 'bold' }, 7: { halign: 'right' } }
-        : { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' }, 6: { halign: 'right' } },
-      didDrawPage: () => drawSubsequentHeader(),
-    })
-
-    currentY = (doc as any).lastAutoTable.finalY + 18
-  }
-
-  // ─── 3. Fixed Deposits, RD & PPF ──────────────────────────────────────────
-  if (depositAssets.length > 0) {
-    if (currentY > pageHeight - 120) {
-      doc.addPage()
-      drawSubsequentHeader()
-      currentY = 40
-    }
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(15, 23, 42)
-    doc.text(`3. Fixed Deposits & PPF (${depositAssets.length})`, margin, currentY)
-    doc.setFontSize(8.5)
-    doc.setTextColor(5, 150, 105)
-    doc.text(`Subtotal: ${formatPdfCurrency(depositTotal)}`, pageWidth - margin, currentY, { align: 'right' })
-
-    const depHead = isMultiMember
-      ? ['Deposit Name / Type', 'Member', 'Account #', 'Rate', 'Invested', 'Maturity Date', 'Maturity Amt', 'Present Value']
-      : ['Deposit Name / Type', 'Account #', 'Rate', 'Invested', 'Maturity Date', 'Maturity Amt', 'Present Value']
-
-    const depRows = depositAssets.map((asset) => {
-      const typeLabel = asset.type === 'ppf' ? 'PPF' : asset.type === 'recurring_deposit' ? 'RD' : 'FD'
-      const inv = asset.metadata?.investedAmount || 0
-      const pres = parseFloat(asset.value || '0')
-      const rate = asset.metadata?.interestRate ? `${asset.metadata.interestRate}%` : '-'
-      const matDate = asset.metadata?.maturityDate ? format(new Date(asset.metadata.maturityDate), 'dd MMM yyyy') : '-'
-      const matAmt = asset.metadata?.maturityAmount ? formatPdfCurrency(asset.metadata.maturityAmount) : '-'
-      const acc = asset.metadata?.accountNumber || '-'
-
-      return isMultiMember
-        ? [`${asset.name} (${typeLabel})`, getOwnerName(asset.ownerId, owners), acc, rate, inv > 0 ? formatPdfCurrency(inv) : '-', matDate, matAmt, formatPdfCurrency(pres)]
-        : [`${asset.name} (${typeLabel})`, acc, rate, inv > 0 ? formatPdfCurrency(inv) : '-', matDate, matAmt, formatPdfCurrency(pres)]
-    })
-
-    autoTable(doc, {
-      startY: currentY + 6,
-      margin: { left: margin, right: margin },
-      head: [depHead],
-      body: depRows,
-      theme: 'striped',
-      headStyles: {
-        fillColor: [30, 41, 59],
-        textColor: [255, 255, 255],
-        fontSize: 7.5,
-        fontStyle: 'bold',
-        cellPadding: 4,
-      },
-      bodyStyles: {
-        fontSize: 7.5,
-        cellPadding: 3.5,
-      },
-      columnStyles: isMultiMember
-        ? { 3: { halign: 'center' }, 4: { halign: 'right' }, 5: { halign: 'center' }, 6: { halign: 'right' }, 7: { halign: 'right', fontStyle: 'bold' } }
-        : { 2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'center' }, 5: { halign: 'right' }, 6: { halign: 'right', fontStyle: 'bold' } },
-      didDrawPage: () => drawSubsequentHeader(),
-    })
-
-    currentY = (doc as any).lastAutoTable.finalY + 18
-  }
-
-  // ─── 4. Savings Accounts ──────────────────────────────────────────────────
-  if (savingsAssets.length > 0) {
-    if (currentY > pageHeight - 120) {
-      doc.addPage()
-      drawSubsequentHeader()
-      currentY = 40
-    }
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(15, 23, 42)
-    doc.text(`4. Savings Bank Accounts (${savingsAssets.length})`, margin, currentY)
-    doc.setFontSize(8.5)
-    doc.setTextColor(5, 150, 105)
-    doc.text(`Subtotal: ${formatPdfCurrency(savingsTotal)}`, pageWidth - margin, currentY, { align: 'right' })
-
-    const savHead = isMultiMember ? ['Bank / Account Name', 'Member', 'Account #', 'Balance (INR)'] : ['Bank / Account Name', 'Account #', 'Balance (INR)']
-
-    const savRows = savingsAssets.map((asset) => {
-      const pres = parseFloat(asset.value || '0')
-      const acc = asset.metadata?.accountNumber || '-'
-      return isMultiMember
-        ? [asset.name, getOwnerName(asset.ownerId, owners), acc, formatPdfCurrency(pres)]
-        : [asset.name, acc, formatPdfCurrency(pres)]
-    })
-
-    autoTable(doc, {
-      startY: currentY + 6,
-      margin: { left: margin, right: margin },
-      head: [savHead],
-      body: savRows,
-      theme: 'striped',
-      headStyles: {
-        fillColor: [30, 41, 59],
-        textColor: [255, 255, 255],
-        fontSize: 7.5,
-        fontStyle: 'bold',
-        cellPadding: 4,
-      },
-      bodyStyles: {
-        fontSize: 7.5,
-        cellPadding: 3.5,
-      },
-      columnStyles: isMultiMember ? { 3: { halign: 'right', fontStyle: 'bold' } } : { 2: { halign: 'right', fontStyle: 'bold' } },
-      didDrawPage: () => drawSubsequentHeader(),
-    })
-
-    currentY = (doc as any).lastAutoTable.finalY + 18
-  }
-
-  // ─── 5. Real Estate & Other Assets ────────────────────────────────────────
-  if (genericAssets.length > 0) {
-    if (currentY > pageHeight - 120) {
-      doc.addPage()
-      drawSubsequentHeader()
-      currentY = 40
-    }
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(15, 23, 42)
-    doc.text(`5. Real Estate & Other Assets (${genericAssets.length})`, margin, currentY)
-    doc.setFontSize(8.5)
-    doc.setTextColor(5, 150, 105)
-    doc.text(`Subtotal: ${formatPdfCurrency(genericTotal)}`, pageWidth - margin, currentY, { align: 'right' })
-
-    const genHead = isMultiMember ? ['Asset Name', 'Category', 'Member', 'Comments', 'Valuation (INR)'] : ['Asset Name', 'Category', 'Comments', 'Valuation (INR)']
-
-    const genRows = genericAssets.map((asset) => {
-      const pres = parseFloat(asset.value || '0')
-      const cat = asset.type.replace('_', ' ').toUpperCase()
-      const comm = asset.metadata?.comments || '-'
-      return isMultiMember
-        ? [asset.name, cat, getOwnerName(asset.ownerId, owners), comm, formatPdfCurrency(pres)]
-        : [asset.name, cat, comm, formatPdfCurrency(pres)]
-    })
-
-    autoTable(doc, {
-      startY: currentY + 6,
-      margin: { left: margin, right: margin },
-      head: [genHead],
-      body: genRows,
-      theme: 'striped',
-      headStyles: {
-        fillColor: [30, 41, 59],
-        textColor: [255, 255, 255],
-        fontSize: 7.5,
-        fontStyle: 'bold',
-        cellPadding: 4,
-      },
-      bodyStyles: {
-        fontSize: 7.5,
-        cellPadding: 3.5,
-      },
-      columnStyles: isMultiMember ? { 4: { halign: 'right', fontStyle: 'bold' } } : { 3: { halign: 'right', fontStyle: 'bold' } },
-      didDrawPage: () => drawSubsequentHeader(),
-    })
-
-    currentY = (doc as any).lastAutoTable.finalY + 18
-  }
-
-  // ─── 6. Liabilities & Outstanding Loans ────────────────────────────────────
-  if (data.liabilities.length > 0) {
-    if (currentY > pageHeight - 120) {
-      doc.addPage()
-      drawSubsequentHeader()
-      currentY = 40
-    }
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(15, 23, 42)
-    doc.text(`6. Liabilities & Loans (${data.liabilities.length})`, margin, currentY)
-    doc.setFontSize(8.5)
-    doc.setTextColor(225, 29, 72)
-    doc.text(`Subtotal: ${formatPdfCurrency(data.totalLiabilities)}`, pageWidth - margin, currentY, { align: 'right' })
-
-    const liabHead = isMultiMember
-      ? ['Liability / Loan Name', 'Type', 'Member', 'Interest Rate', 'Monthly EMI', 'Outstanding Amount']
-      : ['Liability / Loan Name', 'Type', 'Interest Rate', 'Monthly EMI', 'Outstanding Amount']
-
-    const liabRows = data.liabilities.map((liab) => {
-      const amt = parseFloat(liab.outstandingAmount || '0')
-      const typeLabel = (liab.type || '').replace('_', ' ').toUpperCase()
-      const rate = liab.interestRate ? `${liab.interestRate}%` : '-'
-      const emi = liab.monthlyPayment ? formatPdfCurrency(parseFloat(liab.monthlyPayment)) : '-'
-      return isMultiMember
-        ? [liab.name, typeLabel, getOwnerName(liab.ownerId, owners), rate, emi, formatPdfCurrency(amt)]
-        : [liab.name, typeLabel, rate, emi, formatPdfCurrency(amt)]
-    })
-
-    autoTable(doc, {
-      startY: currentY + 6,
-      margin: { left: margin, right: margin },
-      head: [liabHead],
-      body: liabRows,
-      theme: 'striped',
-      headStyles: {
-        fillColor: [159, 18, 57], // Rose-900
-        textColor: [255, 255, 255],
-        fontSize: 7.5,
-        fontStyle: 'bold',
-        cellPadding: 4,
-      },
-      bodyStyles: {
-        fontSize: 7.5,
-        cellPadding: 3.5,
-      },
-      columnStyles: isMultiMember
-        ? { 3: { halign: 'center' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' } }
-        : { 2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right', fontStyle: 'bold' } },
-      didDrawPage: () => drawSubsequentHeader(),
+  } else {
+    // Single-Member Detailed Breakdown
+    doc.addPage()
+    drawSubsequentHeader()
+    renderDetailedHoldings({
+      doc,
+      startY: 40,
+      assets: data.assets,
+      liabilities: data.liabilities,
+      pageWidth,
+      pageHeight,
+      margin,
+      emptyMessage: 'No assets or liabilities recorded.',
+      drawPageHeader: drawSubsequentHeader,
     })
   }
 
@@ -793,7 +1148,7 @@ export async function exportNetWorthPdf(options: NetWorthExportOptions) {
  */
 export function exportNetWorthCsv(options: NetWorthExportOptions) {
   const { data, owners, statementDate = new Date() } = options
-  const isMultiMember = options.selectedOwnerIds.length !== 1 && owners.length > 1
+  const { isMultiMember, memberMetrics } = computeMemberMetrics(options)
   const scopeLabel = getScopeLabel(options)
   const dateStr = format(statementDate, 'yyyy-MM-dd')
 
@@ -820,7 +1175,32 @@ export function exportNetWorthCsv(options: NetWorthExportOptions) {
   rows.push(['Net Worth (INR)', String(data.netWorth)])
   rows.push([])
 
-  // 2. Asset Allocation Section
+  // 2. Individual Member Net Worth Summary (when multi-member)
+  if (isMultiMember) {
+    rows.push(['INDIVIDUAL MEMBER NET WORTH OVERVIEW'])
+    rows.push(['Member', 'Total Assets (INR)', 'Total Liabilities (INR)', 'Net Worth (INR)', 'Share of Net Worth (%)', 'Asset Allocation'])
+    for (const m of memberMetrics) {
+      rows.push([
+        m.member.name + (m.member.isDefault ? ' (Self)' : ''),
+        String(m.totalAssets),
+        String(m.totalLiabilities),
+        String(m.netWorth),
+        m.shareOfNetWorth.toFixed(2),
+        `${m.allocation.eqPct.toFixed(0)}% Eq | ${m.allocation.debtPct.toFixed(0)}% Debt | ${m.allocation.cashPct.toFixed(0)}% Cash`,
+      ])
+    }
+    rows.push([
+      'Combined Total',
+      String(data.totalAssets),
+      String(data.totalLiabilities),
+      String(data.netWorth),
+      '100.00',
+      '-',
+    ])
+    rows.push([])
+  }
+
+  // 3. Asset Allocation Section
   let equityTotal = 0
   let debtTotal = 0
   let cashTotal = 0
@@ -837,7 +1217,7 @@ export function exportNetWorthCsv(options: NetWorthExportOptions) {
 
   const safeTotalAssets = data.totalAssets > 0 ? data.totalAssets : 1
 
-  rows.push(['ASSET ALLOCATION BREAKDOWN'])
+  rows.push([isMultiMember ? 'COMBINED ASSET ALLOCATION BREAKDOWN' : 'ASSET ALLOCATION BREAKDOWN'])
   rows.push(['Class', 'Total Value (INR)', 'Share of Assets (%)'])
   rows.push(['Equity', String(equityTotal), ((equityTotal / safeTotalAssets) * 100).toFixed(2)])
   rows.push(['Debt', String(debtTotal), ((debtTotal / safeTotalAssets) * 100).toFixed(2)])
@@ -847,7 +1227,7 @@ export function exportNetWorthCsv(options: NetWorthExportOptions) {
   }
   rows.push([])
 
-  // 3. Itemized Assets List
+  // 4. Itemized Assets List
   rows.push(['ITEMIZED ASSETS'])
   const assetHeaders = [
     'Asset Category',
@@ -912,7 +1292,7 @@ export function exportNetWorthCsv(options: NetWorthExportOptions) {
   }
   rows.push([])
 
-  // 4. Itemized Liabilities List
+  // 5. Itemized Liabilities List
   rows.push(['ITEMIZED LIABILITIES'])
   const liabHeaders = [
     'Liability Name',
