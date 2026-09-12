@@ -6,6 +6,7 @@ import {
   YearlyInsight,
   CategoryComparison,
   CategoryAverage,
+  AccountingMode,
 } from "@momoney/types"
 import { apiClient } from "../api"
 import { useAuthStore } from "./auth.store"
@@ -15,11 +16,11 @@ type StorageMode = "session" | "local-sqlite" | "cloud"
 export interface DataAdapter {
   getTransactions: (filters?: any) => Promise<any>
   saveTransactions: (data: any[]) => Promise<void>
-  getMonthlyInsights: (month: string, ownerIds?: string[]) => Promise<MonthlyInsight>
-  getYearlyInsights: (year: number, ownerIds?: string[]) => Promise<YearlyInsight>
+  getMonthlyInsights: (month: string, ownerIds?: string[], mode?: AccountingMode) => Promise<MonthlyInsight>
+  getYearlyInsights: (year: number, ownerIds?: string[], mode?: AccountingMode) => Promise<YearlyInsight>
   getCategoryTrends: (year: number, ownerIds?: string[]) => Promise<any[]>
-  getCategoryComparison: (month: string, ownerIds?: string[]) => Promise<CategoryComparison>
-  getCategoryAverages: (month: string, ownerIds?: string[]) => Promise<CategoryAverage>
+  getCategoryComparison: (month: string, ownerIds?: string[], mode?: AccountingMode) => Promise<CategoryComparison>
+  getCategoryAverages: (month: string, ownerIds?: string[], mode?: AccountingMode) => Promise<CategoryAverage>
 }
 
 // Session Adapter implementation (stub for now, will compute from local store in future if needed)
@@ -47,13 +48,13 @@ const cloudAdapter: DataAdapter = {
     return apiClient.fetch(`/v1/transactions?${params.toString()}`)
   },
   saveTransactions: async () => {}, // Handled by separate endpoints mostly
-  getMonthlyInsights: async (month, ownerIds) => {
-    const params = new URLSearchParams({ month })
+  getMonthlyInsights: async (month, ownerIds, mode = 'invoice') => {
+    const params = new URLSearchParams({ month, mode })
     if (ownerIds?.length) params.set("ownerIds", ownerIds.join(","))
     return apiClient.fetch(`/v1/insights/monthly?${params.toString()}`)
   },
-  getYearlyInsights: async (year, ownerIds) => {
-    const params = new URLSearchParams({ year: String(year) })
+  getYearlyInsights: async (year, ownerIds, mode = 'invoice') => {
+    const params = new URLSearchParams({ year: String(year), mode })
     if (ownerIds?.length) params.set("ownerIds", ownerIds.join(","))
     return apiClient.fetch(`/v1/insights/yearly?${params.toString()}`)
   },
@@ -62,13 +63,13 @@ const cloudAdapter: DataAdapter = {
     if (ownerIds?.length) params.set("ownerIds", ownerIds.join(","))
     return apiClient.fetch(`/v1/insights/category-trends?${params.toString()}`)
   },
-  getCategoryComparison: async (month, ownerIds) => {
-    const params = new URLSearchParams({ month })
+  getCategoryComparison: async (month, ownerIds, mode = 'invoice') => {
+    const params = new URLSearchParams({ month, mode })
     if (ownerIds?.length) params.set("ownerIds", ownerIds.join(","))
     return apiClient.fetch(`/v1/insights/category-comparison?${params.toString()}`)
   },
-  getCategoryAverages: async (month, ownerIds) => {
-    const params = new URLSearchParams({ month })
+  getCategoryAverages: async (month, ownerIds, mode = 'invoice') => {
+    const params = new URLSearchParams({ month, mode })
     if (ownerIds?.length) params.set("ownerIds", ownerIds.join(","))
     return apiClient.fetch(`/v1/insights/category-averages?${params.toString()}`)
   },

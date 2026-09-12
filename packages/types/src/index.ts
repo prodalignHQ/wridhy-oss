@@ -176,6 +176,8 @@ export type NetWorthSnapshot = z.infer<typeof NetWorthSnapshotSchema>
 
 // ─── Insights ─────────────────────────────────────────────────────────────────
 
+export type AccountingMode = 'invoice' | 'transaction'
+
 export const MonthlyInsightSchema = z.object({
   totalSpend: z.string(),
   totalInvestments: z.string().optional(),
@@ -189,6 +191,14 @@ export const MonthlyInsightSchema = z.object({
     percentage: z.number(),
   })),
   uncategorizedCount: z.number(),
+  mode: z.enum(['invoice', 'transaction']).optional(),
+  reconciliation: z.object({
+    invoiceId: z.string().optional(),
+    invoiceName: z.string().optional(),
+    invoiceStatus: z.string().optional(),
+    statementCount: z.number().optional(),
+    statementNames: z.array(z.string()).optional(),
+  }).optional(),
 })
 export type MonthlyInsight = z.infer<typeof MonthlyInsightSchema>
 

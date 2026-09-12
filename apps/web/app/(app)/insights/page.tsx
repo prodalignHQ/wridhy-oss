@@ -1,7 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Calendar, Users, TrendingDown, TrendingUp, Wallet, ArrowRightLeft, Loader2, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
+import {
+  Calendar,
+  Users,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  ArrowRightLeft,
+  Loader2,
+  AlertCircle,
+  FileText,
+  Info,
+  ArrowRight,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,7 +24,7 @@ import { Owner } from '@/lib/store/transactions.store'
 import { YearOverviewChart } from '@/components/insights/YearOverviewChart'
 import { CategoryComparisonTable } from '@/components/insights/CategoryComparisonTable'
 import { CategoryAveragesTable } from '@/components/insights/CategoryAveragesTable'
-import { MonthlyInsight, YearlyInsight, CategoryComparison, CategoryAverage } from '@momoney/types'
+import { MonthlyInsight, YearlyInsight, CategoryComparison, CategoryAverage, AccountingMode } from '@momoney/types'
 import { cn } from '@/lib/utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -34,6 +47,7 @@ export default function InsightsPage() {
   const { adapter } = useStorageMode()
   
   // Filters
+  const [accountingMode, setAccountingMode] = useState<AccountingMode>('invoice')
   const [selectedOwners, setSelectedOwners] = useState<string[]>([])
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM
   const [year, setYear] = useState(new Date().getFullYear())
@@ -49,6 +63,23 @@ export default function InsightsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Initialize accounting mode from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('momoney_insights_accounting_mode') as AccountingMode
+      if (saved === 'invoice' || saved === 'transaction') {
+        setAccountingMode(saved)
+      }
+    }
+  }, [])
+
+  const updateAccountingMode = (newMode: AccountingMode) => {
+    setAccountingMode(newMode)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('momoney_insights_accounting_mode', newMode)
+    }
+  }
+
   // Initial load
   useEffect(() => {
     apiClient.fetch<Owner[]>('/v1/owners').then(setOwners).catch(console.error)
@@ -61,10 +92,10 @@ export default function InsightsPage() {
       setError(null)
       try {
         const [monthly, yearly, comparison, averages] = await Promise.all([
-          adapter.getMonthlyInsights(month, selectedOwners),
-          adapter.getYearlyInsights(year, selectedOwners),
-          adapter.getCategoryComparison(month, selectedOwners),
-          adapter.getCategoryAverages(month, selectedOwners),
+          adapter.getMonthlyInsights(month, selectedOwners, accountingMode),
+          adapter.getYearlyInsights(year, selectedOwners, accountingMode),
+          adapter.getCategoryComparison(month, selectedOwners, accountingMode),
+          adapter.getCategoryAverages(month, selectedOwners, accountingMode),
         ])
 
         setMonthlyData(monthly)
@@ -79,7 +110,7 @@ export default function InsightsPage() {
     }
 
     fetchData()
-  }, [adapter, month, year, selectedOwners])
+  }, [adapter, month, year, selectedOwners, accountingMode])
 
   const toggleOwner = (ownerId: string) => {
     setSelectedOwners(prev => 
@@ -103,13 +134,43 @@ export default function InsightsPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* ── Header & Filters ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Insights Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Track your spending patterns and category performance</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
+          {/* Accounting Mode Toggle */}
+          <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border border-border">
+            <button
+              onClick={() => updateAccountingMode('invoice')}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
+                accountingMode === 'invoice'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              title="Align expenses with monthly invoices and statement billing cycles"
+            >
+              <FileText size={13} />
+              Invoice / Billing Period
+            </button>
+            <button
+              onClick={() => updateAccountingMode('transaction')}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
+                accountingMode === 'transaction'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              title="Group expenses strictly by transaction swipe date"
+            >
+              <Calendar size={13} />
+              Transaction Date
+            </button>
+          </div>
+
           <div className="flex items-center gap-1.5 bg-muted/50 p-1.5 rounded-lg border border-border focus-within:ring-1 focus-within:ring-primary/50 transition-all">
             <Calendar size={14} className="text-muted-foreground ml-1" />
             <Input
@@ -152,6 +213,46 @@ export default function InsightsPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Context & Reconciliation Banner ── */}
+      {accountingMode === 'invoice' ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-primary shrink-0 animate-pulse" />
+            <span>
+              {monthlyData?.reconciliation?.invoiceId ? (
+                <>
+                  Aligned with <strong className="text-foreground font-medium">{monthlyData.reconciliation.invoiceName}</strong>
+                  {monthlyData.reconciliation.statementNames?.length ? ` (${monthlyData.reconciliation.statementNames.join(', ')})` : ''}
+                  <span className="hidden md:inline text-muted-foreground/70 ml-1.5">— credit card statement cycle is counted in this invoice month.</span>
+                </>
+              ) : monthlyData?.reconciliation?.statementCount ? (
+                <>
+                  Aligned with <strong className="text-foreground font-medium">{monthlyData.reconciliation.statementCount} statement{monthlyData.reconciliation.statementCount === 1 ? '' : 's'}</strong> for this billing month
+                  {monthlyData.reconciliation.statementNames?.length ? ` (${monthlyData.reconciliation.statementNames.join(', ')})` : ''}
+                </>
+              ) : (
+                <>Invoice & Billing Cycle Mode: Credit card cycles are aligned with your monthly invoice.</>
+              )}
+            </span>
+          </div>
+          {monthlyData?.reconciliation?.invoiceId && (
+            <Link
+              href="/invoices"
+              className="inline-flex items-center gap-1 font-medium text-primary hover:underline hover:text-primary/80 transition-colors shrink-0"
+            >
+              View Invoice <ArrowRight size={13} />
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400">
+          <Info size={14} className="shrink-0" />
+          <span>
+            <strong>Calendar Date Mode:</strong> Spending is grouped strictly by transaction swipe date. Credit card purchases made in earlier calendar months appear in their swipe month rather than the invoice month.
+          </span>
+        </div>
+      )}
 
       {isLoading && !monthlyData ? (
         <div className="flex flex-col items-center justify-center py-32 gap-3">

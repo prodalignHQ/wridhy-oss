@@ -4,18 +4,39 @@ import {
   transactionOwners,
   categories,
   statements,
+  invoiceStatements,
+  invoices,
 } from '@momoney/db'
-import { eq, and, or, inArray, gte, lte, lt, sql, desc, isNull } from 'drizzle-orm'
-import { MonthlyInsight, YearlyInsight, CategoryComparison, CategoryAverage } from '@momoney/types'
+import { eq, and, or, inArray, sql, desc, isNull } from 'drizzle-orm'
+import {
+  MonthlyInsight,
+  YearlyInsight,
+  CategoryComparison,
+  CategoryAverage,
+  AccountingMode,
+} from '@momoney/types'
 
 /**
- * The insights date for a transaction resolves to the transaction's actual date (PG date).
- * All comparisons use plain YYYY-MM-DD strings to avoid timezone shift issues.
+ * Resolves the effective grouping month (YYYY-MM) for a transaction.
+ * In 'invoice' mode:
+ *   1. Invoice month if statement is attached to an invoice
+ *   2. Statement month if transaction belongs to a statement
+ *   3. Calendar date of transaction if unattached
+ * In 'transaction' mode:
+ *   Calendar date of transaction (YYYY-MM)
  */
-const insightsDate = sql<Date>`${transactions.date}::date`
-
-/** Convert a Date to a plain 'YYYY-MM-DD' string (avoids Drizzle timezone serialisation). */
-const toISODate = (d: Date) => d.toISOString().slice(0, 10)
+function getEffectiveMonthExpr(mode: AccountingMode) {
+  if (mode === 'transaction') {
+    return sql<string>`to_char(${transactions.date}::date, 'YYYY-MM')`
+  }
+  return sql<string>`
+    COALESCE(
+      to_char(${invoices.invoiceMonth}, 'YYYY-MM'),
+      to_char(${statements.statementMonth}, 'YYYY-MM'),
+      to_char(${transactions.date}::date, 'YYYY-MM')
+    )
+  `
+}
 
 export class InsightsService {
   // ─── Monthly ──────────────────────────────────────────────────────────────────
@@ -23,22 +44,20 @@ export class InsightsService {
   async getMonthlyInsights(
     userId: string,
     month: string, // YYYY-MM
-    ownerIds?: string[]
+    ownerIds?: string[],
+    mode: AccountingMode = 'invoice'
   ): Promise<MonthlyInsight> {
-    const startDate = `${month}-01`
-    const endDate = toISODate(new Date(new Date(`${startDate}`).setMonth(new Date(`${startDate}`).getMonth() + 1)))
+    const effectiveMonth = getEffectiveMonthExpr(mode)
 
     const conditions = [
       eq(transactions.userId, userId),
-      gte(insightsDate, startDate),
-      lt(insightsDate, endDate),
+      sql`${effectiveMonth} = ${month}`,
     ]
 
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
     // ── Totals (grouped by credit/debit and category type) ──
-
     const resultQuery = db
       .select({
         type: transactions.type,
@@ -47,6 +66,8 @@ export class InsightsService {
       })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
+      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
       .leftJoin(categories, eq(transactions.categoryId, categories.id))
 
     if (hasOwnerFilter) {
@@ -57,7 +78,7 @@ export class InsightsService {
       .where(
         and(
           ...conditions,
-          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
+          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
       .groupBy(transactions.type, sql`coalesce(${categories.type}, 'expense')`)
@@ -75,28 +96,38 @@ export class InsightsService {
           totalSpendNum += amt
         }
       } else if (r.type === 'credit') {
-        if (r.categoryType !== 'transfer') {
+        if (r.categoryType === 'investment') {
+          totalInvestmentsNum -= amt
+        } else if (r.categoryType === 'expense') {
+          // Refunds or returns in expense categories reduce total spend
+          totalSpendNum -= amt
+        } else if (r.categoryType !== 'transfer') {
           totalIncomeNum += amt
         }
       }
     }
+
+    if (totalSpendNum < 0) totalSpendNum = 0
 
     const totalSpend = totalSpendNum.toFixed(2)
     const totalInvestments = totalInvestmentsNum.toFixed(2)
     const totalIncome = totalIncomeNum.toFixed(2)
     const netFlow = (totalIncomeNum - totalSpendNum - totalInvestmentsNum).toFixed(2)
 
-    // ── Top categories ──
+    // ── Top categories (Net spending: debits minus credits/refunds) ──
+    const netCatAmountSql = sql<string>`sum(case when ${transactions.type} = 'debit' then ${amountExpr} else -${amountExpr} end)`
 
     const topCategoriesQuery = db
       .select({
         id: categories.id,
         name: categories.name,
         color: categories.color,
-        amount: sql<string>`sum(${amountExpr})`,
+        amount: netCatAmountSql,
       })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
+      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
       .innerJoin(categories, eq(transactions.categoryId, categories.id))
 
     if (hasOwnerFilter) {
@@ -107,30 +138,67 @@ export class InsightsService {
       .where(
         and(
           ...conditions,
-          eq(transactions.type, 'debit'),
           or(eq(categories.type, 'expense'), isNull(categories.type)),
-          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
+          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
       .groupBy(categories.id, categories.name, categories.color)
-      .orderBy(desc(sql`sum(${amountExpr})`))
+      .having(sql`${netCatAmountSql} > 0`)
+      .orderBy(desc(netCatAmountSql))
       .limit(5)
 
-    const topCategories = topCategoriesRows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      color: r.color,
-      amount: r.amount,
-      percentage: totalSpendNum > 0 ? (parseFloat(r.amount) / totalSpendNum) * 100 : 0,
-    }))
+    const topCategories = topCategoriesRows.map((r) => {
+      const amtNum = parseFloat(r.amount)
+      return {
+        id: r.id,
+        name: r.name,
+        color: r.color,
+        amount: amtNum.toFixed(2),
+        percentage: totalSpendNum > 0 ? (amtNum / totalSpendNum) * 100 : 0,
+      }
+    })
 
     // ── Uncategorized count ──
-
     const uncategorizedResult = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
+      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
       .where(and(...conditions, isNull(transactions.categoryId)))
+
+    // ── Reconciliation metadata ──
+    const matchedInvoice = await db.query.invoices.findFirst({
+      where: and(
+        eq(invoices.userId, userId),
+        sql`to_char(${invoices.invoiceMonth}, 'YYYY-MM') = ${month}`
+      ),
+      with: {
+        statements: true,
+      },
+    })
+
+    const stmtsForMonth = await db.query.statements.findMany({
+      where: and(
+        eq(statements.userId, userId),
+        sql`to_char(${statements.statementMonth}, 'YYYY-MM') = ${month}`
+      ),
+      with: {
+        account: true,
+      },
+    })
+
+    const statementNames = matchedInvoice?.statements?.length
+      ? matchedInvoice.statements.map((s) => s.accountName)
+      : stmtsForMonth.map((s) => s.account?.accountName || s.bankId)
+
+    const reconciliation = {
+      invoiceId: matchedInvoice?.id,
+      invoiceName: matchedInvoice?.name,
+      invoiceStatus: matchedInvoice?.status,
+      statementCount: matchedInvoice?.statements?.length ?? stmtsForMonth.length,
+      statementNames,
+    }
 
     return {
       totalSpend,
@@ -139,6 +207,8 @@ export class InsightsService {
       netFlow,
       topCategories,
       uncategorizedCount: uncategorizedResult[0]?.count || 0,
+      mode,
+      reconciliation,
     }
   }
 
@@ -147,15 +217,15 @@ export class InsightsService {
   async getYearlyInsights(
     userId: string,
     year: number,
-    ownerIds?: string[]
+    ownerIds?: string[],
+    mode: AccountingMode = 'invoice'
   ): Promise<YearlyInsight> {
-    const startDate = `${year}-01-01`
-    const endDate = toISODate(new Date(new Date(`${year + 1}-01-01`).getTime() - 1))
+    const effectiveMonth = getEffectiveMonthExpr(mode)
+    const yearPrefix = `${year}-%`
 
     const conditions = [
       eq(transactions.userId, userId),
-      gte(insightsDate, startDate),
-      lte(insightsDate, endDate),
+      sql`${effectiveMonth} LIKE ${yearPrefix}`,
     ]
 
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
@@ -163,13 +233,15 @@ export class InsightsService {
 
     const resultQuery = db
       .select({
-        month: sql<string>`to_char(${insightsDate}, 'YYYY-MM')`,
+        month: effectiveMonth,
         type: transactions.type,
         categoryType: sql<string>`coalesce(${categories.type}, 'expense')`,
         amount: sql<string>`sum(${amountExpr})`,
       })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
+      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
       .leftJoin(categories, eq(transactions.categoryId, categories.id))
 
     if (hasOwnerFilter) {
@@ -180,10 +252,10 @@ export class InsightsService {
       .where(
         and(
           ...conditions,
-          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
+          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
-      .groupBy(sql`to_char(${insightsDate}, 'YYYY-MM')`, transactions.type, sql`coalesce(${categories.type}, 'expense')`)
+      .groupBy(effectiveMonth, transactions.type, sql`coalesce(${categories.type}, 'expense')`)
 
     const months: Record<string, { spend: string; income: string }> = {}
     for (let i = 0; i < 12; i++) {
@@ -197,8 +269,12 @@ export class InsightsService {
         const amt = parseFloat(r.amount || '0')
         if (r.type === 'debit' && r.categoryType === 'expense') {
           monthData.spend = (parseFloat(monthData.spend) + amt).toFixed(2)
-        } else if (r.type === 'credit' && r.categoryType !== 'transfer') {
-          monthData.income = (parseFloat(monthData.income) + amt).toFixed(2)
+        } else if (r.type === 'credit') {
+          if (r.categoryType === 'expense') {
+            monthData.spend = Math.max(0, parseFloat(monthData.spend) - amt).toFixed(2)
+          } else if (r.categoryType !== 'transfer') {
+            monthData.income = (parseFloat(monthData.income) + amt).toFixed(2)
+          }
         }
       }
     }
@@ -212,56 +288,40 @@ export class InsightsService {
   // ─── Category helpers ─────────────────────────────────────────────────────────
 
   /**
-   * Spend per category for a date range.
+   * Spend per category for a specific month (YYYY-MM).
    * Called internally by getCategoryComparison and getCategoryAverages.
    */
   private async getCategoryInsights(
     userId: string,
-    startDateISO: string, // YYYY-MM-DD
-    endDateISO: string,   // YYYY-MM-DD
-    ownerIds?: string[]
+    targetMonth: string, // YYYY-MM
+    ownerIds?: string[],
+    mode: AccountingMode = 'invoice'
   ): Promise<Array<{ id: string; name: string; color: string; amount: string; percentage: number }>> {
+    const effectiveMonth = getEffectiveMonthExpr(mode)
+
     const conditions = [
       eq(transactions.userId, userId),
-      gte(insightsDate, startDateISO),
-      lt(insightsDate, endDateISO),
-      eq(transactions.type, 'debit'),
+      sql`${effectiveMonth} = ${targetMonth}`,
+      or(eq(categories.type, 'expense'), isNull(categories.type)),
     ]
 
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
-    // Total spend across expense categories (includes uncategorized — used for %)
-    const totalSpendQuery = db
-      .select({ total: sql<string>`sum(${amountExpr})` })
-      .from(transactions)
-      .leftJoin(statements, eq(transactions.statementId, statements.id))
-      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    const netCatAmountSql = sql<string>`sum(case when ${transactions.type} = 'debit' then ${amountExpr} else -${amountExpr} end)`
 
-    if (hasOwnerFilter) {
-      totalSpendQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
-    }
-
-    const totalSpendResult = await totalSpendQuery.where(
-      and(
-        ...conditions,
-        or(eq(categories.type, 'expense'), isNull(categories.type)),
-        hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
-      )
-    )
-
-    const totalSpend = parseFloat(totalSpendResult[0]?.total || '0')
-
-    // Per-category totals (only expense categories)
+    // Per-category totals (only expense categories with net > 0)
     const rowsQuery = db
       .select({
         id: categories.id,
         name: categories.name,
         color: categories.color,
-        amount: sql<string>`sum(${amountExpr})`,
+        amount: netCatAmountSql,
       })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
+      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
       .innerJoin(categories, eq(transactions.categoryId, categories.id))
 
     if (hasOwnerFilter) {
@@ -272,20 +332,25 @@ export class InsightsService {
       .where(
         and(
           ...conditions,
-          or(eq(categories.type, 'expense'), isNull(categories.type)),
-          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
+          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
       .groupBy(categories.id, categories.name, categories.color)
-      .orderBy(desc(sql`sum(${amountExpr})`))
+      .having(sql`${netCatAmountSql} > 0`)
+      .orderBy(desc(netCatAmountSql))
 
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      color: r.color,
-      amount: r.amount,
-      percentage: totalSpend > 0 ? (parseFloat(r.amount) / totalSpend) * 100 : 0,
-    }))
+    const totalSpend = rows.reduce((acc, r) => acc + parseFloat(r.amount), 0)
+
+    return rows.map((r) => {
+      const amtNum = parseFloat(r.amount)
+      return {
+        id: r.id,
+        name: r.name,
+        color: r.color,
+        amount: amtNum.toFixed(2),
+        percentage: totalSpend > 0 ? (amtNum / totalSpend) * 100 : 0,
+      }
+    })
   }
 
   // ─── Category comparison ──────────────────────────────────────────────────────
@@ -293,19 +358,18 @@ export class InsightsService {
   async getCategoryComparison(
     userId: string,
     month: string, // YYYY-MM
-    ownerIds?: string[]
+    ownerIds?: string[],
+    mode: AccountingMode = 'invoice'
   ): Promise<CategoryComparison> {
-    const currentMonthStart = `${month}-01`
-    const currentMonthEnd = toISODate(new Date(new Date(`${currentMonthStart}`).setMonth(new Date(`${currentMonthStart}`).getMonth() + 1)))
-
-    const prevMonthObj = new Date(`${currentMonthStart}`)
-    prevMonthObj.setMonth(prevMonthObj.getMonth() - 1)
-    const prevMonthStart = toISODate(prevMonthObj)
-    const prevMonthEnd = currentMonthStart
+    const parts = month.split('-').map(Number)
+    const yearNum = parts[0] ?? new Date().getFullYear()
+    const monthNum = parts[1] ?? (new Date().getMonth() + 1)
+    const prevDate = new Date(yearNum, monthNum - 2, 1)
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
 
     const [currentResults, prevResults] = await Promise.all([
-      this.getCategoryInsights(userId, currentMonthStart, currentMonthEnd, ownerIds),
-      this.getCategoryInsights(userId, prevMonthStart, prevMonthEnd, ownerIds),
+      this.getCategoryInsights(userId, month, ownerIds, mode),
+      this.getCategoryInsights(userId, prevMonth, ownerIds, mode),
     ])
 
     const categoriesMap: Record<string, { id: string; name: string; color: string; currentAmount: string; prevAmount: string }> = {}
@@ -344,33 +408,41 @@ export class InsightsService {
   async getCategoryAverages(
     userId: string,
     currentMonth: string, // YYYY-MM
-    ownerIds?: string[]
+    ownerIds?: string[],
+    mode: AccountingMode = 'invoice'
   ): Promise<CategoryAverage> {
-    const twelveMonthsAgo = new Date(`${currentMonth}-01`)
-    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
-    const twelveMonthsAgoISO = toISODate(twelveMonthsAgo)
+    const parts = currentMonth.split('-').map(Number)
+    const yearNum = parts[0] ?? new Date().getFullYear()
+    const monthNum = parts[1] ?? (new Date().getMonth() + 1)
+    const startYearMo = new Date(yearNum, monthNum - 13, 1)
+    const startMonthStr = `${startYearMo.getFullYear()}-${String(startYearMo.getMonth() + 1).padStart(2, '0')}`
 
+    const effectiveMonth = getEffectiveMonthExpr(mode)
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
-    // 12-month average spend per category (only expense categories)
+    const netCatAmountSql = sql<string>`sum(case when ${transactions.type} = 'debit' then ${amountExpr} else -${amountExpr} end)`
+
+    // 12-month spend per category
     const avgQuery = db
       .select({
         id: categories.id,
         name: categories.name,
         color: categories.color,
-        totalAmount: sql<string>`sum(${amountExpr})`,
+        totalAmount: netCatAmountSql,
       })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
+      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
       .innerJoin(categories, eq(transactions.categoryId, categories.id))
       .where(
         and(
           eq(transactions.userId, userId),
-          eq(transactions.type, 'debit'),
           or(eq(categories.type, 'expense'), isNull(categories.type)),
-          gte(insightsDate, twelveMonthsAgoISO),
-          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined,
+          sql`${effectiveMonth} >= ${startMonthStr}`,
+          sql`${effectiveMonth} <= ${currentMonth}`,
+          hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
 
@@ -378,12 +450,12 @@ export class InsightsService {
       avgQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
     }
 
-    const avgRows = await avgQuery.groupBy(categories.id, categories.name, categories.color)
+    const avgRows = await avgQuery
+      .groupBy(categories.id, categories.name, categories.color)
+      .having(sql`${netCatAmountSql} > 0`)
 
     // Current month spend per category
-    const currentMonthStart = `${currentMonth}-01`
-    const currentMonthEnd = toISODate(new Date(new Date(`${currentMonthStart}`).setMonth(new Date(`${currentMonthStart}`).getMonth() + 1)))
-    const currentData = await this.getCategoryInsights(userId, currentMonthStart, currentMonthEnd, ownerIds)
+    const currentData = await this.getCategoryInsights(userId, currentMonth, ownerIds, mode)
 
     return avgRows
       .map((row) => {

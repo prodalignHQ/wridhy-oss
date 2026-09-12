@@ -14,6 +14,7 @@ const insightsService = new InsightsService()
 
 const commonQuerySchema = z.object({
   ownerIds: z.string().optional().transform(v => v ? v.split(',') : undefined),
+  mode: z.enum(['invoice', 'transaction']).optional().default('invoice'),
 })
 
 // ─── GET /v1/insights/monthly ─────────────────────────────────────────────────
@@ -24,9 +25,9 @@ const monthlyQuerySchema = commonQuerySchema.extend({
 
 insightsRoute.get('/monthly', zValidator('query', monthlyQuerySchema), async (c) => {
   const userId = c.get('userId')
-  const { month, ownerIds } = c.req.valid('query')
+  const { month, ownerIds, mode } = c.req.valid('query')
   
-  const data = await insightsService.getMonthlyInsights(userId, month, ownerIds)
+  const data = await insightsService.getMonthlyInsights(userId, month, ownerIds, mode)
   return c.json({ success: true, data })
 })
 
@@ -38,9 +39,9 @@ const yearlyQuerySchema = commonQuerySchema.extend({
 
 insightsRoute.get('/yearly', zValidator('query', yearlyQuerySchema), async (c) => {
   const userId = c.get('userId')
-  const { year, ownerIds } = c.req.valid('query')
+  const { year, ownerIds, mode } = c.req.valid('query')
   
-  const data = await insightsService.getYearlyInsights(userId, year, ownerIds)
+  const data = await insightsService.getYearlyInsights(userId, year, ownerIds, mode)
   return c.json({ success: true, data })
 })
 
@@ -48,9 +49,9 @@ insightsRoute.get('/yearly', zValidator('query', yearlyQuerySchema), async (c) =
 
 insightsRoute.get('/category-comparison', zValidator('query', monthlyQuerySchema), async (c) => {
   const userId = c.get('userId')
-  const { month, ownerIds } = c.req.valid('query')
+  const { month, ownerIds, mode } = c.req.valid('query')
   
-  const data = await insightsService.getCategoryComparison(userId, month, ownerIds)
+  const data = await insightsService.getCategoryComparison(userId, month, ownerIds, mode)
   return c.json({ success: true, data })
 })
 
@@ -58,9 +59,9 @@ insightsRoute.get('/category-comparison', zValidator('query', monthlyQuerySchema
 
 insightsRoute.get('/category-averages', zValidator('query', monthlyQuerySchema), async (c) => {
   const userId = c.get('userId')
-  const { month, ownerIds } = c.req.valid('query')
+  const { month, ownerIds, mode } = c.req.valid('query')
   
-  const data = await insightsService.getCategoryAverages(userId, month, ownerIds)
+  const data = await insightsService.getCategoryAverages(userId, month, ownerIds, mode)
   return c.json({ success: true, data })
 })
 
