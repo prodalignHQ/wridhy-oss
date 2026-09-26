@@ -41,7 +41,10 @@ const sessionAdapter: DataAdapter = {
   getCategoryAverages: async () => [],
 }
 
-// Cloud Adapter implementation
+// Cloud Adapter implementation — OPFS-first with server fallback.
+// Reads compute locally from the on-device cache (which includes vault-only
+// rows the server has never seen); falls back to the API when the cache is
+// unavailable. Method shapes match the server responses exactly.
 const cloudAdapter: DataAdapter = {
   getTransactions: async (filters) => {
     const params = new URLSearchParams(filters)
@@ -49,11 +52,23 @@ const cloudAdapter: DataAdapter = {
   },
   saveTransactions: async () => {}, // Handled by separate endpoints mostly
   getMonthlyInsights: async (month, ownerIds, mode = 'invoice') => {
+    try {
+      const { localAnalytics } = await import('../engine/analytics-client')
+      return await localAnalytics.monthly(month, ownerIds, mode)
+    } catch {
+      // fall through to server
+    }
     const params = new URLSearchParams({ month, mode })
     if (ownerIds?.length) params.set("ownerIds", ownerIds.join(","))
     return apiClient.fetch(`/v1/insights/monthly?${params.toString()}`)
   },
   getYearlyInsights: async (year, ownerIds, mode = 'invoice') => {
+    try {
+      const { localAnalytics } = await import('../engine/analytics-client')
+      return await localAnalytics.yearly(year, ownerIds, mode)
+    } catch {
+      // fall through to server
+    }
     const params = new URLSearchParams({ year: String(year), mode })
     if (ownerIds?.length) params.set("ownerIds", ownerIds.join(","))
     return apiClient.fetch(`/v1/insights/yearly?${params.toString()}`)
@@ -64,11 +79,23 @@ const cloudAdapter: DataAdapter = {
     return apiClient.fetch(`/v1/insights/category-trends?${params.toString()}`)
   },
   getCategoryComparison: async (month, ownerIds, mode = 'invoice') => {
+    try {
+      const { localAnalytics } = await import('../engine/analytics-client')
+      return await localAnalytics.categoryComparison(month, ownerIds, mode)
+    } catch {
+      // fall through to server
+    }
     const params = new URLSearchParams({ month, mode })
     if (ownerIds?.length) params.set("ownerIds", ownerIds.join(","))
     return apiClient.fetch(`/v1/insights/category-comparison?${params.toString()}`)
   },
   getCategoryAverages: async (month, ownerIds, mode = 'invoice') => {
+    try {
+      const { localAnalytics } = await import('../engine/analytics-client')
+      return await localAnalytics.categoryAverages(month, ownerIds, mode)
+    } catch {
+      // fall through to server
+    }
     const params = new URLSearchParams({ month, mode })
     if (ownerIds?.length) params.set("ownerIds", ownerIds.join(","))
     return apiClient.fetch(`/v1/insights/category-averages?${params.toString()}`)

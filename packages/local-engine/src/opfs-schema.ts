@@ -327,6 +327,56 @@ export function buildClearChangelog(upToId: number): OpfsBatch {
   }
 }
 
+/** Local invoice lifecycle (vault users): headers/links/items live in OPFS. */
+
+export interface LocalInvoiceCreate {
+  id: string
+  name: string
+  invoiceMonth: string
+  statements: Array<{
+    statementId: string | null
+    accountId: string | null
+    statementMonth: string
+    accountName: string
+    accountType: string
+  }>
+}
+
+export function buildRewriteInvoiceLinks(invoiceId: string, statements: LocalInvoiceCreate['statements']): OpfsBatch {
+  const queries = ['DELETE FROM local_invoice_statements WHERE invoice_id = ?']
+  const params: unknown[][] = [[invoiceId]]
+  for (const s of statements) {
+    queries.push('INSERT INTO local_invoice_statements(invoice_id,statement_id,account_id,statement_month,account_name,account_type) VALUES(?,?,?,?,?,?)')
+    params.push([invoiceId, s.statementId ?? null, s.accountId ?? null, s.statementMonth, s.accountName, s.accountType])
+  }
+  return { queries, params }
+}
+
+export function buildDeleteInvoice(invoiceId: string): OpfsBatch {
+  return {
+    queries: [
+      'DELETE FROM local_invoice_items WHERE invoice_id = ?',
+      'DELETE FROM local_invoice_statements WHERE invoice_id = ?',
+      'DELETE FROM local_invoices WHERE id = ?',
+    ],
+    params: [[invoiceId], [invoiceId], [invoiceId]],
+  }
+}
+
+export function buildDeleteInvoiceItems(invoiceId: string): OpfsBatch {
+  return {
+    queries: ['DELETE FROM local_invoice_items WHERE invoice_id = ?'],
+    params: [[invoiceId]],
+  }
+}
+
+export function buildSetInvoiceStatus(invoiceId: string, status: 'draft' | 'generated', generatedAt: string | null): OpfsBatch {
+  return {
+    queries: ['UPDATE local_invoices SET status = ?, generated_at = ? WHERE id = ?'],
+    params: [[status, generatedAt, invoiceId]],
+  }
+}
+
 export const OPFS_READ_TABLES = [
   'local_transactions',
   'local_categories',

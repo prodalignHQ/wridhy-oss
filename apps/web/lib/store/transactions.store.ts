@@ -6,6 +6,7 @@ import {
   localSetOwners,
   useLocalMutations,
 } from '../engine/mutations'
+import { useVaultStore } from './vault.store'
 import type { OwnerShare } from '../engine/opfs-db'
 import type { LocalTransaction } from '@momoney/local-engine'
 
@@ -120,6 +121,64 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
 
   fetchTransactions: async () => {
     const { filters } = get()
+
+    // Vault unlocked → query the on-device OPFS cache (imports land here
+    // first and may never exist as server rows). Falls back to the server
+    // when the cache is unavailable.
+    if (useVaultStore.getState().isUnlocked()) {
+      set({ isLoading: true, error: null })
+      try {
+        const [{ readLocalCache }, { queryLocalTransactions }] = await Promise.all([
+          import('../engine/opfs-db'),
+          import('../engine/local-query'),
+        ])
+        const cache = await readLocalCache()
+        if (cache) {
+          const { rows, total, totalPages } = queryLocalTransactions(cache, {
+            accountId: filters.accountId,
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+            categoryId: filters.categoryId,
+            ownerId: filters.ownerId,
+            type: filters.type,
+            nature: filters.nature,
+            isOneTime: filters.isOneTime,
+            search: filters.search,
+            page: filters.page,
+            limit: filters.limit,
+          })
+          set({
+            transactions: rows.map((r) => ({
+              id: r.id,
+              userId: '',
+              accountId: r.accountId,
+              statementId: r.statementId,
+              date: r.date,
+              description: r.description,
+              merchant: r.merchant,
+              amount: r.amount,
+              type: r.type,
+              isOneTime: r.isOneTime,
+              categoryId: r.categoryId,
+              comment: r.comment,
+              dedupHash: r.dedupHash,
+              createdAt: r.date,
+              updatedAt: r.date,
+              category: r.category,
+              account: r.account ?? undefined,
+              transactionOwners: r.transactionOwners,
+            })),
+            total,
+            totalPages,
+            isLoading: false,
+          })
+          return
+        }
+      } catch (err) {
+        console.warn('[transactions] local query failed, falling back to server', err)
+      }
+    }
+
     set({ isLoading: true, error: null })
 
     // Build query string from filters

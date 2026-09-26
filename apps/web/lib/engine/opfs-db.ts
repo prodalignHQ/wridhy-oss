@@ -397,6 +397,43 @@ export async function clearChangelog(upToId: number): Promise<boolean> {
   return !!res?.ok
 }
 
+/** Replace an invoice's statement links (local draft editing). */
+export async function rewriteInvoiceLinksInCache(
+  invoiceId: string,
+  statements: Array<{
+    statementId: string | null
+    accountId: string | null
+    statementMonth: string
+    accountName: string
+    accountType: string
+  }>
+): Promise<boolean> {
+  const res = await call('rewriteInvoiceLinks', { invoiceId, statements })
+  return !!res?.ok
+}
+
+/** Delete a local invoice (header + links + items). */
+export async function deleteInvoiceFromCache(invoiceId: string): Promise<boolean> {
+  const res = await call('deleteInvoice', { invoiceId })
+  return !!res?.ok
+}
+
+/** Drop an invoice's frozen items (revert to draft). */
+export async function deleteInvoiceItemsFromCache(invoiceId: string): Promise<boolean> {
+  const res = await call('deleteInvoiceItems', { invoiceId })
+  return !!res?.ok
+}
+
+/** Flip a local invoice between draft and generated. */
+export async function setInvoiceStatusInCache(
+  invoiceId: string,
+  status: 'draft' | 'generated',
+  generatedAt: string | null
+): Promise<boolean> {
+  const res = await call('setInvoiceStatus', { invoiceId, status, generatedAt })
+  return !!res?.ok
+}
+
 /** Seal the OPFS database file with the vault DEK (lock). Best-effort. */
 export async function sealLocalDb(dek: Uint8Array): Promise<boolean> {
   const res = await call('seal', { dek: dek.slice() }, 60_000)

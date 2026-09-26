@@ -18,11 +18,16 @@ import {
   buildClearChangelog,
   buildDeleteByIds,
   buildDeleteByStatement,
+  buildDeleteInvoice,
+  buildDeleteInvoiceItems,
   buildPatchTransaction,
+  buildRewriteInvoiceLinks,
+  buildSetInvoiceStatus,
   buildSetOwners,
   buildUpsertBatch,
   sealBytes,
   unsealBytes,
+  type LocalInvoiceCreate,
   type TxnPatch,
 } from '@momoney/local-engine'
 
@@ -75,7 +80,7 @@ function toArrayBufferView(u8: Uint8Array): Uint8Array<ArrayBuffer> {
 
 export interface DbWorkerRequest {
   id: number
-  op: 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'seal' | 'unseal' | 'sealedExists'
+  op: 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'seal' | 'unseal' | 'sealedExists'
   payload?: unknown
 }
 
@@ -214,6 +219,41 @@ interface UpsertPayload {
       await openDb()
       const { upToId } = req.payload as { upToId: number }
       const batch = buildClearChangelog(upToId)
+      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      return { ok: true }
+    }
+    case 'rewriteInvoiceLinks': {
+      await openDb()
+      const { invoiceId, statements } = req.payload as {
+        invoiceId: string
+        statements: LocalInvoiceCreate['statements']
+      }
+      const batch = buildRewriteInvoiceLinks(invoiceId, statements)
+      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      return { ok: true }
+    }
+    case 'deleteInvoice': {
+      await openDb()
+      const { invoiceId } = req.payload as { invoiceId: string }
+      const batch = buildDeleteInvoice(invoiceId)
+      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      return { ok: true }
+    }
+    case 'deleteInvoiceItems': {
+      await openDb()
+      const { invoiceId } = req.payload as { invoiceId: string }
+      const batch = buildDeleteInvoiceItems(invoiceId)
+      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      return { ok: true }
+    }
+    case 'setInvoiceStatus': {
+      await openDb()
+      const { invoiceId, status, generatedAt } = req.payload as {
+        invoiceId: string
+        status: 'draft' | 'generated'
+        generatedAt: string | null
+      }
+      const batch = buildSetInvoiceStatus(invoiceId, status, generatedAt)
       await sqlite3.executeBatch(db, batch.queries, batch.params)
       return { ok: true }
     }

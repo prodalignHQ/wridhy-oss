@@ -110,12 +110,18 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
     }
   }, [])
 
-  // Fetch monthly spending insights
+  // Fetch monthly spending insights — on-device first (OPFS cache), server fallback
   const loadInsights = useCallback(async (month: string) => {
     setInsightsLoading(true)
     try {
-      const data = await apiClient.fetch<MonthlyInsight>(`/v1/insights/monthly?month=${month}`).catch(() => null)
-      setInsights(data)
+      const { localAnalytics } = await import('@/lib/engine/analytics-client')
+      const data = await localAnalytics.monthly(month).catch(() => null)
+      if (data) {
+        setInsights(data)
+        return
+      }
+      const fallback = await apiClient.fetch<MonthlyInsight>(`/v1/insights/monthly?month=${month}`).catch(() => null)
+      setInsights(fallback)
     } catch (err) {
       console.error('Failed to load insights', err)
     } finally {

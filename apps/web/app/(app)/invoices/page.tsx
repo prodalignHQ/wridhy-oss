@@ -67,6 +67,8 @@ interface Statement {
     accountType: string
     bankName: string
   }
+  /** Present only for rows composed from the OPFS cache (not yet on server). */
+  localOnly?: boolean
 }
 
 interface Owner {
@@ -739,6 +741,28 @@ function InvoicesContent() {
     await loadInvoiceDetail(activeInvoice.id, true)
   }, [activeInvoice, loadInvoiceDetail])
 
+  // Open a local (OPFS) invoice directly, without touching the server.
+  const openLocalInvoice = useCallback(async (invoiceId: string) => {
+    const [{ readLocalCache }, { composeInvoiceDraftLocal }] = await Promise.all([
+      import('@/lib/engine/opfs-db'),
+      import('@/lib/engine/local-invoices'),
+    ])
+    const cache = await readLocalCache()
+    const local = cache ? composeInvoiceDraftLocal(invoiceId, cache) : null
+    if (!local) throw new Error('Invoice not found on this device')
+    setActiveInvoice(local)
+    setSelectedTransactionIds(new Set())
+    setPendingCategoryChange(null)
+    if (local.status === 'draft') {
+      setDraftName(local.name)
+      setDraftStatementIds(
+        local.statements
+          .map((statement) => statement.statementId)
+          .filter((statementId): statementId is string => Boolean(statementId))
+      )
+    }
+  }, [])
+
   const loadInitialData = useCallback(async () => {
     setLoading(true)
 
@@ -752,6 +776,60 @@ function InvoicesContent() {
       setInvoices(invoiceList)
       setStatements(statementList)
       setOwners(ownerList)
+
+      // Merge on-device rows (OPFS) so vault-only imports are visible and
+      // selectable. Local rows carry localOnly / local- ids; server flows
+      // skip them (invoice creation from local statements needs unlock).
+      try {
+        const [{ readLocalCache }] = await Promise.all([import('@/lib/engine/opfs-db')]).catch(
+          () => [{ readLocalCache: null as never }]
+        )
+        const cache = readLocalCache ? await readLocalCache().catch(() => null) : null
+        if (cache) {
+          const serverStmtIds = new Set(statementList.map((s) => s.id))
+          const acctMap = new Map(cache.accounts.map((a) => [a.id, a]))
+          const localStmts: Statement[] = cache.statements
+            .filter((s) => !serverStmtIds.has(s.id))
+            .map((s) => ({
+              id: s.id,
+              statementMonth: s.statementMonth,
+              importedCount: s.importedCount,
+              account: {
+                accountName: acctMap.get(s.accountId)?.accountName ?? 'On-device',
+                accountType: acctMap.get(s.accountId)?.accountType ?? 'bank',
+                bankName: acctMap.get(s.accountId)?.bankName ?? s.bankId,
+              },
+              localOnly: true,
+            }))
+          if (localStmts.length > 0) setStatements([...statementList, ...localStmts])
+
+          const serverInvIds = new Set(invoiceList.map((v) => v.id))
+          const localInvs: InvoiceSummary[] = cache.invoices
+            .filter((v) => !serverInvIds.has(v.id))
+            .map((v) => ({
+              id: v.id,
+              name: v.name,
+              status: v.status,
+              invoiceMonth: v.invoiceMonth,
+              generatedAt: v.generatedAt,
+              createdAt: v.generatedAt ?? new Date().toISOString(),
+              updatedAt: v.generatedAt ?? new Date().toISOString(),
+              statements: cache.invoiceStatements
+                .filter((s) => s.invoiceId === v.id)
+                .map((s, i) => ({
+                  id: `${v.id}:${i}`,
+                  statementId: s.statementId,
+                  accountId: s.accountId,
+                  statementMonth: s.statementMonth,
+                  accountName: s.accountName,
+                  accountType: s.accountType,
+                })),
+            }))
+          if (localInvs.length > 0) setInvoices([...invoiceList, ...localInvs])
+        }
+      } catch {
+        // OPFS unavailable — server lists stand alone
+      }
 
       // Cache invoice headers + statement links for offline drafts.
       import('@/lib/engine/opfs-db').then(({ cacheServerRows }) =>
@@ -833,6 +911,39 @@ function InvoicesContent() {
   const refreshInvoiceList = useCallback(
     async (nextActiveInvoiceId?: string | null) => {
       const invoiceList = await apiClient.fetch<InvoiceSummary[]>('/v1/invoices')
+
+      // Merge local invoices (vault-only drafts) so they stay visible.
+      try {
+        const { readLocalCache } = await import('@/lib/engine/opfs-db')
+        const cache = await readLocalCache().catch(() => null)
+        if (cache) {
+          const serverIds = new Set(invoiceList.map((v) => v.id))
+          for (const v of cache.invoices) {
+            if (serverIds.has(v.id)) continue
+            invoiceList.push({
+              id: v.id,
+              name: v.name,
+              status: v.status,
+              invoiceMonth: v.invoiceMonth,
+              generatedAt: v.generatedAt,
+              createdAt: v.generatedAt ?? new Date().toISOString(),
+              updatedAt: v.generatedAt ?? new Date().toISOString(),
+              statements: cache.invoiceStatements
+                .filter((s) => s.invoiceId === v.id)
+                .map((s, i) => ({
+                  id: `${v.id}:${i}`,
+                  statementId: s.statementId,
+                  accountId: s.accountId,
+                  statementMonth: s.statementMonth,
+                  accountName: s.accountName,
+                  accountType: s.accountType,
+                })),
+            })
+          }
+        }
+      } catch {
+        // ignore — server list stands alone
+      }
       setInvoices(invoiceList)
 
       if (nextActiveInvoiceId === null) {
@@ -871,6 +982,29 @@ function InvoicesContent() {
     setCreating(true)
 
     try {
+      // Local-only statements can't be validated by the server — they need
+      // an unlocked vault so the invoice itself can live on-device.
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      const unlocked = useVaultStore.getState().isUnlocked()
+      const needsLocal = newStatementIds.some((id) =>
+        statements.find((s) => s.id === id)?.localOnly
+      )
+      if (needsLocal && !unlocked) {
+        toast.error('Unlock your vault first — these statements only exist on this device')
+        return
+      }
+
+      if (unlocked && needsLocal) {
+        const { createLocalInvoice } = await import('@/lib/engine/local-invoices')
+        const localId = await createLocalInvoice(newInvoiceName.trim(), newInvoiceMonth, newStatementIds)
+        toast.success('Draft invoice created on this device')
+        await refreshInvoiceList(localId)
+        setComposerOpen(false)
+        setActiveInvoiceId(localId)
+        await openLocalInvoice(localId)
+        return
+      }
+
       const created = await apiClient.fetch<InvoiceSummary>('/v1/invoices', {
         method: 'POST',
         body: JSON.stringify({
@@ -897,6 +1031,15 @@ function InvoicesContent() {
     setSavingDraft(true)
 
     try {
+      const { isLocalInvoiceId } = await import('@/lib/engine/local-invoices')
+      if (isLocalInvoiceId(activeInvoice.id)) {
+        const { saveLocalDraft } = await import('@/lib/engine/local-invoices')
+        await saveLocalDraft(activeInvoice.id, draftName.trim(), draftStatementIds)
+        toast.success('Draft saved on this device')
+        await refreshInvoiceList(activeInvoice.id)
+        await openLocalInvoice(activeInvoice.id)
+        return
+      }
       await apiClient.fetch<InvoiceSummary>(`/v1/invoices/${activeInvoice.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
@@ -921,6 +1064,15 @@ function InvoicesContent() {
     setGenerating(true)
 
     try {
+      const { isLocalInvoiceId } = await import('@/lib/engine/local-invoices')
+      if (isLocalInvoiceId(activeInvoice.id)) {
+        const { generateLocalInvoice } = await import('@/lib/engine/local-invoices')
+        await generateLocalInvoice(activeInvoice.id)
+        toast.success('Invoice generated on this device')
+        await refreshInvoiceList(activeInvoice.id)
+        await openLocalInvoice(activeInvoice.id)
+        return
+      }
       await apiClient.fetch<InvoiceSummary>(`/v1/invoices/${activeInvoice.id}/generate`, {
         method: 'POST',
       })
@@ -941,6 +1093,15 @@ function InvoicesContent() {
     setMovingToDraft(true)
 
     try {
+      const { isLocalInvoiceId } = await import('@/lib/engine/local-invoices')
+      if (isLocalInvoiceId(activeInvoice.id)) {
+        const { draftLocalInvoice } = await import('@/lib/engine/local-invoices')
+        await draftLocalInvoice(activeInvoice.id)
+        toast.success('Invoice moved back to draft')
+        await refreshInvoiceList(activeInvoice.id)
+        await openLocalInvoice(activeInvoice.id)
+        return
+      }
       await apiClient.fetch<InvoiceSummary>(`/v1/invoices/${activeInvoice.id}/draft`, {
         method: 'POST',
       })
@@ -961,11 +1122,17 @@ function InvoicesContent() {
     setDeletingInvoice(true)
 
     try {
-      await apiClient.fetch(`/v1/invoices/${activeInvoice.id}`, {
-        method: 'DELETE',
-      })
-
-      toast.success('Invoice deleted')
+      const { isLocalInvoiceId } = await import('@/lib/engine/local-invoices')
+      if (isLocalInvoiceId(activeInvoice.id)) {
+        const { deleteLocalInvoice } = await import('@/lib/engine/local-invoices')
+        await deleteLocalInvoice(activeInvoice.id)
+        toast.success('Invoice deleted from this device')
+      } else {
+        await apiClient.fetch(`/v1/invoices/${activeInvoice.id}`, {
+          method: 'DELETE',
+        })
+        toast.success('Invoice deleted')
+      }
       const nextInvoiceId = await refreshInvoiceList()
 
       if (nextInvoiceId) {
