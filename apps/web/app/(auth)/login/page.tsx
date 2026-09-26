@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/lib/store/auth.store'
+import { isLocalMode } from '@/lib/local-mode'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -47,6 +48,13 @@ function LoginForm() {
     }
   }, [verificationState])
 
+  // Standalone binary has no accounts — skip straight to the app.
+  useEffect(() => {
+    if (isLocalMode()) {
+      router.replace('/dashboard')
+    }
+  }, [router])
+
 
   const onSubmit = async (data: LoginValues) => {
     setLoading(true)
@@ -75,6 +83,9 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      {isLocalMode() ? (
+        <p className="text-muted-foreground">Opening MoMoney...</p>
+      ) : (
       <Card className="w-full max-w-sm bg-card border-border rounded-2xl p-4">
         <CardHeader className="text-center pb-6">
           <CardTitle className="text-2xl font-semibold mb-1">Welcome back</CardTitle>
@@ -129,6 +140,7 @@ function LoginForm() {
           </p>
         </CardFooter>
       </Card>
+      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { Menu, X } from "lucide-react"
 import { ThemeToggle } from "@/components/theme/ThemeToggle"
+import { isLocalMode } from "@/lib/local-mode"
 
 const links = [
   { label: "Features", href: "#features" },
@@ -12,6 +13,8 @@ const links = [
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)
+  // Standalone binary has no accounts — "Log in" goes straight to the app.
+  const loginHref = isLocalMode() ? "/dashboard" : "/login"
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
@@ -40,7 +43,7 @@ export default function Navbar() {
         <div className="hidden items-center gap-2 md:flex">
           <ThemeToggle isCollapsed />
           <Link
-            href="/login"
+            href={loginHref}
             className="rounded-lg px-4 py-2 text-sm font-medium text-foreground/70 hover:bg-muted"
           >
             Log in
@@ -80,7 +83,7 @@ export default function Navbar() {
             ))}
             <div className="mt-2 flex gap-2">
               <Link
-                href="/login"
+                href={loginHref}
                 className="flex-1 rounded-lg border border-border px-4 py-2.5 text-center text-sm font-semibold"
               >
                 Log in

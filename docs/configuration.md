@@ -68,6 +68,7 @@ When running in multi-tenant PostgreSQL mode, MoMoney can send email verificatio
 | :--- | :--- | :--- | :--- |
 | `NEXT_PUBLIC_API_URL` | String (URL) | `http://localhost:3001` | Target URL used by the browser to communicate with the API. For the embedded standalone binary, this is set to an empty string (`""`) so API calls use relative paths (`/api/...`). |
 | `NEXT_OUTPUT_EXPORT` | String (`true` \| `false`) | `false` | When set to `'true'`, Next.js outputs a static HTML/JS/CSS export (`apps/web/out`) instead of requiring a Node.js server. Used when packaging the standalone binary. |
+| `NEXT_PUBLIC_LOCAL_MODE` | String (`true` \| unset) | *Unset* | When set to `'true'` (done automatically by `build:binary`), the frontend skips login/signup and goes straight to the dashboard, since the binary auto-provisions a local user. |
 
 ---
 

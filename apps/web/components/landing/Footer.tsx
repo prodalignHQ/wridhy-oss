@@ -1,6 +1,9 @@
 import Link from "next/link"
+import { isLocalMode } from "@/lib/local-mode"
 
 export default function Footer() {
+  // Standalone binary has no accounts — "Log in" goes straight to the app.
+  const loginHref = isLocalMode() ? "/dashboard" : "/login"
   return (
     <footer className="bg-[#18181b] text-white dark:border-t dark:border-border dark:bg-black">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
@@ -20,7 +23,7 @@ export default function Footer() {
               Open MoMoney →
             </Link>
             <Link
-              href="/login"
+              href={loginHref}
               className="rounded-xl border-2 border-white/30 px-7 py-3 text-[15px] font-bold text-white hover:bg-white/10"
             >
               Log in

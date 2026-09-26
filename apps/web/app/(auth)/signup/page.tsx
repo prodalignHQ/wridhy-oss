@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { authClient } from '@/lib/auth.client'
+import { isLocalMode } from '@/lib/local-mode'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,6 +39,13 @@ export default function SignupPage() {
   } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
   })
+
+  // Standalone binary has no accounts — skip straight to the app.
+  useEffect(() => {
+    if (isLocalMode()) {
+      router.replace('/dashboard')
+    }
+  }, [router])
 
   const onSubmit = async (data: SignupValues) => {
     setLoading(true)
@@ -72,6 +80,9 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      {isLocalMode() ? (
+        <p className="text-muted-foreground">Opening MoMoney...</p>
+      ) : (
       <Card className="w-full max-w-sm bg-card border-border rounded-2xl p-4">
         <CardHeader className="text-center pb-6">
           <CardTitle className="text-2xl font-semibold mb-1">Create an account</CardTitle>
@@ -140,6 +151,7 @@ export default function SignupPage() {
           </p>
         </CardFooter>
       </Card>
+      )}
     </div>
   )
 }
