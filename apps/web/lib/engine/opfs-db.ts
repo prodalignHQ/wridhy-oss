@@ -23,11 +23,24 @@ let worker: Worker | null = null
 let seq = 0
 const pending = new Map<number, { resolve: (v: DbWorkerResponse) => void; reject: (e: Error) => void }>()
 
+// Last worker failure, human-readable. Surfaced in Settings → Vault →
+// diagnostics so users can paste it into a bug report instead of guessing.
+let lastWorkerError: string | null = null
+
+export function getDbWorkerError(): string | null {
+  return lastWorkerError
+}
+
+function noteError(message: string): void {
+  lastWorkerError = message
+  console.warn(`[opfs-db] ${message}`)
+}
+
 function getWorker(): Worker | null {
   if (typeof window === 'undefined') return null
   try {
     if (!worker) {
-      worker = new Worker(new URL('@/workers/db.worker.ts', import.meta.url), { type: 'module' })
+      worker = new Worker(new URL('../../workers/db.worker.ts', import.meta.url), { type: 'module' })
       worker.onmessage = (e: MessageEvent<DbWorkerResponse>) => {
         const entry = pending.get(e.data.id)
         if (!entry) return
@@ -35,6 +48,7 @@ function getWorker(): Worker | null {
         entry.resolve(e.data)
       }
       worker.onerror = () => {
+        noteError('worker crashed on startup (bundling/serve failure?)')
         for (const [, entry] of pending) entry.reject(new Error('DB worker error'))
         pending.clear()
         try {
@@ -53,7 +67,10 @@ function getWorker(): Worker | null {
 
 async function call(op: DbWorkerRequest['op'], payload?: unknown, timeoutMs = 30_000): Promise<DbWorkerResponse | null> {
   const w = getWorker()
-  if (!w) return null
+  if (!w) {
+    noteError('Workers unavailable in this browser/context')
+    return null
+  }
   const id = ++seq
   const promise = new Promise<DbWorkerResponse>((resolve, reject) => {
     pending.set(id, { resolve, reject })
@@ -70,9 +87,10 @@ async function call(op: DbWorkerRequest['op'], payload?: unknown, timeoutMs = 30
   try {
     const res = await promise
     if (!res.ok) throw new Error(res.error ?? 'DB op failed')
+    lastWorkerError = null
     return res
   } catch (err) {
-    console.warn(`[opfs-db] ${op} failed:`, err)
+    noteError(`${op} failed: ${err instanceof Error ? err.message : String(err)}`)
     return null
   }
 }

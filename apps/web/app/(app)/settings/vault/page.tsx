@@ -38,6 +38,7 @@ export default function VaultPage() {
   const [pendingEdits, setPendingEdits] = useState<number | null>(null)
   const [lastBackup, setLastBackup] = useState<string | null>(null)
   const [dbStats, setDbStats] = useState<{ sealed: boolean; counts: Record<string, number> | null } | null>(null)
+  const [workerError, setWorkerError] = useState<string | null>(null)
   // Post-login unlock gate (?from=login): offer the escape hatch and return
   // to the dashboard after a successful unlock.
   const [fromLogin, setFromLogin] = useState(false)
@@ -57,14 +58,17 @@ export default function VaultPage() {
 
   useEffect(() => {
     let cancelled = false
-    import('@/lib/engine/opfs-db').then(async ({ getPendingWork, readLastBackupAt, getLocalDbStats }) => {
+    import('@/lib/engine/opfs-db').then(async ({ getPendingWork, readLastBackupAt, getLocalDbStats, getDbWorkerError }) => {
       if (cancelled) return
       const work = await getPendingWork().catch(() => ({ statements: [], edits: 0 }))
       if (cancelled) return
       setPendingEdits(work.edits + work.statements.length)
       setLastBackup(readLastBackupAt())
       const stats = await getLocalDbStats().catch(() => null)
-      if (!cancelled) setDbStats(stats)
+      if (!cancelled) {
+        setDbStats(stats)
+        setWorkerError(getDbWorkerError())
+      }
     }).catch(() => {})
     return () => {
       cancelled = true
@@ -205,6 +209,11 @@ export default function VaultPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {workerError && (
+            <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/5 px-3 py-2 font-mono text-xs text-rose-400">
+              Worker error: {workerError}
+            </p>
+          )}
           {dbStats === null ? (
             <p className="text-xs text-muted-foreground">Unavailable (worker/OPFS not running here).</p>
           ) : dbStats.sealed && !dbStats.counts ? (

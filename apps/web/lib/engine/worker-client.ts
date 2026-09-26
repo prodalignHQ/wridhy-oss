@@ -11,7 +11,7 @@ function getWorker(): Worker | null {
   if (typeof window === 'undefined') return null
   try {
     if (!worker) {
-      worker = new Worker(new URL('@/workers/parser.worker.ts', import.meta.url), { type: 'module' })
+      worker = new Worker(new URL('../../workers/parser.worker.ts', import.meta.url), { type: 'module' })
       worker.onmessage = (e: MessageEvent<ParserWorkerResponse>) => {
         const entry = pending.get(e.data.id)
         if (!entry) return

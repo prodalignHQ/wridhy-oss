@@ -99,7 +99,11 @@ export async function importStatementLocal(input: LocalImportInput): Promise<Loc
       ],
     })
     if (!written) {
-      throw new Error('On-device database unavailable (OPFS/Worker failed) — nothing was saved')
+      const { getDbWorkerError } = await import('./opfs-db')
+      const cause = getDbWorkerError()
+      throw new Error(
+        'On-device database unavailable — nothing was saved' + (cause ? ` (${cause})` : ' (OPFS/Worker failed)')
+      )
     }
     // Read-back verification: the toast below must never lie.
     const { readLocalCache: verify } = await import('./opfs-db')
