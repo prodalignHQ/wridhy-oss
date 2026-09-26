@@ -99,6 +99,7 @@ All routes live in `src/routes/` and are versioned under `/v1/`. Every route fil
 4. Everything is wrapped in a single DB transaction
 
 **Encrypted vault (local-first sync):** `GET|PUT|DELETE /v1/vault` (`src/routes/vault.ts`) is an *opaque* store — one row per user in `vault_blobs` holding base64 XChaCha20-Poly1305 ciphertext + Argon2/PRF key-wrap metadata. The server never decrypts. Client crypto lives in `@momoney/local-engine/src/crypto.ts` (hash-wasm Argon2id + noble ciphers); WebAuthn PRF in `apps/web/lib/engine/webauthn-prf.ts`; sync orchestration in `vault-sync.ts` + `lib/store/vault.store.ts` (DEK in memory only, wiped on lock). Regression: `apps/api/vault-e2e.mts` (real signup → PUT → GET → client-decrypt → DELETE).
+  - **Encrypted backup:** `POST /v1/vault/sync` accepts *already-encrypted* snapshots with optimistic concurrency (`baseVersion` → `409 CONFLICT` on stale, version auto-increments). When the vault is unlocked, statement import backs up via this endpoint (ciphertext only) instead of the legacy `/upload` file path; pending backups are tracked in localStorage (`momoney_pending_backup`) and badged in history. E2E covers sync + conflict safety.
 
 ### Frontend (`apps/web`)
 

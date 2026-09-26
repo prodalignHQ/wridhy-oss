@@ -416,6 +416,24 @@ export default function StatementsPage() {
     setParseError(null)
   }
 
+  const readPendingBackup = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem('momoney_pending_backup')
+      const arr: unknown = raw ? JSON.parse(raw) : []
+      return new Set(Array.isArray(arr) ? arr.filter((v): v is string => typeof v === 'string') : [])
+    } catch {
+      return new Set()
+    }
+  }
+
+  const writePendingBackup = (ids: Set<string>) => {
+    try {
+      localStorage.setItem('momoney_pending_backup', JSON.stringify([...ids]))
+    } catch {
+      // private mode — badges just won't persist
+    }
+  }
+
   const refreshLocalStatements = async (serverList?: Statement[]) => {
     try {
       const { readLocalCache } = await import('@/lib/engine/opfs-db')
@@ -425,6 +443,7 @@ export default function StatementsPage() {
         return
       }
       const serverIds = new Set((serverList ?? statements).map((s) => s.id))
+      const pending = readPendingBackup()
       const acctMap = new Map(cache.accounts.map((a) => [a.id, a]))
       const localOnly: Statement[] = cache.statements
         .filter((s) => !serverIds.has(s.id))
@@ -444,7 +463,8 @@ export default function StatementsPage() {
               accountType: acct?.accountType ?? 'bank',
               bankName: acct?.bankName ?? s.bankId,
             },
-            localOnly: true,
+            // Badge only while no backup of any kind has landed for it.
+            localOnly: pending.has(s.id),
           }
         })
       setStatements((prev) => [...prev.filter((s) => !s.localOnly), ...localOnly])
@@ -489,13 +509,40 @@ export default function StatementsPage() {
         userMerchants: ref.userMerchants,
       })
       localStatementId = local.statementId
+      const pending = readPendingBackup()
+      pending.add(localStatementId)
+      writePendingBackup(pending)
       await refreshLocalStatements()
       toast.success(
         `Saved ${local.importedCount} transaction${local.importedCount !== 1 ? 's' : ''} on this device` +
           (local.duplicatesSkipped > 0 ? ` · ${local.duplicatesSkipped} duplicate${local.duplicatesSkipped !== 1 ? 's' : ''} skipped` : '')
       )
 
-      // Step 2 — server backup (existing endpoint; dedupHash converges rows).
+      // Step 2 — backup. Encrypted vault sync when unlocked (ciphertext only);
+      // otherwise the legacy file upload (plaintext rows, today's behavior).
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        try {
+          await useVaultStore.getState().pushEncrypted()
+          const done = readPendingBackup()
+          done.delete(localStatementId)
+          writePendingBackup(done)
+          await refreshLocalStatements()
+          toast.success('Backed up encrypted — the server sees only ciphertext')
+        } catch (backupErr) {
+          console.error('Encrypted backup failed:', backupErr)
+          toast.warning('Saved on this device — encrypted backup failed. Retry from Settings → Vault → Sync now.')
+        }
+        // Clear form and refresh server list (unchanged by encrypted sync).
+        setSelectedFile(null)
+        setPreviewRows([])
+        setTotalParsed(0)
+        const updated = await apiClient.fetch<Statement[]>('/v1/statements')
+        setStatements(updated)
+        await refreshLocalStatements(updated)
+        return
+      }
+
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('bankId', selectedBankId)
@@ -520,7 +567,12 @@ export default function StatementsPage() {
         import('@/lib/engine/opfs-db'),
       ])
       await refreshLocalCache()
-      if (localStatementId) await deleteStatementFromCache(localStatementId).catch(() => {})
+      if (localStatementId) {
+        await deleteStatementFromCache(localStatementId).catch(() => {})
+        const done = readPendingBackup()
+        done.delete(localStatementId)
+        writePendingBackup(done)
+      }
       toast.success(
         `Synced ${importedCount} transaction${importedCount !== 1 ? 's' : ''} to server` +
           (duplicatesSkipped > 0 ? ` · ${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? 's' : ''} skipped` : '')

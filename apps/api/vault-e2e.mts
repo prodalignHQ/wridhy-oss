@@ -102,6 +102,34 @@ async function main() {
     const snapBack = await decryptSnapshot(body.data['cipher'] as string, body.data['nonce'] as string, dekBack)
     console.log('client decrypt txns:', (snapBack.transactions as unknown[]).length)
 
+    // Encrypted sync: same DEK, new snapshot bytes, version-guarded.
+    const env2 = encryptSnapshot({ ...snapshot, updatedAt: 'v2' }, dekBack)
+    res = await req('/v1/vault/sync', {
+      method: 'POST',
+      body: JSON.stringify({ cipher: env2.cipherB64, nonce: env2.nonceB64, baseVersion: 1 }),
+    })
+    const synced = (await res.json()) as { success: boolean; data: { version: number } }
+    console.log('SYNC status:', res.status, 'version:', synced.data?.version)
+    if (res.status !== 200 || synced.data?.version !== 2) throw new Error('Sync failed')
+
+    res = await req('/v1/vault')
+    const body2 = (await res.json()) as { success: boolean; data: Record<string, unknown> }
+    if (body2.data['cipher'] !== env2.cipherB64) throw new Error('Sync bytes not stored')
+    console.log('sync bytes stored: true')
+
+    // Stale baseVersion must conflict, never overwrite.
+    res = await req('/v1/vault/sync', {
+      method: 'POST',
+      body: JSON.stringify({ cipher: env.cipherB64, nonce: env.nonceB64, baseVersion: 1 }),
+    })
+    const conflict = (await res.json()) as { success: boolean; error?: { code?: string } }
+    console.log('stale sync:', res.status, conflict.error?.code)
+    if (res.status !== 409 || conflict.error?.code !== 'CONFLICT') throw new Error('Conflict not detected')
+    res = await req('/v1/vault')
+    const body3 = (await res.json()) as { success: boolean; data: Record<string, unknown> }
+    if (body3.data['cipher'] !== env2.cipherB64) throw new Error('Stale write overwrote vault')
+    console.log('stale write rejected, vault intact: true')
+
     res = await req('/v1/vault', { method: 'DELETE' })
     console.log('DELETE status:', res.status)
     res = await req('/v1/vault')

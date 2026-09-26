@@ -7,6 +7,7 @@ import {
   fetchVaultBlob,
   registerPasskey,
   setupVaultWithPassword,
+  syncEncryptedSnapshot,
   syncSnapshot,
   unlockWithPasskey,
   unlockWithPassword,
@@ -34,6 +35,13 @@ interface VaultState {
   sync: (snapshot: VaultSnapshot) => Promise<void>
   lock: () => Promise<void>
   clearError: () => void
+  /** True when the vault is unlocked and the DEK is in memory. */
+  isUnlocked: () => boolean
+  /**
+   * Encrypted backup: snapshot the OPFS cache, encrypt with the in-memory
+   * DEK, and POST the ciphertext to /v1/vault/sync (version-guarded).
+   */
+  pushEncrypted: () => Promise<void>
 }
 
 // Module-scoped DEK — outside React state so it never serializes anywhere.
@@ -176,8 +184,37 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
   },
 
-  lock: async () => {
-    // Seal the OPFS database file BEFORE wiping the DEK, so a locked device
+  isUnlocked: () => get().status === 'unlocked' && dek !== null,
+
+  pushEncrypted: async () => {
+    const { blob } = get()
+    if (!blob || !dek) throw new Error('Vault must be unlocked to back up')
+    set({ busy: true, error: null })
+    try {
+      const [{ readLocalCache }, { buildVaultSnapshot }] = await Promise.all([
+        import('../engine/opfs-db'),
+        import('../engine/vault-sync'),
+      ])
+      const cache = await readLocalCache()
+      // Empty cache still syncs (records the version; keeps backup fresh).
+      const snapshot = buildVaultSnapshot(
+        cache ?? {
+          transactions: [], categories: [], statements: [], accounts: [], owners: [],
+          transactionOwners: [], rules: [], merchants: [], invoices: [],
+          invoiceStatements: [], invoiceItems: [],
+        }
+      )
+      const updated = await syncEncryptedSnapshot(blob, dek, snapshot)
+      set({ blob: updated, snapshot })
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Encrypted backup failed' })
+      throw err
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  lock: async () => {    // Seal the OPFS database file BEFORE wiping the DEK, so a locked device
     // holds ciphertext only. Best-effort: lock always completes.
     try {
       if (dek) await sealLocalDb(dek)

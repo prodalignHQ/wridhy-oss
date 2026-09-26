@@ -18,6 +18,25 @@ import {
   type VaultSnapshot,
 } from '@momoney/local-engine'
 import { derivePrfInput, evalPrf, registerPrfCredential } from './webauthn-prf'
+import type { LocalCache } from './opfs-db'
+
+/** Shape the OPFS cache into the encrypted-sync snapshot (all tables). */
+export function buildVaultSnapshot(cache: LocalCache): VaultSnapshot {
+  return {
+    transactions: cache.transactions,
+    categories: cache.categories,
+    statements: cache.statements,
+    owners: cache.transactionOwners,
+    financialAccounts: cache.accounts,
+    ownerList: cache.owners,
+    rules: cache.rules,
+    merchants: cache.merchants,
+    invoices: cache.invoices,
+    invoiceStatements: cache.invoiceStatements,
+    invoiceItems: cache.invoiceItems,
+    updatedAt: new Date().toISOString(),
+  }
+}
 
 export interface VaultBlob {
   userId?: string
@@ -35,7 +54,7 @@ export interface VaultBlob {
 }
 
 export class VaultError extends Error {
-  code: 'NO_VAULT' | 'NO_WRAP' | 'DECRYPT_FAILED' | 'PRF_UNSUPPORTED'
+  code: 'NO_VAULT' | 'NO_WRAP' | 'DECRYPT_FAILED' | 'PRF_UNSUPPORTED' | 'CONFLICT'
   constructor(code: VaultError['code'], message: string) {
     super(message)
     this.code = code
@@ -162,6 +181,43 @@ export async function syncSnapshot(blob: VaultBlob, dek: Uint8Array, snapshot: V
   const updated: VaultBlob = { ...blob, cipher: env.cipherB64, nonce: env.nonceB64 }
   await pushBlob(updated)
   return updated
+}
+
+/**
+ * Encrypted backup via POST /v1/vault/sync (version-guarded, ciphertext-only).
+ * Retries once after refetching on CONFLICT. Returns the updated blob.
+ */
+export async function syncEncryptedSnapshot(
+  blob: VaultBlob,
+  dek: Uint8Array,
+  snapshot: VaultSnapshot
+): Promise<VaultBlob> {
+  const attempt = async (base: VaultBlob): Promise<VaultBlob> => {
+    const env = await encryptSnapshot(snapshot, dek)
+    try {
+      const saved = await apiClient.fetch<{ version: number; updatedAt: string }>('/v1/vault/sync', {
+        method: 'POST',
+        body: JSON.stringify({ cipher: env.cipherB64, nonce: env.nonceB64, baseVersion: base.version }),
+      })
+      return { ...base, cipher: env.cipherB64, nonce: env.nonceB64, version: saved.version, updatedAt: saved.updatedAt }
+    } catch (err) {
+      if ((err as { code?: string }).code === 'CONFLICT') {
+        throw new VaultError('CONFLICT', 'Vault changed on the server. Refresh and retry.')
+      }
+      throw err
+    }
+  }
+
+  try {
+    return await attempt(blob)
+  } catch (err) {
+    if (err instanceof VaultError && err.code === 'CONFLICT') {
+      const fresh = await fetchVaultBlob()
+      if (!fresh) throw new VaultError('NO_VAULT', 'Vault disappeared from the server')
+      return await attempt(fresh)
+    }
+    throw err
+  }
 }
 
 export async function decryptVaultSnapshot(blob: VaultBlob, dek: Uint8Array): Promise<VaultSnapshot> {

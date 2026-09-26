@@ -32,6 +32,13 @@ const putVaultSchema = z.object({
   version: z.number().int().positive().default(1),
 })
 
+const syncVaultSchema = z.object({
+  cipher: base64.max(20_000_000),
+  nonce: base64.max(64),
+  /** The blob version this snapshot was based on (optimistic concurrency). */
+  baseVersion: z.number().int().positive(),
+})
+
 // ─── GET /v1/vault ──────────────────────────────────────────────────────────
 
 vaultRoute.get('/', async (c) => {
@@ -90,6 +97,57 @@ vaultRoute.put('/', zValidator('json', putVaultSchema), async (c) => {
       },
     })
     .returning({ updatedAt: vaultBlobs.updatedAt, version: vaultBlobs.version })
+
+  return c.json({ success: true, data: saved })
+})
+
+// ─── POST /v1/vault/sync ──────────────────────────────────────────────────
+// Encrypted backup: replaces ONLY the ciphertext envelope, guarded by
+// optimistic concurrency. The client sends already-encrypted bytes; the
+// server validates shape/size, checks baseVersion, and stores. It cannot
+// parse, categorize, or otherwise read the content — there is no plaintext
+// code path here by construction.
+
+vaultRoute.post('/sync', zValidator('json', syncVaultSchema), async (c) => {
+  const userId = c.get('userId')
+  const body = c.req.valid('json')
+
+  const current = await db.query.vaultBlobs.findFirst({
+    where: eq(vaultBlobs.userId, userId),
+    columns: { version: true },
+  })
+
+  if (!current) {
+    return c.json(
+      { success: false, error: { code: 'NO_VAULT', message: 'Set up the vault before syncing' } },
+      404
+    )
+  }
+
+  if (current.version !== body.baseVersion) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: 'Vault changed since this snapshot was based. Refresh and retry.',
+        },
+        currentVersion: current.version,
+      },
+      409
+    )
+  }
+
+  const [saved] = await db
+    .update(vaultBlobs)
+    .set({
+      cipher: body.cipher,
+      nonce: body.nonce,
+      version: current.version + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(vaultBlobs.userId, userId))
+    .returning({ version: vaultBlobs.version, updatedAt: vaultBlobs.updatedAt })
 
   return c.json({ success: true, data: saved })
 })

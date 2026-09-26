@@ -89,8 +89,8 @@ export default function VaultPage() {
 
   const handleSync = async () => {
     try {
-      await vault.sync(vault.snapshot ?? emptySnapshot())
-      toast.success('Encrypted snapshot synced')
+      await vault.pushEncrypted()
+      toast.success('Encrypted snapshot synced (ciphertext only)')
     } catch {
       toast.error(vault.error ?? 'Sync failed')
     }
