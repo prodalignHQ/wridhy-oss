@@ -102,20 +102,21 @@ export const myBankCsvParser: BankParser = {
 Many banks (e.g., HDFC, ICICI, SBI) issue statements as Excel files or HTML tables disguised as `.xls`. Use `xlsx`:
 
 ```typescript
-import * as XLSX from 'xlsx'
+import { read as xlsxRead, utils as xlsxUtils } from 'xlsx'
 import type { BankParser, ParsedTransaction } from '../base.parser.js'
+import { loadXlsxSSF } from '../xlsx-ssf.js'
 
 export const myBankExcelParser: BankParser = {
   bankId: 'my_bank_excel',
   displayName: 'My Bank (XLS/XLSX)',
 
-  parse(buffer: ArrayBuffer): ParsedTransaction[] {
-    const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' })
+  async parse(buffer: ArrayBuffer): Promise<ParsedTransaction[]> {
+    const workbook = xlsxRead(buffer, { type: 'array' })
     const sheetName = workbook.SheetNames[0]
     if (!sheetName) return []
 
     const sheet = workbook.Sheets[sheetName]
-    const rawRows = XLSX.utils.sheet_to_json<any[]>(sheet, {
+    const rawRows = xlsxUtils.sheet_to_json<any[]>(sheet, {
       header: 1,
       blankrows: false,
       raw: false, // Ensures dates and formatted text are stringified
@@ -132,8 +133,18 @@ export const myBankExcelParser: BankParser = {
 }
 ```
 
+> [!WARNING]
+> **Browser-compatibility constraints** (parsers run on-device in a Web Worker):
+> - Use **named** xlsx imports (`read`, `utils`) — never `import * as XLSX` with
+>   `(XLSX as any).default` access (breaks the Turbopack client build).
+> - Excel serial dates: `await loadXlsxSSF()` from `../xlsx-ssf.js`, never a
+>   static `import { SSF }` (breaks Node CJS interop).
+> - No Node-only deps (`pdf-parse`, `fs`, `crypto`). PDF text comes from
+>   `parseIciciPdfLines()` + `apps/web/lib/engine/pdf.ts` (pdfjs-dist).
+> - Export browser-safe parsers from `packages/parsers/src/browser.ts` too.
+
 > [!TIP]
-> **Excel Date Formatting**: Excel stores dates as serial numbers. When using `raw: true`, use `XLSX.SSF.parse_date_code(cellValue)` to convert serial integers back into year, month, and day components reliably.
+> **Excel Date Formatting**: Excel stores dates as serial numbers. When using `raw: true`, use `await loadXlsxSSF()` then `ssf.parse_date_code(cellValue)` to convert serial integers back into year, month, and day components reliably (with math fallback `(val - 25569) * 86400 * 1000`).
 
 ---
 

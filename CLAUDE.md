@@ -68,7 +68,11 @@ Turborepo + pnpm workspaces. Two apps and five packages:
 - **`packages/db`** — Drizzle ORM schema + PostgreSQL client. The single source of truth for all table definitions and relations. Exported as `@momoney/db`.
 - **`packages/types`** — Shared Zod schemas and inferred TypeScript types used across `api` and `web`.
 - **`packages/parsers`** — Bank statement parsers. Each bank implements `BankParser` (see `base.parser.ts`) and is registered via `parser-registry.ts`. Currently supports ICICI savings (CSV/XLS/PDF) and ICICI credit card.
-- **`packages/rules-engine`** — Pure isomorphic categorization logic. The `categorize()` function applies user rules → system rules → merchant dictionary → default, in that priority order.
+  - Package builds to `dist/` (`main: ./dist/index.js`); Turbopack cannot resolve TS `.js`-suffix source imports, so web/API must consume `dist`, never `src`.
+  - `src/browser.ts` is the browser-safe entry (no `pdf-parse`): `import ... from '@momoney/parsers/browser'`. Server uses the root entry.
+  - Browser constraints: named xlsx imports only, `loadXlsxSSF()` for serial dates, no Node-only deps. See `docs/customization/parsers.md`.
+- **`packages/rules-engine`** — Pure isomorphic categorization logic. The `categorize()` function applies user rules → system rules → merchant dictionary → default, in that priority order. Builds to `dist/`; consumed as such.
+- **`packages/local-engine`** — Local-first core (new): isomorphic dedup (`computeDedupHashBrowser`, SubtleCrypto SHA-256, parity-verified with server), in-memory analytics port of `InsightsService` (`getMonthlyInsightsLocal`, etc.), and the `LocalVault` storage seam (IndexedDB now, SQLCipher/OPFS later). Web entry points: `apps/web/lib/engine/` + `apps/web/workers/parser.worker.ts`.
 - **`packages/utils`** — Shared utilities: `cn()` for Tailwind class merging, currency formatters, color assignment, string hashers.
 
 ### API (`apps/api`)
@@ -118,8 +122,9 @@ Key relationships:
 
 ### Adding a New Bank Parser
 
-1. Create `packages/parsers/src/banks/<bankid>.parser.ts` implementing the `BankParser` interface from `base.parser.ts`.
-2. Register it in `packages/parsers/src/parser-registry.ts`.
+1. Create `packages/parsers/src/banks/<bankid>.parser.ts` implementing the `BankParser` interface from `base.parser.ts` (follow the browser-compatibility constraints in `docs/customization/parsers.md`).
+2. Register it in `packages/parsers/src/parser-registry.ts` (server) and, if browser-safe (no Node-only deps), in `packages/parsers/src/browser.ts`.
+3. Rebuild: `pnpm --filter @momoney/parsers build` (web/API consume `dist/`).
 
 ### Adding a New API Route
 

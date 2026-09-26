@@ -1,5 +1,6 @@
-import * as XLSX from 'xlsx'
+import { read as xlsxRead, utils as xlsxUtils } from 'xlsx'
 import type { BankParser, ParsedTransaction } from '../base.parser.js'
+import { loadXlsxSSF, type XlsxSSF } from '../xlsx-ssf.js'
 
 /**
  * HDFC Bank Savings Account Statement Parser
@@ -24,15 +25,16 @@ export const hdfcSavingsParser: BankParser = {
   bankId: 'hdfc_savings',
   displayName: 'HDFC Bank Savings Account',
 
-  parse(buffer: ArrayBuffer): ParsedTransaction[] {
+  async parse(buffer: ArrayBuffer): Promise<ParsedTransaction[]> {
     try {
-      const workbook = XLSX.read(buffer, { type: 'array', cellDates: false })
+      const ssf = await loadXlsxSSF()
+      const workbook = xlsxRead(buffer, { type: 'array', cellDates: false })
 
       for (const sheetName of workbook.SheetNames) {
         const sheet = workbook.Sheets[sheetName]
         if (!sheet) continue
 
-        const rows: (string | number)[][] = XLSX.utils.sheet_to_json(sheet, {
+        const rows: (string | number)[][] = xlsxUtils.sheet_to_json(sheet, {
           header: 1,
           defval: '',
           raw: true,
@@ -40,7 +42,7 @@ export const hdfcSavingsParser: BankParser = {
 
         if (rows.length === 0) continue
 
-        const transactions = parseSheetRows(rows)
+        const transactions = parseSheetRows(rows, ssf)
         if (transactions.length > 0) {
           return transactions
         }
@@ -54,7 +56,7 @@ export const hdfcSavingsParser: BankParser = {
   },
 }
 
-function parseDateCell(val: unknown): Date | null {
+function parseDateCell(val: unknown, ssf: XlsxSSF | null): Date | null {
   if (val === null || val === undefined || val === '') return null
 
   if (val instanceof Date) {
@@ -65,9 +67,8 @@ function parseDateCell(val: unknown): Date | null {
     // Excel serial date code (modern dates between 1950 and 2070)
     if (val > 10000 && val < 100000) {
       try {
-        const SSF = (XLSX as any).SSF || (XLSX as any).default?.SSF
-        if (SSF?.parse_date_code) {
-          const parsed = SSF.parse_date_code(val)
+        if (ssf?.parse_date_code) {
+          const parsed = ssf.parse_date_code(val)
           if (parsed && parsed.y && parsed.m && parsed.d) {
             const d = new Date(parsed.y, parsed.m - 1, parsed.d)
             if (!isNaN(d.getTime())) return d
@@ -107,7 +108,7 @@ function parseDateCell(val: unknown): Date | null {
   return null
 }
 
-function parseSheetRows(rows: (string | number)[][]): ParsedTransaction[] {
+function parseSheetRows(rows: (string | number)[][], ssf: XlsxSSF | null): ParsedTransaction[] {
   let headerFound = false
   let colIdx = {
     date: -1,
@@ -183,7 +184,7 @@ function parseSheetRows(rows: (string | number)[][]): ParsedTransaction[] {
       continue
     }
 
-    const date = parseDateCell(rawDate)
+    const date = parseDateCell(rawDate, ssf)
 
     // Handle multiline narration continuation (no date, but description exists)
     if (!date && rawNarration && last) {

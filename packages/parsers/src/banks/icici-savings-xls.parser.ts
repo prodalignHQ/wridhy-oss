@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import { read as xlsxRead, utils as xlsxUtils } from 'xlsx'
 import type { BankParser, ParsedTransaction } from '../base.parser.js'
 
 /**
@@ -21,7 +21,7 @@ export const iciciSavingsXlsParser: BankParser = {
   displayName: 'ICICI Bank Savings Account (XLS)',
 
   parse(buffer: ArrayBuffer): ParsedTransaction[] {
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: false })
+    const workbook = xlsxRead(buffer, { type: 'array', cellDates: false })
     const sheetName = workbook.SheetNames[0]
     if (!sheetName) return []
 
@@ -29,7 +29,7 @@ export const iciciSavingsXlsParser: BankParser = {
     if (!sheet) return []
 
     // Convert to array-of-arrays; blank cells become ''
-    const rows: (string | number)[][] = XLSX.utils.sheet_to_json(sheet, {
+    const rows: (string | number)[][] = xlsxUtils.sheet_to_json(sheet, {
       header: 1,
       defval: '',
       raw: true,

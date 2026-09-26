@@ -309,7 +309,7 @@ export default function StatementsPage() {
     apiClient.fetch<Statement[]>('/v1/statements').then(setStatements).catch(console.error)
   }, [])
 
-  // Backend preview parsing when file + bankId are selected
+  // Local-first preview parsing (Web Worker + OPFS-ready engine) with server fallback
   useEffect(() => {
     if (!selectedFile || !selectedBankId) {
       setPreviewRows([])
@@ -317,10 +317,20 @@ export default function StatementsPage() {
       return
     }
 
+    let cancelled = false
     const fetchPreview = async () => {
       setIsParsing(true)
       setParseError(null)
       try {
+        // 1. Try entirely on-device first.
+        const { parseStatementFile } = await import('@/lib/engine/worker-client')
+        const localRows = await parseStatementFile(selectedBankId, selectedFile)
+        if (cancelled) return
+        if (localRows.length > 0) {
+          finishPreview(localRows)
+          return
+        }
+        // 2. Fall through to server preview when local yields nothing.
         const formData = new FormData()
         formData.append('file', selectedFile)
         formData.append('bankId', selectedBankId)
@@ -340,18 +350,9 @@ export default function StatementsPage() {
         if (rows.length === 0) {
           throw new Error('No transactions found in this statement file.')
         }
-
-        // Derive default month from earliest transaction
-        if (rows.length > 0) {
-          const sorted = [...rows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-          const earliest = new Date(sorted[0].date)
-          const month = `${earliest.getFullYear()}-${String(earliest.getMonth() + 1).padStart(2, '0')}`
-          setSelectedMonth(month)
-        }
-
-        setTotalParsed(rows.length)
-        setPreviewRows(rows.slice(0, 20))
+        if (!cancelled) finishPreview(rows)
       } catch (err) {
+        if (cancelled) return
         console.error('Preview error:', err)
         setPreviewRows([])
         setTotalParsed(0)
@@ -362,11 +363,31 @@ export default function StatementsPage() {
           message: err instanceof Error ? err.message : 'Failed to parse statement',
         })
       } finally {
-        setIsParsing(false)
+        if (!cancelled) setIsParsing(false)
       }
     }
 
+    const finishPreview = (rows: PreviewRow[]) => {
+      if (rows.length === 0) {
+        throw new Error('No transactions found in this statement file.')
+      }
+
+      // Derive default month from earliest transaction
+      if (rows.length > 0) {
+        const sorted = [...rows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        const earliest = new Date(sorted[0].date)
+        const month = `${earliest.getFullYear()}-${String(earliest.getMonth() + 1).padStart(2, '0')}`
+        setSelectedMonth(month)
+      }
+
+      setTotalParsed(rows.length)
+      setPreviewRows(rows.slice(0, 20))
+    }
+
     fetchPreview()
+    return () => {
+      cancelled = true
+    }
   }, [selectedFile, selectedBankId, selectedAccount])
 
   const handleAccountChange = (accId: string | null) => {
