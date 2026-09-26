@@ -22,7 +22,7 @@ const insertOwnerSchema = z.object({
 })
 
 const updateOwnerSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().trim().min(1, 'Name cannot be empty').optional(),
   notes: z.string().max(40).optional(),
 })
 
@@ -61,15 +61,31 @@ ownersRoute.patch('/:id', zValidator('json', updateOwnerSchema), async (c) => {
   const ownerId = c.req.param('id')
   const { name, notes } = c.req.valid('json')
 
-  const [owner] = await db
-    .update(owners)
-    .set({ name, notes })
-    .where(and(eq(owners.id, ownerId), eq(owners.userId, userId)))
-    .returning()
+  const existing = await db.query.owners.findFirst({
+    where: and(eq(owners.id, ownerId), eq(owners.userId, userId)),
+  })
 
-  if (!owner) {
+  if (!existing) {
     return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Owner not found' } }, 404)
   }
+
+  if (existing.isDefault && notes !== undefined) {
+    return c.json({ success: false, error: { code: 'BAD_REQUEST', message: 'Only name can be changed for default owner' } }, 400)
+  }
+
+  const updateData: { name?: string; notes?: string } = {}
+  if (name !== undefined) {
+    updateData.name = name
+  }
+  if (!existing.isDefault && notes !== undefined) {
+    updateData.notes = notes
+  }
+
+  const [owner] = await db
+    .update(owners)
+    .set(updateData)
+    .where(and(eq(owners.id, ownerId), eq(owners.userId, userId)))
+    .returning()
 
   return c.json({ success: true, data: owner })
 })

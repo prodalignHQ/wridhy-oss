@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Lock, Users } from 'lucide-react'
+import { Plus, Trash2, Lock, Users, Pencil } from 'lucide-react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -43,6 +43,14 @@ interface Owner {
   isDefault: boolean
 }
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2 && parts[0] && parts[1]) {
+    return (parts[0][0]! + parts[1][0]!).toUpperCase()
+  }
+  return name.slice(0, 2).toUpperCase()
+}
+
 const colorMap: Record<string, string> = {
   indigo: 'bg-primary/20 text-primary border-primary/30',
   emerald: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
@@ -64,6 +72,10 @@ export default function OwnersPage() {
   const [loading, setLoading] = useState(true)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [ownerToDelete, setOwnerToDelete] = useState<Owner | null>(null)
+  const [ownerToEdit, setOwnerToEdit] = useState<Owner | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editError, setEditError] = useState<string | null>(null)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<z.infer<typeof ownerSchema>>({
     resolver: zodResolver(ownerSchema),
@@ -92,6 +104,38 @@ export default function OwnersPage() {
       toast.error('Failed to load owners')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleOpenEdit = (owner: Owner) => {
+    setOwnerToEdit(owner)
+    setEditName(owner.name)
+    setEditError(null)
+  }
+
+  const onSubmitEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!ownerToEdit) return
+
+    const trimmed = editName.trim()
+    if (!trimmed) {
+      setEditError('Name is required')
+      return
+    }
+
+    setIsSavingEdit(true)
+    try {
+      const updated = await apiClient.fetch<Owner>(`/v1/owners/${ownerToEdit.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: trimmed }),
+      })
+      setOwners((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+      toast.success('Name updated successfully')
+      setOwnerToEdit(null)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update name')
+    } finally {
+      setIsSavingEdit(false)
     }
   }
 
@@ -149,17 +193,31 @@ export default function OwnersPage() {
                     e.preventDefault();
                     setOwnerToDelete(owner);
                   }}
+                  title="Remove member"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               )}
 
-              {/* Action: Lock (Top-Right for Current User) */}
+              {/* Action: Lock & Edit (Top-Right for Default User) */}
               {owner.isDefault && (
-                <div className="absolute top-3 right-3 text-muted-foreground/40">
+                <div className="absolute top-3 right-3 flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all rounded-full shrink-0"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleOpenEdit(owner)
+                    }}
+                    title="Change name"
+                    aria-label="Change name"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
                   <TooltipProvider>
                     <Tooltip>
-                      <TooltipTrigger>
+                      <TooltipTrigger className="h-8 w-8 flex items-center justify-center text-muted-foreground/40 cursor-default">
                         <Lock size={14} />
                       </TooltipTrigger>
                       <TooltipContent side="top">This is you (Default)</TooltipContent>
@@ -173,12 +231,26 @@ export default function OwnersPage() {
                 "w-16 h-16 rounded-full flex items-center justify-center font-bold text-lg border-2 mb-4 shrink-0 transition-transform group-hover:scale-110 shadow-sm",
                 colorMap[owner.color] || colorMap['indigo']
               )}>
-                {owner.name.substring(0, 2).toUpperCase()}
+                {getInitials(owner.name)}
               </div>
 
               {/* Name & Details */}
               <div className="w-full">
-                <h3 className="font-semibold text-foreground text-base tracking-tight truncate">{owner.name}</h3>
+                {owner.isDefault ? (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(owner)}
+                    className="group/name inline-flex items-center justify-center gap-1.5 max-w-full px-2 py-0.5 rounded-lg hover:bg-muted/60 transition-colors cursor-pointer"
+                    title="Click to change name"
+                  >
+                    <h3 className="font-semibold text-foreground text-base tracking-tight truncate group-hover/name:text-primary transition-colors">
+                      {owner.name}
+                    </h3>
+                    <Pencil className="h-3 w-3 text-muted-foreground/70 group-hover/name:text-primary transition-colors shrink-0" />
+                  </button>
+                ) : (
+                  <h3 className="font-semibold text-foreground text-base tracking-tight truncate">{owner.name}</h3>
+                )}
                 {owner.notes && (
                   <p className="text-xs text-muted-foreground mt-1.5 italic line-clamp-2 leading-relaxed px-1">
                     {owner.notes}
@@ -240,13 +312,67 @@ export default function OwnersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Change Name Modal (Default Owner) */}
+      <Dialog
+        open={!!ownerToEdit}
+        onOpenChange={(open) => {
+          if (!open) {
+            setOwnerToEdit(null)
+            setEditError(null)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[400px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Change Name</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Update your display name.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={onSubmitEdit} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => {
+                  setEditName(e.target.value)
+                  if (editError) setEditError(null)
+                }}
+                placeholder="e.g. Rohan"
+                className="bg-background border-border focus-visible:ring-primary"
+                autoFocus
+              />
+              {editError && <p className="text-rose-400 text-xs">{editError}</p>}
+            </div>
+            <DialogFooter className="pt-4">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setOwnerToEdit(null)}
+                disabled={isSavingEdit}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSavingEdit}
+                className="bg-primary hover:bg-primary text-white"
+              >
+                {isSavingEdit ? 'Saving...' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation */}
       <AlertDialog open={!!ownerToDelete} onOpenChange={() => setOwnerToDelete(null)}>
         <AlertDialogContent className="bg-card border-border">
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {ownerToDelete?.name}?</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
-              This will remove them from your household. Any transactions previously assigned to them will be reassigned to you (Self).
+              This will remove them from your household. Any transactions previously assigned to them will be reassigned to you ({owners.find(o => o.isDefault)?.name || 'Self'}).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
