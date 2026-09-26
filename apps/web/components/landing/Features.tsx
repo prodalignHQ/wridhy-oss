@@ -1,6 +1,17 @@
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 
-const features = [
+interface Feature {
+  emoji: string
+  title: string
+  tag: string
+  body: string
+  points: string[]
+  span?: boolean
+  href?: string
+}
+
+const features: Feature[] = [
   {
     emoji: "📊",
     title: "Command center",
@@ -60,11 +71,12 @@ const features = [
   },
   {
     emoji: "🔒",
-    title: "Private. For real.",
-    tag: "Stays private",
-    body: "Everything stays on your device. No bank logins, no selling data. Ever.",
-    points: ["You own your data"],
+    title: "100% private. For real.",
+    tag: "Zero-knowledge soon",
+    body: "Parsed on your device, sealed with a key only you hold. Passkey unlock. Our servers see ciphertext — or nothing at all.",
+    points: ["On-device everything", "Encrypted vault"],
     span: true,
+    href: "/privacy",
   },
 ]
 
@@ -89,7 +101,7 @@ export default function Features() {
               "group rounded-2xl border-2 border-border bg-card p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_0_#1b365d] dark:hover:shadow-[6px_6px_0_0_#52525b]",
               f.span && "sm:col-span-2 lg:col-span-1",
               f.title === "Command center" && "border-primary bg-primary text-white",
-              f.title === "Private. For real." &&
+              f.title === "100% private. For real." &&
                 "border-[#18181b] bg-[#18181b] text-white dark:border-zinc-700"
             )}
           >
@@ -97,7 +109,7 @@ export default function Features() {
               <span className="text-3xl">{f.emoji}</span>
               <span
                 className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                  f.title === "Command center" || f.title === "Private. For real."
+                  f.title === "Command center" || f.title === "100% private. For real."
                     ? "bg-white/15 text-white"
                     : "bg-muted text-foreground/70"
                 }`}
@@ -108,7 +120,7 @@ export default function Features() {
             <h3 className="mt-3 text-lg font-bold leading-snug">{f.title}</h3>
             <p
               className={`mt-1.5 text-sm leading-relaxed ${
-                f.title === "Command center" || f.title === "Private. For real."
+                f.title === "Command center" || f.title === "100% private. For real."
                   ? "text-white/80"
                   : "text-muted-foreground"
               }`}
@@ -120,7 +132,7 @@ export default function Features() {
                 <li
                   key={p}
                   className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    f.title === "Command center" || f.title === "Private. For real."
+                    f.title === "Command center" || f.title === "100% private. For real."
                       ? "bg-white/15"
                       : "bg-muted"
                   }`}
@@ -129,6 +141,16 @@ export default function Features() {
                 </li>
               ))}
             </ul>
+            {f.href && (
+              <Link
+                href={f.href}
+                className={`mt-3 inline-block text-sm font-bold underline-offset-4 hover:underline ${
+                  f.title === "100% private. For real." ? "text-white" : "text-primary"
+                }`}
+              >
+                How we do it →
+              </Link>
+            )}
           </article>
         ))}
       </div>

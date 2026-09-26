@@ -6,9 +6,9 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle"
 import { isLocalMode } from "@/lib/local-mode"
 
 const links = [
-  { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how" },
-  { label: "Privacy", href: "#privacy" },
+  { label: "Features", href: "/#features" },
+  { label: "How it works", href: "/#how" },
+  { label: "Privacy", href: "/privacy" },
 ]
 
 export default function Navbar() {

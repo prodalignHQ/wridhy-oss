@@ -14,7 +14,7 @@ export default function Hero() {
         <div>
           <div className="mb-4 inline-flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold">
-              🔒 Private by default
+              🔒 100% private by design
             </span>
             <span className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold">
               💸 No subscriptions
@@ -28,8 +28,8 @@ export default function Hero() {
           </h1>
 
           <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Drop in bank statements. MoMoney cleans, splits & explains them.
-            Works offline. No snooping.
+            Drop in bank statements. MoMoney reads, splits & explains them — on your device, never on our servers.
+            Encrypted sync coming soon.
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">

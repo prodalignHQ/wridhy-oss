@@ -37,11 +37,11 @@ export default function Footer() {
               ₹
             </span>
             <span className="font-semibold text-white">MoMoney</span>
-            <span>· Private by default</span>
+            <span>· 100% private by design</span>
           </div>
           <div className="flex gap-5">
-            <a href="#features" className="hover:text-white">Features</a>
-            <a href="#privacy" className="hover:text-white">Privacy</a>
+            <a href="/#features" className="hover:text-white">Features</a>
+            <Link href="/privacy" className="hover:text-white">Privacy</Link>
           </div>
         </div>
       </div>

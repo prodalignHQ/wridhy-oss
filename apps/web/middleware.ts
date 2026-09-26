@@ -7,6 +7,8 @@ export async function middleware(request: NextRequest) {
   
   const isPublicRoute =
     pathname === "/" ||
+    pathname === "/privacy" ||
+    pathname.startsWith("/privacy/") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
     pathname.startsWith("/verify-email")

@@ -7,7 +7,7 @@ import Footer from "@/components/landing/Footer"
 export const metadata = {
   title: "MoMoney — Your money, your rules",
   description:
-    "Privacy-first personal finance. Import statements, auto-categorize, split with family, and grow net worth. Free for everyone.",
+    "100% private personal finance. Statements parsed on your device, sealed in an encrypted vault, passkey unlock. Free for everyone.",
 }
 
 export default function LandingPage() {
