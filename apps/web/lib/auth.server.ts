@@ -39,17 +39,23 @@ export async function getServerSession(): Promise<AuthSession | null> {
     return null
   }
 
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/get-session`, {
-    headers: {
-      cookie: cookieHeader,
-    },
-    cache: 'no-store',
-  })
+  try {
+    const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    const response = await fetch(`${apiUrl}/api/auth/get-session`, {
+      headers: {
+        cookie: cookieHeader,
+      },
+      cache: 'no-store',
+    })
 
-  if (!response.ok) {
+    if (!response.ok) {
+      return null
+    }
+
+    const result = await response.json()
+    return result?.user && result?.session ? result as AuthSession : null
+  } catch {
+    // If the API server is warming up or unreachable, fail gracefully without crashing SSR
     return null
   }
-
-  const result = await response.json()
-  return result?.user && result?.session ? result as AuthSession : null
 }

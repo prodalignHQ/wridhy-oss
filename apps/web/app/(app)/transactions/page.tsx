@@ -110,7 +110,7 @@ export default function TransactionsPage() {
     if (filters.endDate) params.set('endDate', filters.endDate)
     if (filters.categoryId) params.set('categoryId', filters.categoryId)
     if (filters.search) params.set('search', filters.search)
-    const baseURL = process.env.NEXT_PUBLIC_API_URL !== undefined ? process.env.NEXT_PUBLIC_API_URL : (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+    const baseURL = process.env.NEXT_PUBLIC_API_URL || ''
     window.open(`${baseURL}/v1/transactions/export?${params.toString()}`, '_blank')
   }
 
