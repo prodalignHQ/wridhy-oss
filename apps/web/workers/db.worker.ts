@@ -11,47 +11,22 @@
 import SQLiteESMFactory from 'wa-sqlite/dist/wa-sqlite.mjs'
 import * as SQLite from 'wa-sqlite/src/sqlite-api.js'
 import { OriginPrivateFileSystemVFS } from 'wa-sqlite/src/examples/OriginPrivateFileSystemVFS.js'
-import { sealBytes, unsealBytes } from '@momoney/local-engine'
+import {
+  OPFS_CLEAR_SQL,
+  OPFS_READ_TABLES,
+  OPFS_SCHEMA,
+  buildDeleteByIds,
+  buildDeleteByStatement,
+  buildUpsertBatch,
+  sealBytes,
+  unsealBytes,
+} from '@momoney/local-engine'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sqlite3 = any
 
 const DB_NAME = 'momoney.db'
 const SEALED_NAME = 'momoney.db.sealed'
-
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS local_transactions(
-  id TEXT PRIMARY KEY,
-  account_id TEXT NOT NULL,
-  statement_id TEXT,
-  date TEXT NOT NULL,
-  description TEXT NOT NULL,
-  merchant TEXT,
-  amount TEXT NOT NULL,
-  type TEXT NOT NULL,
-  is_one_time INTEGER NOT NULL DEFAULT 0,
-  category_id TEXT,
-  comment TEXT,
-  dedup_hash TEXT UNIQUE
-);
-CREATE TABLE IF NOT EXISTS local_statements(
-  id TEXT PRIMARY KEY,
-  account_id TEXT NOT NULL,
-  bank_id TEXT NOT NULL,
-  statement_month TEXT NOT NULL,
-  parsed_count INTEGER NOT NULL DEFAULT 0,
-  imported_count INTEGER NOT NULL DEFAULT 0,
-  duplicates_skipped INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS local_categories(
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  color TEXT,
-  type TEXT NOT NULL DEFAULT 'expense'
-);
-CREATE INDEX IF NOT EXISTS idx_local_txn_date ON local_transactions(date);
-CREATE INDEX IF NOT EXISTS idx_local_txn_account ON local_transactions(account_id);
-`
 
 let sqlite3: Sqlite3 | null = null
 let db: number | null = null
@@ -69,7 +44,7 @@ async function openDb(): Promise<void> {
     SQLite.SQLITE_OPEN_CREATE | SQLite.SQLITE_OPEN_READWRITE,
     'opfs'
   )
-  await sqlite3.exec(db, SCHEMA)
+  await sqlite3.exec(db, OPFS_SCHEMA)
 }
 
 async function closeDb(): Promise<void> {
@@ -96,7 +71,7 @@ function toArrayBufferView(u8: Uint8Array): Uint8Array<ArrayBuffer> {
 
 export interface DbWorkerRequest {
   id: number
-  op: 'init' | 'upsert' | 'readAll' | 'clear' | 'seal' | 'unseal' | 'sealedExists'
+  op: 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'seal' | 'unseal' | 'sealedExists'
   payload?: unknown
 }
 
@@ -109,12 +84,18 @@ export interface DbWorkerResponse {
 }
 
 interface UpsertPayload {
-  transactions: Array<Record<string, unknown>>
-  categories: Array<Record<string, unknown>>
-  statements: Array<Record<string, unknown>>
-}
-
-async function handle(req: DbWorkerRequest): Promise<Omit<DbWorkerResponse, 'id'>> {
+  transactions?: Array<Record<string, unknown>>
+  categories?: Array<Record<string, unknown>>
+  statements?: Array<Record<string, unknown>>
+  accounts?: Array<Record<string, unknown>>
+  owners?: Array<Record<string, unknown>>
+  transactionOwners?: Array<Record<string, unknown>>
+  rules?: Array<Record<string, unknown>>
+  merchants?: Array<Record<string, unknown>>
+  invoices?: Array<Record<string, unknown>>
+  invoiceStatements?: Array<Record<string, unknown>>
+  invoiceItems?: Array<Record<string, unknown>>
+}async function handle(req: DbWorkerRequest): Promise<Omit<DbWorkerResponse, 'id'>> {
   switch (req.op) {
     case 'init': {
       await openDb()
@@ -122,51 +103,52 @@ async function handle(req: DbWorkerRequest): Promise<Omit<DbWorkerResponse, 'id'
     }
     case 'upsert': {
       await openDb()
-      const p = req.payload as UpsertPayload
-      const queries: string[] = []
-      const params: unknown[][] = []
-      const txnSql = `INSERT INTO local_transactions(id,account_id,statement_id,date,description,merchant,amount,type,is_one_time,category_id,comment,dedup_hash)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-        ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,statement_id=excluded.statement_id,date=excluded.date,
-          description=excluded.description,merchant=excluded.merchant,amount=excluded.amount,type=excluded.type,
-          is_one_time=excluded.is_one_time,category_id=excluded.category_id,comment=excluded.comment,dedup_hash=excluded.dedup_hash`
-      for (const t of p.transactions) {
-        queries.push(txnSql)
-        params.push([
-          t['id'], t['accountId'], t['statementId'], t['date'], t['description'], t['merchant'],
-          t['amount'], t['type'], t['isOneTime'] ? 1 : 0, t['categoryId'], t['comment'], t['dedupHash'],
-        ])
-      }
-      const catSql = `INSERT INTO local_categories(id,name,color,type) VALUES(?,?,?,?)
-        ON CONFLICT(id) DO UPDATE SET name=excluded.name,color=excluded.color,type=excluded.type`
-      for (const c of p.categories) {
-        queries.push(catSql)
-        params.push([c['id'], c['name'], c['color'], c['type']])
-      }
-      const stmtSql = `INSERT INTO local_statements(id,account_id,bank_id,statement_month,parsed_count,imported_count,duplicates_skipped)
-        VALUES(?,?,?,?,?,?,?)
-        ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,bank_id=excluded.bank_id,
-          statement_month=excluded.statement_month,parsed_count=excluded.parsed_count,
-          imported_count=excluded.imported_count,duplicates_skipped=excluded.duplicates_skipped`
-      for (const s of p.statements) {
-        queries.push(stmtSql)
-        params.push([s['id'], s['accountId'], s['bankId'], s['statementMonth'], s['parsedCount'], s['importedCount'], s['duplicatesSkipped']])
-      }
-      if (queries.length > 0) await sqlite3.executeBatch(db, queries, params)
+      const batch = buildUpsertBatch((req.payload ?? {}) as UpsertPayload)
+      if (batch.queries.length > 0) await sqlite3.executeBatch(db, batch.queries, batch.params)
       return { ok: true }
     }
     case 'readAll': {
       await openDb()
       const zip = (res: { rows: unknown[][]; columns: string[] }) =>
         res.rows.map((r) => Object.fromEntries(res.columns.map((c, i) => [c, r[i]])) as Record<string, unknown>)
-      const transactions = zip(await sqlite3.execWithParams(db, 'SELECT * FROM local_transactions', null))
-      const categories = zip(await sqlite3.execWithParams(db, 'SELECT * FROM local_categories', null))
-      const statements = zip(await sqlite3.execWithParams(db, 'SELECT * FROM local_statements', null))
-      return { ok: true, rows: [{ transactions, categories, statements }] }
+      const out: Record<string, Record<string, unknown>[]> = {}
+      for (const table of OPFS_READ_TABLES) {
+        out[table] = zip(await sqlite3.execWithParams(db, `SELECT * FROM ${table}`, null))
+      }
+      const rows = [
+        {
+          transactions: out['local_transactions'],
+          categories: out['local_categories'],
+          statements: out['local_statements'],
+          accounts: out['local_accounts'],
+          owners: out['local_owners'],
+          transactionOwners: out['local_transaction_owners'],
+          rules: out['local_rules'],
+          merchants: out['local_merchants'],
+          invoices: out['local_invoices'],
+          invoiceStatements: out['local_invoice_statements'],
+          invoiceItems: out['local_invoice_items'],
+        },
+      ]
+      return { ok: true, rows }
+    }
+    case 'deleteByStatement': {
+      await openDb()
+      const { statementId } = req.payload as { statementId: string }
+      const batch = buildDeleteByStatement(statementId)
+      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      return { ok: true }
+    }
+    case 'deleteByIds': {
+      await openDb()
+      const { ids } = req.payload as { ids: string[] }
+      const batch = buildDeleteByIds(ids)
+      if (batch.queries.length > 0) await sqlite3.executeBatch(db, batch.queries, batch.params)
+      return { ok: true }
     }
     case 'clear': {
       await openDb()
-      await sqlite3.exec(db, 'DELETE FROM local_transactions; DELETE FROM local_statements; DELETE FROM local_categories;')
+      await sqlite3.exec(db, OPFS_CLEAR_SQL)
       return { ok: true }
     }
     case 'seal': {

@@ -1,0 +1,268 @@
+// ─── OPFS SQLite schema + statement builders ────────────────────────────────
+// Single source of truth for the on-device relational cache, shared by the
+// browser Worker (wa-sqlite) and Node verification tests (node:sqlite).
+// Plain SQLite only: no OPFS/WASM specifics here.
+
+export const OPFS_SCHEMA = `
+CREATE TABLE IF NOT EXISTS local_transactions(
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  statement_id TEXT,
+  date TEXT NOT NULL,
+  description TEXT NOT NULL,
+  merchant TEXT,
+  amount TEXT NOT NULL,
+  type TEXT NOT NULL,
+  is_one_time INTEGER NOT NULL DEFAULT 0,
+  category_id TEXT,
+  comment TEXT,
+  dedup_hash TEXT UNIQUE
+);
+CREATE TABLE IF NOT EXISTS local_statements(
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  bank_id TEXT NOT NULL,
+  statement_month TEXT NOT NULL,
+  parsed_count INTEGER NOT NULL DEFAULT 0,
+  imported_count INTEGER NOT NULL DEFAULT 0,
+  duplicates_skipped INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS local_categories(
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT,
+  type TEXT NOT NULL DEFAULT 'expense'
+);
+CREATE TABLE IF NOT EXISTS local_accounts(
+  id TEXT PRIMARY KEY,
+  account_name TEXT NOT NULL,
+  account_type TEXT NOT NULL,
+  bank_id TEXT NOT NULL,
+  bank_name TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'INR'
+);
+CREATE TABLE IF NOT EXISTS local_owners(
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  notes TEXT,
+  color TEXT NOT NULL DEFAULT 'indigo',
+  is_default INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS local_transaction_owners(
+  transaction_id TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  amount TEXT NOT NULL,
+  percentage TEXT NOT NULL,
+  PRIMARY KEY (transaction_id, owner_id)
+);
+CREATE TABLE IF NOT EXISTS local_rules(
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  match_field TEXT NOT NULL,
+  match_type TEXT NOT NULL,
+  match_value TEXT NOT NULL,
+  category_id TEXT NOT NULL,
+  priority INTEGER NOT NULL DEFAULT 500,
+  source TEXT NOT NULL DEFAULT 'user',
+  is_active INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS local_merchants(
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  raw_patterns TEXT NOT NULL DEFAULT '[]',
+  normalized_name TEXT NOT NULL,
+  default_category_id TEXT,
+  is_system INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS local_invoices(
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  invoice_month TEXT NOT NULL,
+  generated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS local_invoice_statements(
+  invoice_id TEXT NOT NULL,
+  statement_id TEXT,
+  account_id TEXT,
+  statement_month TEXT NOT NULL,
+  account_name TEXT NOT NULL,
+  account_type TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS local_invoice_items(
+  id TEXT PRIMARY KEY,
+  invoice_id TEXT NOT NULL,
+  transaction_id TEXT,
+  statement_id TEXT,
+  date TEXT NOT NULL,
+  description TEXT NOT NULL,
+  amount TEXT NOT NULL,
+  type TEXT NOT NULL,
+  is_one_time INTEGER NOT NULL DEFAULT 0,
+  category_id TEXT,
+  category_name TEXT NOT NULL DEFAULT 'Uncategorized',
+  category_color TEXT,
+  category_type TEXT NOT NULL DEFAULT 'expense',
+  owners TEXT NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS idx_local_txn_date ON local_transactions(date);
+CREATE INDEX IF NOT EXISTS idx_local_txn_account ON local_transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_local_txn_owners_txn ON local_transaction_owners(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_local_invoice_items_inv ON local_invoice_items(invoice_id);
+`
+
+export interface OpfsUpsertPatch {
+  transactions?: Array<Record<string, unknown>>
+  categories?: Array<Record<string, unknown>>
+  statements?: Array<Record<string, unknown>>
+  accounts?: Array<Record<string, unknown>>
+  owners?: Array<Record<string, unknown>>
+  transactionOwners?: Array<Record<string, unknown>>
+  rules?: Array<Record<string, unknown>>
+  merchants?: Array<Record<string, unknown>>
+  invoices?: Array<Record<string, unknown>>
+  invoiceStatements?: Array<Record<string, unknown>>
+  invoiceItems?: Array<Record<string, unknown>>
+}
+
+export interface OpfsBatch {
+  queries: string[]
+  params: unknown[][]
+}
+
+/** One transactional batch for the whole patch (worker runs it atomically). */
+export function buildUpsertBatch(p: OpfsUpsertPatch): OpfsBatch {
+  const queries: string[] = []
+  const params: unknown[][] = []
+
+  const txnSql = `INSERT INTO local_transactions(id,account_id,statement_id,date,description,merchant,amount,type,is_one_time,category_id,comment,dedup_hash)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,statement_id=excluded.statement_id,date=excluded.date,
+      description=excluded.description,merchant=excluded.merchant,amount=excluded.amount,type=excluded.type,
+      is_one_time=excluded.is_one_time,category_id=excluded.category_id,comment=excluded.comment,dedup_hash=excluded.dedup_hash`
+  for (const t of p.transactions ?? []) {
+    queries.push(txnSql)
+    params.push([
+      t['id'], t['accountId'], t['statementId'], t['date'], t['description'], t['merchant'],
+      t['amount'], t['type'], t['isOneTime'] ? 1 : 0, t['categoryId'], t['comment'], t['dedupHash'],
+    ])
+  }
+  const catSql = `INSERT INTO local_categories(id,name,color,type) VALUES(?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET name=excluded.name,color=excluded.color,type=excluded.type`
+  for (const c of p.categories ?? []) {
+    queries.push(catSql)
+    params.push([c['id'], c['name'], c['color'], c['type']])
+  }
+  const stmtSql = `INSERT INTO local_statements(id,account_id,bank_id,statement_month,parsed_count,imported_count,duplicates_skipped)
+    VALUES(?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,bank_id=excluded.bank_id,
+      statement_month=excluded.statement_month,parsed_count=excluded.parsed_count,
+      imported_count=excluded.imported_count,duplicates_skipped=excluded.duplicates_skipped`
+  for (const s of p.statements ?? []) {
+    queries.push(stmtSql)
+    params.push([s['id'], s['accountId'], s['bankId'], s['statementMonth'], s['parsedCount'], s['importedCount'], s['duplicatesSkipped']])
+  }
+  const acctSql = `INSERT INTO local_accounts(id,account_name,account_type,bank_id,bank_name,currency) VALUES(?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET account_name=excluded.account_name,account_type=excluded.account_type,
+      bank_id=excluded.bank_id,bank_name=excluded.bank_name,currency=excluded.currency`
+  for (const a of p.accounts ?? []) {
+    queries.push(acctSql)
+    params.push([a['id'], a['accountName'], a['accountType'], a['bankId'], a['bankName'], a['currency'] ?? 'INR'])
+  }
+  const ownerSql = `INSERT INTO local_owners(id,name,notes,color,is_default) VALUES(?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET name=excluded.name,notes=excluded.notes,color=excluded.color,is_default=excluded.is_default`
+  for (const o of p.owners ?? []) {
+    queries.push(ownerSql)
+    params.push([o['id'], o['name'], o['notes'] ?? null, o['color'] ?? 'indigo', o['isDefault'] ? 1 : 0])
+  }
+  const txnOwnerSql = `INSERT INTO local_transaction_owners(transaction_id,owner_id,amount,percentage) VALUES(?,?,?,?)
+    ON CONFLICT(transaction_id,owner_id) DO UPDATE SET amount=excluded.amount,percentage=excluded.percentage`
+  for (const t of p.transactionOwners ?? []) {
+    queries.push(txnOwnerSql)
+    params.push([t['transactionId'], t['ownerId'], t['amount'], t['percentage']])
+  }
+  const ruleSql = `INSERT INTO local_rules(id,user_id,match_field,match_type,match_value,category_id,priority,source,is_active)
+    VALUES(?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET user_id=excluded.user_id,match_field=excluded.match_field,match_type=excluded.match_type,
+      match_value=excluded.match_value,category_id=excluded.category_id,priority=excluded.priority,
+      source=excluded.source,is_active=excluded.is_active`
+  for (const r of p.rules ?? []) {
+    queries.push(ruleSql)
+    params.push([r['id'], r['userId'] ?? null, r['matchField'], r['matchType'], r['matchValue'], r['categoryId'], r['priority'] ?? 500, r['source'] ?? 'user', r['isActive'] === false ? 0 : 1])
+  }
+  const merchSql = `INSERT INTO local_merchants(id,user_id,raw_patterns,normalized_name,default_category_id,is_system)
+    VALUES(?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET user_id=excluded.user_id,raw_patterns=excluded.raw_patterns,
+      normalized_name=excluded.normalized_name,default_category_id=excluded.default_category_id,is_system=excluded.is_system`
+  for (const m of p.merchants ?? []) {
+    queries.push(merchSql)
+    params.push([m['id'], m['userId'] ?? null, JSON.stringify(m['rawPatterns'] ?? []), m['normalizedName'], m['defaultCategoryId'] ?? null, m['isSystem'] ? 1 : 0])
+  }
+  const invSql = `INSERT INTO local_invoices(id,name,status,invoice_month,generated_at) VALUES(?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET name=excluded.name,status=excluded.status,invoice_month=excluded.invoice_month,generated_at=excluded.generated_at`
+  for (const v of p.invoices ?? []) {
+    queries.push(invSql)
+    params.push([v['id'], v['name'], v['status'] ?? 'draft', v['invoiceMonth'], v['generatedAt'] ?? null])
+  }
+  const invStmtSql = `INSERT INTO local_invoice_statements(invoice_id,statement_id,account_id,statement_month,account_name,account_type)
+    VALUES(?,?,?,?,?,?)`
+  for (const v of p.invoiceStatements ?? []) {
+    queries.push(invStmtSql)
+    params.push([v['invoiceId'], v['statementId'] ?? null, v['accountId'] ?? null, v['statementMonth'], v['accountName'], v['accountType']])
+  }
+  const invItemSql = `INSERT INTO local_invoice_items(id,invoice_id,transaction_id,statement_id,date,description,amount,type,is_one_time,category_id,category_name,category_color,category_type,owners)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET invoice_id=excluded.invoice_id,transaction_id=excluded.transaction_id,statement_id=excluded.statement_id,
+      date=excluded.date,description=excluded.description,amount=excluded.amount,type=excluded.type,is_one_time=excluded.is_one_time,
+      category_id=excluded.category_id,category_name=excluded.category_name,category_color=excluded.category_color,
+      category_type=excluded.category_type,owners=excluded.owners`
+  for (const v of p.invoiceItems ?? []) {
+    queries.push(invItemSql)
+    params.push([v['id'], v['invoiceId'], v['transactionId'] ?? null, v['statementId'] ?? null, v['date'], v['description'], v['amount'], v['type'], v['isOneTime'] ? 1 : 0, v['categoryId'] ?? null, v['categoryName'] ?? 'Uncategorized', v['categoryColor'] ?? null, v['categoryType'] ?? 'expense', JSON.stringify(v['owners'] ?? [])])
+  }
+
+  return { queries, params }
+}
+
+export function buildDeleteByStatement(statementId: string): OpfsBatch {
+  return {
+    queries: [
+      'DELETE FROM local_transaction_owners WHERE transaction_id IN (SELECT id FROM local_transactions WHERE statement_id = ?)',
+      'DELETE FROM local_transactions WHERE statement_id = ?',
+      'DELETE FROM local_statements WHERE id = ?',
+    ],
+    params: [[statementId], [statementId], [statementId]],
+  }
+}
+
+export function buildDeleteByIds(ids: string[]): OpfsBatch {
+  if (ids.length === 0) return { queries: [], params: [] }
+  const placeholders = ids.map(() => '?').join(',')
+  return {
+    queries: [
+      `DELETE FROM local_transaction_owners WHERE transaction_id IN (${placeholders})`,
+      `DELETE FROM local_transactions WHERE id IN (${placeholders})`,
+    ],
+    params: [ids, ids],
+  }
+}
+
+export const OPFS_CLEAR_SQL =
+  'DELETE FROM local_transactions; DELETE FROM local_statements; DELETE FROM local_categories;' +
+  'DELETE FROM local_accounts; DELETE FROM local_owners; DELETE FROM local_transaction_owners;' +
+  'DELETE FROM local_rules; DELETE FROM local_merchants; DELETE FROM local_invoices;' +
+  'DELETE FROM local_invoice_statements; DELETE FROM local_invoice_items;'
+
+export const OPFS_READ_TABLES = [
+  'local_transactions',
+  'local_categories',
+  'local_statements',
+  'local_accounts',
+  'local_owners',
+  'local_transaction_owners',
+  'local_rules',
+  'local_merchants',
+  'local_invoices',
+  'local_invoice_statements',
+  'local_invoice_items',
+] as const

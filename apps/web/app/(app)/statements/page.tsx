@@ -31,6 +31,8 @@ interface Statement {
   duplicatesSkipped: number
   importedAt: string
   account: { accountName: string; accountType: string; bankName: string }
+  /** True for rows imported on-device that haven't synced to the server yet. */
+  localOnly?: boolean
 }
 
 interface PreviewRow {
@@ -218,7 +220,14 @@ function StatementHistory({
                   <tbody className="divide-y divide-zinc-800">
                     {monthStatements.map((s) => (
                       <tr key={s.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 text-foreground/90 font-medium">{s.account.accountName}</td>
+                        <td className="px-4 py-3 text-foreground/90 font-medium">
+                          {s.account.accountName}
+                          {s.localOnly && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/25">
+                              On-device
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {BANKS.find((b) => b.id === s.bankId)?.label ?? s.bankId}
                         </td>
@@ -306,7 +315,11 @@ export default function StatementsPage() {
         }
       })
       .catch(console.error)
-    apiClient.fetch<Statement[]>('/v1/statements').then(setStatements).catch(console.error)
+    apiClient.fetch<Statement[]>('/v1/statements').then(async (list) => {
+      setStatements(list)
+      await refreshLocalStatements(list)
+    }).catch(console.error)
+    void refreshLocalStatements()
   }, [])
 
   // Local-first preview parsing (Web Worker + OPFS-ready engine) with server fallback
@@ -403,6 +416,43 @@ export default function StatementsPage() {
     setParseError(null)
   }
 
+  const refreshLocalStatements = async (serverList?: Statement[]) => {
+    try {
+      const { readLocalCache } = await import('@/lib/engine/opfs-db')
+      const cache = await readLocalCache()
+      if (!cache) {
+        setStatements((prev) => prev.filter((s) => !s.localOnly))
+        return
+      }
+      const serverIds = new Set((serverList ?? statements).map((s) => s.id))
+      const acctMap = new Map(cache.accounts.map((a) => [a.id, a]))
+      const localOnly: Statement[] = cache.statements
+        .filter((s) => !serverIds.has(s.id))
+        .map((s) => {
+          const acct = acctMap.get(s.accountId)
+          return {
+            id: s.id,
+            bankId: s.bankId,
+            accountId: s.accountId,
+            statementMonth: s.statementMonth,
+            parsedCount: s.parsedCount,
+            importedCount: s.importedCount,
+            duplicatesSkipped: s.duplicatesSkipped,
+            importedAt: new Date().toISOString(),
+            account: {
+              accountName: acct?.accountName ?? 'On-device import',
+              accountType: acct?.accountType ?? 'bank',
+              bankName: acct?.bankName ?? s.bankId,
+            },
+            localOnly: true,
+          }
+        })
+      setStatements((prev) => [...prev.filter((s) => !s.localOnly), ...localOnly])
+    } catch {
+      // OPFS unavailable — server list stands alone
+    }
+  }
+
   const handleImport = async () => {
     if (!selectedFile || !selectedBankId || !selectedAccountId) {
       setParseError({
@@ -421,7 +471,31 @@ export default function StatementsPage() {
 
     setIsImporting(true)
     setParseError(null)
+    let localStatementId: string | null = null
     try {
+      // Step 1 — on-device import (instant, works offline).
+      const [{ importStatementLocal }, { fetchReferenceData }] = await Promise.all([
+        import('@/lib/engine/import'),
+        import('@/lib/engine/analytics-client'),
+      ])
+      const ref = await fetchReferenceData()
+      const local = await importStatementLocal({
+        bankId: selectedBankId,
+        accountId: selectedAccountId,
+        statementMonth: selectedMonth + '-01',
+        file: selectedFile,
+        rules: ref.rules,
+        categories: ref.categories,
+        userMerchants: ref.userMerchants,
+      })
+      localStatementId = local.statementId
+      await refreshLocalStatements()
+      toast.success(
+        `Saved ${local.importedCount} transaction${local.importedCount !== 1 ? 's' : ''} on this device` +
+          (local.duplicatesSkipped > 0 ? ` · ${local.duplicatesSkipped} duplicate${local.duplicatesSkipped !== 1 ? 's' : ''} skipped` : '')
+      )
+
+      // Step 2 — server backup (existing endpoint; dedupHash converges rows).
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('bankId', selectedBankId)
@@ -438,8 +512,17 @@ export default function StatementsPage() {
       if (!res.ok || !result.success) throw new Error(result?.error?.message || 'Upload failed')
 
       const { importedCount, duplicatesSkipped } = result.data
+
+      // Step 3 — converge: server rows supersede local rows, drop the local
+      // statement shell, refresh everything.
+      const [{ refreshLocalCache }, { deleteStatementFromCache }] = await Promise.all([
+        import('@/lib/engine/analytics-client'),
+        import('@/lib/engine/opfs-db'),
+      ])
+      await refreshLocalCache()
+      if (localStatementId) await deleteStatementFromCache(localStatementId).catch(() => {})
       toast.success(
-        `Imported ${importedCount} transaction${importedCount !== 1 ? 's' : ''}` +
+        `Synced ${importedCount} transaction${importedCount !== 1 ? 's' : ''} to server` +
           (duplicatesSkipped > 0 ? ` · ${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? 's' : ''} skipped` : '')
       )
 
@@ -449,25 +532,41 @@ export default function StatementsPage() {
       setTotalParsed(0)
       const updated = await apiClient.fetch<Statement[]>('/v1/statements')
       setStatements(updated)
-      // Refresh the on-device OPFS cache in the background (best-effort).
-      import('@/lib/engine/analytics-client').then((m) => m.refreshLocalCache()).catch(() => {})
+      await refreshLocalStatements(updated)
     } catch (err) {
       console.error('Import error:', err)
-      setParseError({
-        fileName: selectedFile?.name || 'Statement file',
-        accountName: selectedAccount?.accountName || 'Selected account',
-        bankName: selectedAccount?.bankName || selectedBankId,
-        message: err instanceof Error ? err.message : 'Import failed',
-      })
+      // Local-first guarantee: if we saved on-device but the server backup
+      // failed, keep the data and tell the user it is safe locally.
+      if (localStatementId) {
+        await refreshLocalStatements()
+        toast.warning('Saved on this device — server sync failed. Your data is safe locally; retry the upload later.')
+        setSelectedFile(null)
+        setPreviewRows([])
+        setTotalParsed(0)
+      } else {
+        setParseError({
+          fileName: selectedFile?.name || 'Statement file',
+          accountName: selectedAccount?.accountName || 'Selected account',
+          bankName: selectedAccount?.bankName || selectedBankId,
+          message: err instanceof Error ? err.message : 'Import failed',
+        })
+      }
     } finally {
       setIsImporting(false)
     }
   }
 
   const handleDelete = async (id: string) => {
+    const { deleteStatementFromCache } = await import('@/lib/engine/opfs-db')
+    const target = statements.find((s) => s.id === id)
     try {
-      await apiClient.fetch(`/v1/statements/${id}`, { method: 'DELETE' })
+      // On-device-only imports have no server row — drop them locally.
+      if (!target?.localOnly) {
+        await apiClient.fetch(`/v1/statements/${id}`, { method: 'DELETE' })
+      }
       setStatements((prev) => prev.filter((s) => s.id !== id))
+      await deleteStatementFromCache(id).catch(() => {})
+      await refreshLocalStatements()
       toast.success('Statement deleted')
     } catch {
       toast.error('Failed to delete statement')

@@ -1,5 +1,7 @@
 export * from './types.js'
 export * from './dedup.js'
 export * from './analytics.js'
+export * from './invoices.js'
+export * from './opfs-schema.js'
 export * from './storage.js'
 export * from './crypto.js'

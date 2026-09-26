@@ -177,6 +177,8 @@ interface InvoiceAnalysis {
 interface InvoiceDetail extends InvoiceSummary {
   transactions: InvoiceTransaction[]
   analysis: InvoiceAnalysis | null
+  /** Set when composed on-device from the OPFS cache (server unreachable). */
+  offline?: boolean
 }
 
 const formatINR = (value: string | number) =>
@@ -632,6 +634,45 @@ function InvoicesContent() {
       setSelectedTransactionIds(new Set())
       setPendingCategoryChange(null)
 
+      // Cache for offline viewing (headers + items for generated invoices).
+      import('@/lib/engine/opfs-db').then(({ cacheServerRows }) =>
+        cacheServerRows({
+          invoices: [
+            {
+              id: detail.id,
+              name: detail.name,
+              status: detail.status,
+              invoiceMonth: detail.invoiceMonth,
+              generatedAt: detail.generatedAt,
+            },
+          ],
+          invoiceStatements: detail.statements.map((s) => ({
+            invoiceId: detail.id,
+            statementId: s.statementId,
+            accountId: s.accountId,
+            statementMonth: s.statementMonth,
+            accountName: s.accountName,
+            accountType: s.accountType,
+          })),
+          invoiceItems: detail.transactions.map((t) => ({
+            id: t.id,
+            invoiceId: detail.id,
+            transactionId: t.id,
+            statementId: t.statementId,
+            date: t.date.slice(0, 10),
+            description: t.description,
+            amount: t.amount,
+            type: t.type,
+            isOneTime: !!t.isOneTime,
+            categoryId: t.categoryId,
+            categoryName: t.category?.name ?? 'Uncategorized',
+            categoryColor: t.category?.color ?? null,
+            categoryType: t.category?.type ?? 'expense',
+            owners: t.owners,
+          })),
+        }).catch(() => {})
+      ).catch(() => {})
+
       if (detail.status === 'draft') {
         setDraftName(detail.name)
         setDraftStatementIds(
@@ -641,6 +682,32 @@ function InvoicesContent() {
         )
       }
     } catch (error) {
+      // Offline fallback: compose the draft from the on-device OPFS cache.
+      try {
+        const [{ readLocalCache }, { composeInvoiceDraftLocal }] = await Promise.all([
+          import('@/lib/engine/opfs-db'),
+          import('@/lib/engine/local-invoices'),
+        ])
+        const cache = await readLocalCache()
+        const local = cache ? composeInvoiceDraftLocal(invoiceId, cache) : null
+        if (local) {
+          setActiveInvoice(local)
+          setSelectedTransactionIds(new Set())
+          setPendingCategoryChange(null)
+          if (local.status === 'draft') {
+            setDraftName(local.name)
+            setDraftStatementIds(
+              local.statements
+                .map((statement) => statement.statementId)
+                .filter((statementId): statementId is string => Boolean(statementId))
+            )
+          }
+          toast.warning('Offline preview — composed on this device')
+          return
+        }
+      } catch {
+        // fall through to the error below
+      }
       toast.error(error instanceof Error ? error.message : 'Failed to load invoice')
     } finally {
       if (!backgroundRefresh) {
@@ -662,6 +729,29 @@ function InvoicesContent() {
       setInvoices(invoiceList)
       setStatements(statementList)
       setOwners(ownerList)
+
+      // Cache invoice headers + statement links for offline drafts.
+      import('@/lib/engine/opfs-db').then(({ cacheServerRows }) =>
+        cacheServerRows({
+          invoices: invoiceList.map((v) => ({
+            id: v.id,
+            name: v.name,
+            status: v.status,
+            invoiceMonth: v.invoiceMonth,
+            generatedAt: v.generatedAt,
+          })),
+          invoiceStatements: invoiceList.flatMap((v) =>
+            v.statements.map((s) => ({
+              invoiceId: v.id,
+              statementId: s.statementId,
+              accountId: s.accountId,
+              statementMonth: s.statementMonth,
+              accountName: s.accountName,
+              accountType: s.accountType,
+            }))
+          ),
+        }).catch(() => {})
+      ).catch(() => {})
 
       const fallbackMonth =
         requestedMonth && statementList.some((statement) => monthFromDate(statement.statementMonth) === requestedMonth)
@@ -1373,6 +1463,11 @@ function InvoicesContent() {
                       >
                         {activeInvoice.status}
                       </span>
+                      {activeInvoice.offline && (
+                        <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-300">
+                          Offline preview
+                        </span>
+                      )}
                     </div>
                   </div>
 

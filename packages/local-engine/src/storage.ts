@@ -6,15 +6,8 @@
 // Future SQLCipher backend: replace `createIndexedDbVault()` with
 // `createSqlCipherVault(dek)` using wa-sqlite + OPFS. Row shapes stay identical.
 
-import type { LocalCategory, LocalStatement, LocalTransaction, LocalTransactionOwner } from './types.js'
-
-export interface VaultSnapshot {
-  transactions: LocalTransaction[]
-  categories: LocalCategory[]
-  statements: LocalStatement[]
-  owners: LocalTransactionOwner[]
-  updatedAt: string
-}
+import type { VaultSnapshot } from './types.js'
+export type { VaultSnapshot } from './types.js'
 
 export interface LocalVault {
   save(snapshot: VaultSnapshot): Promise<void>
