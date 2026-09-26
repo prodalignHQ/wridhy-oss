@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { UploadCloud, Trash2, History, ChevronRight, AlertTriangle, Mail, Landmark, FileSpreadsheet } from 'lucide-react'
+import { UploadCloud, Trash2, History, ChevronRight, AlertTriangle, Mail, Landmark, FileSpreadsheet, Lock, Fingerprint } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { UploadDropzone } from '@/components/statements/upload-dropzone'
 import { apiClient } from '@/lib/api'
@@ -298,6 +299,14 @@ export default function StatementsPage() {
   const [isImporting, setIsImporting] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState('')
   const [parseError, setParseError] = useState<ParseErrorState | null>(null)
+  const [vaultGate, setVaultGate] = useState<null | {
+    hasPassword: boolean
+    wraps: Array<{ credentialId: string; label: string }>
+  }>(null)
+  const [gatePassword, setGatePassword] = useState('')
+  const [gateCredential, setGateCredential] = useState('')
+  const [gateBusy, setGateBusy] = useState(false)
+  const [gateError, setGateError] = useState<string | null>(null)
 
   // Derived bankId from selected account
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId)
@@ -476,6 +485,26 @@ export default function StatementsPage() {
       return
     }
 
+    // Vault invariant: a vault exists ⇒ never plaintext. If the vault is
+    // locked, stop here and ask for unlock instead of taking the legacy
+    // readable-upload path. (Edits to pre-existing server rows keep their
+    // current behavior — this gate covers new inbound data only.)
+    const [{ fetchVaultBlob }, { useVaultStore }] = await Promise.all([
+      import('@/lib/engine/vault-sync'),
+      import('@/lib/store/vault.store'),
+    ])
+    const existing = await fetchVaultBlob().catch(() => null)
+    if (existing && !useVaultStore.getState().isUnlocked()) {
+      setVaultGate({
+        hasPassword: !!existing.wrappedDekPassword,
+        wraps: (existing.wraps ?? []).map((w) => ({ credentialId: w.credentialId, label: w.label })),
+      })
+      setGateCredential(existing.wraps?.[0]?.credentialId ?? '')
+      setGateError(null)
+      return
+    }
+    setVaultGate(null)
+
     setIsImporting(true)
     setParseError(null)
     let localStatementId: string | null = null
@@ -562,7 +591,8 @@ export default function StatementsPage() {
       }
       toast.success(
         `Synced ${importedCount} transaction${importedCount !== 1 ? 's' : ''} to server` +
-          (duplicatesSkipped > 0 ? ` · ${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? 's' : ''} skipped` : '')
+          (duplicatesSkipped > 0 ? ` · ${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? 's' : ''} skipped` : ''),
+        { description: 'Readable server backup — no vault is set up, so this copy is not encrypted.' }
       )
 
       // Clear form and refresh
@@ -592,6 +622,39 @@ export default function StatementsPage() {
       }
     } finally {
       setIsImporting(false)
+    }
+  }
+
+  const handleGatePasswordUnlock = async () => {
+    setGateBusy(true)
+    setGateError(null)
+    try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      await useVaultStore.getState().unlockPassword(gatePassword)
+      setGatePassword('')
+      setVaultGate(null)
+      toast.success('Vault unlocked — continuing import encrypted')
+      await handleImport()
+    } catch (err) {
+      setGateError(err instanceof Error ? err.message : 'Unlock failed')
+    } finally {
+      setGateBusy(false)
+    }
+  }
+
+  const handleGatePasskeyUnlock = async () => {
+    setGateBusy(true)
+    setGateError(null)
+    try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      await useVaultStore.getState().unlockPasskey(gateCredential || undefined)
+      setVaultGate(null)
+      toast.success('Vault unlocked — continuing import encrypted')
+      await handleImport()
+    } catch (err) {
+      setGateError(err instanceof Error ? err.message : 'Passkey unlock failed')
+    } finally {
+      setGateBusy(false)
     }
   }
 
@@ -826,6 +889,71 @@ export default function StatementsPage() {
                       <UploadCloud size={16} />
                       {isImporting ? 'Importing…' : 'Confirm Import'}
                     </Button>
+                  </div>
+                )}
+
+                {/* Vault gate: a vault exists but is locked — unlock here so
+                    this import stays encrypted instead of taking the legacy
+                    readable-upload path. */}
+                {vaultGate && !isParsing && !parseError && (
+                  <div className="rounded-xl border border-sky-500/40 bg-sky-500/5 p-5 space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-sky-500/15 border border-sky-500/25 flex items-center justify-center shrink-0 text-sky-500">
+                        <Lock size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">Unlock your vault to continue</h3>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                          You set up an encrypted vault, so this import waits for unlock — without it we&apos;d have
+                          to store a readable copy, and that would defeat the vault.
+                        </p>
+                      </div>
+                    </div>
+                    {vaultGate.hasPassword && (
+                      <div className="flex gap-2">
+                        <Input
+                          type="password"
+                          placeholder="Vault password"
+                          value={gatePassword}
+                          onChange={(e) => setGatePassword(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                        <Button onClick={handleGatePasswordUnlock} disabled={gateBusy || !gatePassword} size="sm" className="shrink-0">
+                          {gateBusy ? 'Unlocking…' : 'Unlock'}
+                        </Button>
+                      </div>
+                    )}
+                    {vaultGate.wraps.length > 0 && (
+                      <div className="flex gap-2">
+                        {vaultGate.wraps.length > 1 && (
+                          <Select value={gateCredential} onValueChange={(v) => setGateCredential(v ?? '')}>
+                            <SelectTrigger className="h-9 text-sm bg-muted border-border flex-1">
+                              <SelectValue placeholder="Choose device" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border">
+                              {vaultGate.wraps.map((w) => (
+                                <SelectItem key={w.credentialId} value={w.credentialId}>
+                                  {w.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <Button onClick={handleGatePasskeyUnlock} disabled={gateBusy} size="sm" variant={vaultGate.hasPassword ? 'outline' : 'default'} className="shrink-0 gap-1.5">
+                          <Fingerprint size={14} />
+                          {gateBusy ? 'Waiting…' : vaultGate.wraps.length > 1 ? 'Unlock with passkey' : `Unlock (${vaultGate.wraps[0]?.label ?? 'passkey'})`}
+                        </Button>
+                      </div>
+                    )}
+                    {gateError && <p className="text-xs text-rose-500">{gateError}</p>}
+                    <div className="flex items-center justify-between pt-1 border-t border-border/60">
+                      <Link href="/settings/vault" className="text-xs text-primary hover:underline">
+                        Other unlock options →
+                      </Link>
+                      <Button variant="ghost" size="sm" onClick={() => setVaultGate(null)} className="text-xs text-muted-foreground">
+                        Cancel import
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
