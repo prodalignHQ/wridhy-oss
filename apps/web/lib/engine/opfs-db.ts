@@ -450,3 +450,16 @@ export async function isLocalDbSealed(): Promise<boolean> {
   const res = await call('sealedExists')
   return !!res?.sealed
 }
+
+export interface LocalDbStats {
+  sealed: boolean
+  counts: Record<string, number> | null
+}
+
+/** Row counts per table + sealed flag. Never creates a database (safe locked). */
+export async function getLocalDbStats(): Promise<LocalDbStats | null> {
+  const res = await call('stats', undefined, 30_000)
+  if (!res?.ok) return null
+  const counts = res.rows?.[0] as Record<string, number> | undefined
+  return { sealed: !!res.sealed, counts: counts ? { ...counts } : null }
+}

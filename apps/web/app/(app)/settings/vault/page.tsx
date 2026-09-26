@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, Unlock, KeyRound, Fingerprint, RefreshCw, ShieldCheck, TriangleAlert, Trash2 } from 'lucide-react'
+import { Lock, Unlock, KeyRound, Fingerprint, RefreshCw, ShieldCheck, TriangleAlert, Trash2, Database } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,6 +37,7 @@ export default function VaultPage() {
   const [chosenCredential, setChosenCredential] = useState<string | null>(null)
   const [pendingEdits, setPendingEdits] = useState<number | null>(null)
   const [lastBackup, setLastBackup] = useState<string | null>(null)
+  const [dbStats, setDbStats] = useState<{ sealed: boolean; counts: Record<string, number> | null } | null>(null)
   // Post-login unlock gate (?from=login): offer the escape hatch and return
   // to the dashboard after a successful unlock.
   const [fromLogin, setFromLogin] = useState(false)
@@ -56,12 +57,14 @@ export default function VaultPage() {
 
   useEffect(() => {
     let cancelled = false
-    import('@/lib/engine/opfs-db').then(async ({ getPendingWork, readLastBackupAt }) => {
+    import('@/lib/engine/opfs-db').then(async ({ getPendingWork, readLastBackupAt, getLocalDbStats }) => {
       if (cancelled) return
       const work = await getPendingWork().catch(() => ({ statements: [], edits: 0 }))
       if (cancelled) return
       setPendingEdits(work.edits + work.statements.length)
       setLastBackup(readLastBackupAt())
+      const stats = await getLocalDbStats().catch(() => null)
+      if (!cancelled) setDbStats(stats)
     }).catch(() => {})
     return () => {
       cancelled = true
@@ -189,6 +192,43 @@ export default function VaultPage() {
             <p className="text-sm text-rose-500">{vault.error}</p>
           </CardContent>
         )}
+      </Card>
+
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Database size={16} className="text-primary" />
+            On-device database
+          </CardTitle>
+          <CardDescription>
+            What this browser actually holds — the source your Transactions and Insights read when unlocked.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {dbStats === null ? (
+            <p className="text-xs text-muted-foreground">Unavailable (worker/OPFS not running here).</p>
+          ) : dbStats.sealed && !dbStats.counts ? (
+            <p className="text-xs text-sky-400">Sealed — unlock the vault to inspect row counts.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5 text-xs">
+              {Object.entries(dbStats.counts ?? {})
+                .filter(([, n]) => n > 0)
+                .map(([table, n]) => (
+                  <span key={table} className="rounded-full bg-muted px-2.5 py-1 font-mono">
+                    {table.replace('local_', '')}: {n}
+                  </span>
+                ))}
+              {Object.values(dbStats.counts ?? {}).every((n) => n === 0) && (
+                <span className="text-muted-foreground">Empty — import a statement to fill it.</span>
+              )}
+              {dbStats.sealed && (
+                <span className="rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/25 px-2.5 py-1 font-semibold">
+                  sealed file present
+                </span>
+              )}
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       {vault.status === 'no-vault' && (

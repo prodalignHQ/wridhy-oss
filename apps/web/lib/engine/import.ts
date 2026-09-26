@@ -84,7 +84,7 @@ export async function importStatementLocal(input: LocalImportInput): Promise<Loc
   }
 
   if (fresh.length > 0) {
-    await cacheServerRows({
+    const written = await cacheServerRows({
       transactions: fresh,
       statements: [
         {
@@ -98,6 +98,16 @@ export async function importStatementLocal(input: LocalImportInput): Promise<Loc
         },
       ],
     })
+    if (!written) {
+      throw new Error('On-device database unavailable (OPFS/Worker failed) — nothing was saved')
+    }
+    // Read-back verification: the toast below must never lie.
+    const { readLocalCache: verify } = await import('./opfs-db')
+    const check = await verify().catch(() => null)
+    const found = check?.transactions.filter((t) => t.statementId === statementId).length ?? 0
+    if (found !== fresh.length) {
+      throw new Error(`On-device save incomplete (wrote ${fresh.length}, found ${found})`)
+    }
   }
 
   return { statementId, parsedCount, importedCount: fresh.length, duplicatesSkipped }

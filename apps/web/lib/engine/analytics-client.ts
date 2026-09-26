@@ -157,7 +157,31 @@ async function loadLocalInput(): Promise<LocalInput> {
   }
   cacheServerRows(cloud).catch(() => {})
 
+  // 4. UNION (the step Phase 3 missed): server rows are canonical, but
+  // vault-only rows live exclusively in OPFS. Return both — server wins on
+  // dedupHash collision — so fresh imports are visible immediately.
+  if (cached) {
+    const serverHashes = new Set(cloud.transactions.map((t) => t.dedupHash))
+    const serverIds = new Set(cloud.transactions.map((t) => t.id))
+    const localOnly = cached.transactions.filter(
+      (t) => !serverIds.has(t.id) && !(t.dedupHash && serverHashes.has(t.dedupHash))
+    )
+    if (localOnly.length > 0) {
+      return { ...cloud, transactions: [...cloud.transactions, ...localOnly] }
+    }
+  }
+
   return cloud
+}
+
+/**
+ * Merged read for any UI that lists transactions: server canonical +
+ * OPFS-exclusive rows. Transactions page, invoice composer, and analytics
+ * must all use this — raw OPFS misses server history, raw cloud misses
+ * vault-only imports.
+ */
+export async function loadMergedInput(): Promise<LocalInput> {
+  return loadLocalInput()
 }
 
 async function fetchCloudInput(): Promise<LocalInput> {

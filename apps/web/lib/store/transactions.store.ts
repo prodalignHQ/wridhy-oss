@@ -122,19 +122,31 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
   fetchTransactions: async () => {
     const { filters } = get()
 
-    // Vault unlocked → query the on-device OPFS cache (imports land here
-    // first and may never exist as server rows). Falls back to the server
-    // when the cache is unavailable.
+    // Vault unlocked → merged read (server canonical + OPFS-exclusive rows).
+    // Raw OPFS misses server history; raw cloud misses vault-only imports.
+    // Falls back to the server when the cache is unavailable.
     if (useVaultStore.getState().isUnlocked()) {
       set({ isLoading: true, error: null })
       try {
-        const [{ readLocalCache }, { queryLocalTransactions }] = await Promise.all([
-          import('../engine/opfs-db'),
+        const [{ loadMergedInput }, { queryLocalTransactions }] = await Promise.all([
+          import('../engine/analytics-client'),
           import('../engine/local-query'),
         ])
-        const cache = await readLocalCache()
-        if (cache) {
-          const { rows, total, totalPages } = queryLocalTransactions(cache, {
+        const merged = await loadMergedInput()
+        const cache = {
+          transactions: merged.transactions,
+          categories: merged.categories,
+          statements: merged.statements,
+          accounts: merged.accounts,
+          owners: merged.owners,
+          transactionOwners: merged.transactionOwners,
+          rules: merged.rules,
+          merchants: merged.merchants,
+          invoices: merged.invoices,
+          invoiceStatements: merged.invoiceStatements,
+          invoiceItems: merged.invoiceItems,
+        }
+        const { rows, total, totalPages } = queryLocalTransactions(cache, {
             accountId: filters.accountId,
             startDate: filters.startDate,
             endDate: filters.endDate,
@@ -173,7 +185,6 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
             isLoading: false,
           })
           return
-        }
       } catch (err) {
         console.warn('[transactions] local query failed, falling back to server', err)
       }

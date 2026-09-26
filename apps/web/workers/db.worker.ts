@@ -48,6 +48,22 @@ async function openDb(): Promise<void> {
   sqlite3 = SQLite.Factory(module)
   const vfs = new OriginPrivateFileSystemVFS()
   await sqlite3.vfs_register(vfs, false)
+  // Never shadow a sealed database with a fresh empty one: if the sealed
+  // file exists but the live file is gone, the vault is locked — creating
+  // momoney.db here would make reads return empty and let later upserts
+  // fork the data. Unlock (unseal) must happen first.
+  const root = await navigator.storage.getDirectory()
+  const names: string[] = []
+  try {
+    for await (const entry of (root as unknown as { values(): AsyncIterable<{ name: string }> }).values()) {
+      names.push(entry.name)
+    }
+  } catch {
+    // listing unsupported — proceed; unseal path still guards decrypt errors
+  }
+  if (!names.includes(DB_NAME) && names.includes(SEALED_NAME)) {
+    throw new Error('SEALED: database is locked — unlock the vault first')
+  }
   db = await sqlite3.open_v2(
     DB_NAME,
     SQLite.SQLITE_OPEN_CREATE | SQLite.SQLITE_OPEN_READWRITE,
@@ -80,7 +96,7 @@ function toArrayBufferView(u8: Uint8Array): Uint8Array<ArrayBuffer> {
 
 export interface DbWorkerRequest {
   id: number
-  op: 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'seal' | 'unseal' | 'sealedExists'
+  op: 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'stats' | 'seal' | 'unseal' | 'sealedExists'
   payload?: unknown
 }
 
@@ -299,6 +315,28 @@ interface UpsertPayload {
     case 'sealedExists': {
       const sealedHandle = await opfsFile(SEALED_NAME, false).catch(() => null)
       return { ok: true, sealed: !!sealedHandle }
+    }
+    case 'stats': {
+      // No openDb() here on purpose: when sealed we must report sealed:true
+      // instead of creating an empty database (see openDb guard).
+      const root = await navigator.storage.getDirectory()
+      const liveHandle = await opfsFile(DB_NAME, false).catch(() => null)
+      const sealedHandle = await opfsFile(SEALED_NAME, false).catch(() => null)
+      if (!liveHandle) {
+        return { ok: true, sealed: !!sealedHandle, rows: [] }
+      }
+      await openDb()
+      const counts: Record<string, number> = {}
+      for (const table of OPFS_READ_TABLES) {
+        try {
+          const res = await sqlite3.execWithParams(db, `SELECT COUNT(*) AS n FROM ${table}`, null)
+          counts[table] = (res.rows?.[0]?.[0] as number) ?? 0
+        } catch {
+          counts[table] = -1
+        }
+      }
+      void root
+      return { ok: true, sealed: !!sealedHandle, rows: [counts as unknown as Record<string, unknown>] }
     }
     default:
       throw new Error(`Unknown db op`)
