@@ -449,6 +449,8 @@ export default function StatementsPage() {
       setTotalParsed(0)
       const updated = await apiClient.fetch<Statement[]>('/v1/statements')
       setStatements(updated)
+      // Refresh the on-device OPFS cache in the background (best-effort).
+      import('@/lib/engine/analytics-client').then((m) => m.refreshLocalCache()).catch(() => {})
     } catch (err) {
       console.error('Import error:', err)
       setParseError({

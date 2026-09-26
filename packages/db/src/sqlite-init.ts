@@ -251,6 +251,21 @@ export function initSqliteDatabase(sqlite: SqliteDatabaseLike) {
       saved_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS vault_blobs (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      cipher TEXT NOT NULL,
+      nonce TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      opslimit INTEGER NOT NULL,
+      memlimit INTEGER NOT NULL,
+      wrapped_dek_password TEXT,
+      wrapped_dek_prf TEXT,
+      prf_credential_id TEXT,
+      wrapped_dek_recovery TEXT,
+      version INTEGER NOT NULL DEFAULT 1,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_transactions_userId_date ON transactions(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_transactions_accountId ON transactions(account_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_dedupHash ON transactions(dedup_hash);

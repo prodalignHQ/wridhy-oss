@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@better-auth/cli": "^1.4.21",
+    "@momoney/local-engine": "workspace:^",
     "@types/node": "^22.13.10",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"

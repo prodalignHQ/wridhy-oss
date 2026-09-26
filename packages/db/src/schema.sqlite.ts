@@ -290,6 +290,24 @@ export const netWorthDrafts = sqliteTable('net_worth_drafts', {
   savedAt: integer('saved_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 
+// ─── Vault Blobs (local-first encrypted sync) ────────────────────────────────
+// Mirror of pg `vault_blobs`. Server holds only opaque base64 ciphertext.
+
+export const vaultBlobs = sqliteTable('vault_blobs', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  cipher: text('cipher').notNull(),
+  nonce: text('nonce').notNull(),
+  salt: text('salt').notNull(),
+  opslimit: integer('opslimit').notNull(),
+  memlimit: integer('memlimit').notNull(),
+  wrappedDekPassword: text('wrapped_dek_password'),
+  wrappedDekPrf: text('wrapped_dek_prf'),
+  prfCredentialId: text('prf_credential_id'),
+  wrappedDekRecovery: text('wrapped_dek_recovery'),
+  version: integer('version').notNull().default(1),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many, one }) => ({
@@ -307,6 +325,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   liabilities: many(liabilities),
   netWorthSnapshots: many(netWorthSnapshots),
   netWorthDraft: one(netWorthDrafts, { fields: [users.id], references: [netWorthDrafts.userId] }),
+  vaultBlob: one(vaultBlobs, { fields: [users.id], references: [vaultBlobs.userId] }),
 }))
 
 export const ownersRelations = relations(owners, ({ one, many }) => ({
@@ -390,6 +409,10 @@ export const netWorthSnapshotsRelations = relations(netWorthSnapshots, ({ one })
 export const netWorthDraftsRelations = relations(netWorthDrafts, ({ one }) => ({
   user: one(users, { fields: [netWorthDrafts.userId], references: [users.id] }),
   owner: one(owners, { fields: [netWorthDrafts.ownerId], references: [owners.id] }),
+}))
+
+export const vaultBlobsRelations = relations(vaultBlobs, ({ one }) => ({
+  user: one(users, { fields: [vaultBlobs.userId], references: [users.id] }),
 }))
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({

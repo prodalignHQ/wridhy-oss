@@ -43,6 +43,13 @@
       "when": 1780339650615,
       "tag": "0005_true_santa_claus",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790453991427,
+      "tag": "0006_same_the_renegades",
+      "breakpoints": true
     }
   ]
 }

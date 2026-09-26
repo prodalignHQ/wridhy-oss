@@ -294,6 +294,31 @@ export const netWorthDrafts = pgTable('net_worth_drafts', {
   savedAt: timestamp('saved_at').defaultNow().notNull(),
 })
 
+// ─── Vault Blobs (local-first encrypted sync) ─────────────────────────────────
+// One row per user. The server is an opaque store: `cipher` is
+// XChaCha20-Poly1305(plaintext snapshot) under a client-held DEK. The server
+// NEVER sees the DEK, the password, or any plaintext. Key wraps:
+//   - wrappedDekPassword: DEK wrapped by Argon2id(password, salt) KEK
+//   - wrappedDekPrf: DEK wrapped by WebAuthn PRF output (passkey unlock)
+//   - wrappedDekRecovery: DEK wrapped by Argon2id(recovery code) KEK
+// Each wrap value is base64(nonce24 || secretbox). `cipher`/`nonce` are the
+// encrypted snapshot envelope. See packages/local-engine/src/crypto.ts.
+
+export const vaultBlobs = pgTable('vault_blobs', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  cipher: text('cipher').notNull(), // base64 XChaCha20-Poly1305 ciphertext
+  nonce: text('nonce').notNull(), // base64 24-byte nonce
+  salt: text('salt').notNull(), // base64 16-byte Argon2 salt
+  opslimit: integer('opslimit').notNull(),
+  memlimit: integer('memlimit').notNull(),
+  wrappedDekPassword: text('wrapped_dek_password'), // base64(nonce||box), nullable until password set
+  wrappedDekPrf: text('wrapped_dek_prf'), // base64(nonce||box), nullable until passkey registered
+  prfCredentialId: text('prf_credential_id'), // base64url credential id for allowCredentials
+  wrappedDekRecovery: text('wrapped_dek_recovery'), // base64(nonce||box), nullable until recovery issued
+  version: integer('version').notNull().default(1),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many, one }) => ({
@@ -311,6 +336,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   liabilities: many(liabilities),
   netWorthSnapshots: many(netWorthSnapshots),
   netWorthDraft: one(netWorthDrafts, { fields: [users.id], references: [netWorthDrafts.userId] }),
+  vaultBlob: one(vaultBlobs, { fields: [users.id], references: [vaultBlobs.userId] }),
 }))
 
 export const ownersRelations = relations(owners, ({ one, many }) => ({
@@ -394,6 +420,10 @@ export const netWorthSnapshotsRelations = relations(netWorthSnapshots, ({ one })
 export const netWorthDraftsRelations = relations(netWorthDrafts, ({ one }) => ({
   user: one(users, { fields: [netWorthDrafts.userId], references: [users.id] }),
   owner: one(owners, { fields: [netWorthDrafts.ownerId], references: [owners.id] }),
+}))
+
+export const vaultBlobsRelations = relations(vaultBlobs, ({ one }) => ({
+  user: one(users, { fields: [vaultBlobs.userId], references: [users.id] }),
 }))
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({

@@ -1,4 +1,4 @@
-import { Settings, Users, Shield, Database, Download } from "lucide-react"
+import { Settings, Users, Shield, Database, Download, Lock } from "lucide-react"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
 
@@ -16,6 +16,13 @@ export default function SettingsPage() {
       description: "Manage automatic categorization rules.",
       icon: Shield,
       href: "/rules",
+      status: "Available"
+    },
+    {
+      title: "Encrypted Vault",
+      description: "On-device encryption, passkey unlock, and encrypted sync.",
+      icon: Lock,
+      href: "/settings/vault",
       status: "Available"
     },
     {

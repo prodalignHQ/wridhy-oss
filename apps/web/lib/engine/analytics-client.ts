@@ -1,8 +1,8 @@
 // ─── Local analytics client ─────────────────────────────────────────────────
-// Fetches server rows once (existing API), caches them in IndexedDB vault,
-// then computes insights locally via @momoney/local-engine. This is the
-// stepping stone to full OPFS/SQLCipher: the compute path is already local,
-// only the data source is still the cloud API until vault sync lands.
+// Data source priority: OPFS SQLite cache (offline, on-device) → cloud API
+// (then opportunistically cached). Compute is always local via
+// @momoney/local-engine. The legacy IndexedDB snapshot vault is kept as a
+// secondary cache for pre-OPFS clients.
 
 'use client'
 
@@ -18,6 +18,7 @@ import {
 } from '@momoney/local-engine'
 import type { AccountingMode } from '@momoney/types'
 import { apiClient } from '@/lib/api'
+import { cacheServerRows, readLocalCache } from './opfs-db'
 
 const vault = typeof window !== 'undefined' ? createIndexedDbVault() : null
 
@@ -49,6 +50,14 @@ async function loadLocalInput(): Promise<{
   categories: LocalCategory[]
   statements: LocalStatement[]
 }> {
+  // 1. Prefer the on-device OPFS cache (offline, no network).
+  try {
+    const cached = await readLocalCache()
+    if (cached) return cached
+  } catch {
+    // fall through to cloud
+  }
+
   const [catsRaw, stmtsRaw] = await Promise.all([
     apiClient.fetch<ServerCategory[]>('/v1/categories').catch(() => [] as ServerCategory[]),
     apiClient.fetch<Array<{ id: string; accountId: string; bankId: string; statementMonth: string; parsedCount: number; importedCount: number; duplicatesSkipped: number }>>('/v1/statements').catch(
@@ -73,7 +82,7 @@ async function loadLocalInput(): Promise<{
   }
   const transactions: ServerTransaction[] = all
 
-  return {
+  const input = {
     transactions: transactions.map((t) => ({
       id: t.id,
       accountId: t.accountId,
@@ -104,10 +113,23 @@ async function loadLocalInput(): Promise<{
       duplicatesSkipped: s.duplicatesSkipped ?? 0,
     })),
   }
+
+  // 2. Opportunistically converge the OPFS cache toward cloud truth.
+  cacheServerRows(input).catch(() => {})
+
+  return input
 }
 
-export const localAnalytics = {
-  async monthly(month: string, ownerIds?: string[], mode: AccountingMode = 'invoice') {
+/** Refresh the OPFS cache from the cloud. Fire-and-forget safe. */
+export async function refreshLocalCache(): Promise<void> {
+  try {
+    await loadLocalInput()
+  } catch {
+    // offline or worker unavailable — cache converges on next analytics load
+  }
+}
+
+export const localAnalytics = {  async monthly(month: string, ownerIds?: string[], mode: AccountingMode = 'invoice') {
     const input = await loadLocalInput()
     if (vault) {
       await vault.save({ ...input, owners: [], updatedAt: new Date().toISOString() }).catch(() => {})

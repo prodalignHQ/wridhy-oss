@@ -22,8 +22,12 @@ lsof -ti :3000,3001 | xargs kill -9
 docker-compose up -d
 
 # Push Drizzle schema to DB (after schema changes)
-# Note: interactive — use arrow keys + Enter to confirm, or pipe: yes | <cmd>
-pnpm --filter @momoney/db exec drizzle-kit push
+# Note: `drizzle-kit push` is interactive (arrow keys) and hangs under pipes —
+# use `drizzle-kit generate` then apply drizzle/NNNN_*.sql via
+# `docker exec momoney_postgres psql ... -f` (strip `--> statement-breakpoint`).
+# For FRESH databases apply 0000→NNNN in order; keep SQL files in sync with
+# schema.ts (the committed chain once drifted: owners.notes, assets.metadata).
+pnpm --filter @momoney/db exec drizzle-kit generate
 
 # Run database seed
 pnpm --filter @momoney/db exec tsx src/seed.ts
@@ -73,6 +77,8 @@ Turborepo + pnpm workspaces. Two apps and five packages:
   - Browser constraints: named xlsx imports only, `loadXlsxSSF()` for serial dates, no Node-only deps. See `docs/customization/parsers.md`.
 - **`packages/rules-engine`** — Pure isomorphic categorization logic. The `categorize()` function applies user rules → system rules → merchant dictionary → default, in that priority order. Builds to `dist/`; consumed as such.
 - **`packages/local-engine`** — Local-first core (new): isomorphic dedup (`computeDedupHashBrowser`, SubtleCrypto SHA-256, parity-verified with server), in-memory analytics port of `InsightsService` (`getMonthlyInsightsLocal`, etc.), and the `LocalVault` storage seam (IndexedDB now, SQLCipher/OPFS later). Web entry points: `apps/web/lib/engine/` + `apps/web/workers/parser.worker.ts`.
+  - `src/crypto.ts` — vault envelope: Argon2id KEK (hash-wasm) → secretbox-wrapped DEK → XChaCha20-Poly1305 snapshot/file seal (noble). DB `opslimit`/`memlimit` = Argon2 iterations/memory-KiB.
+- **On-device OPFS database** — `apps/web/workers/db.worker.ts` (wa-sqlite sync build + `OriginPrivateFileSystemVFS`, dedicated Worker only) with `apps/web/lib/engine/opfs-db.ts` facade. Tables: `local_transactions/statements/categories` (cache of cloud truth). Lock seals `momoney.db` → `momoney.db.sealed` with the vault DEK; unlock unseals. `apps/web/public/wa-sqlite.wasm` is vendored (refresh when upgrading wa-sqlite). Page-level encryption via SQLite3MC custom build is a future drop-in (see research notes in chat history).
 - **`packages/utils`** — Shared utilities: `cn()` for Tailwind class merging, currency formatters, color assignment, string hashers.
 
 ### API (`apps/api`)
@@ -88,6 +94,8 @@ All routes live in `src/routes/` and are versioned under `/v1/`. Every route fil
 2. `@momoney/rules-engine`'s `categorize()` auto-assigns a category to each transaction
 3. A `dedupHash` (sha256 of `accountId|date|amount|description`) prevents duplicate imports via `onConflictDoNothing`
 4. Everything is wrapped in a single DB transaction
+
+**Encrypted vault (local-first sync):** `GET|PUT|DELETE /v1/vault` (`src/routes/vault.ts`) is an *opaque* store — one row per user in `vault_blobs` holding base64 XChaCha20-Poly1305 ciphertext + Argon2/PRF key-wrap metadata. The server never decrypts. Client crypto lives in `@momoney/local-engine/src/crypto.ts` (hash-wasm Argon2id + noble ciphers); WebAuthn PRF in `apps/web/lib/engine/webauthn-prf.ts`; sync orchestration in `vault-sync.ts` + `lib/store/vault.store.ts` (DEK in memory only, wiped on lock). Regression: `apps/api/vault-e2e.mts` (real signup → PUT → GET → client-decrypt → DELETE).
 
 ### Frontend (`apps/web`)
 
