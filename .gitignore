@@ -1,4 +1,7 @@
 # Dependencies
+.antigravitycli
+.antigravitycli/*
+
 node_modules/
 .pnpm-store/
 
@@ -7,6 +10,7 @@ dist/
 .next/
 out/
 build/
+apps/api/src/embedded-assets.ts
 
 # Turborepo
 .turbo/

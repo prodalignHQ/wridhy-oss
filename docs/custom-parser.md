@@ -1,5 +1,8 @@
 # Custom Bank Statement Parsers
 
+> [!NOTE]
+> This guide has been updated and moved to **[docs/customization/parsers.md](./customization/parsers.md)**. Please refer to that document for the latest API conventions and examples.
+
 This guide explains how to implement and register a new bank statement parser in MoMoney.
 
 ## Architecture Overview
