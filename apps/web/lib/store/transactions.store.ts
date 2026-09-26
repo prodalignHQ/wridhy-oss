@@ -27,6 +27,13 @@ export interface Category {
   type?: 'expense' | 'investment' | 'income' | 'transfer'
 }
 
+export interface FinancialAccount {
+  id: string
+  accountName: string
+  accountType: string
+  bankName: string
+}
+
 export interface Transaction {
   id: string
   userId: string
@@ -44,6 +51,7 @@ export interface Transaction {
   createdAt: string
   updatedAt: string
   category: Category | null
+  account?: FinancialAccount | null
   transactionOwners: TransactionOwner[]
 }
 
@@ -53,6 +61,8 @@ export interface TransactionFilters {
   endDate?: string
   categoryId?: string
   ownerId?: string
+  type?: 'all' | 'debit' | 'credit'
+  nature?: 'all' | 'regular' | 'one_time' | 'investment'
   isOneTime?: boolean
   search?: string
   page: number
@@ -71,6 +81,9 @@ interface TransactionsState {
   updateTransactionOwners: (txnId: string, ownerIds: string[]) => Promise<void>
   updateTransactionCategory: (txnId: string, categoryId: string | null) => Promise<void>
   updateTransactionOneTime: (txnId: string, isOneTime: boolean) => Promise<void>
+  bulkUpdateOneTime: (txnIds: string[], isOneTime: boolean) => Promise<void>
+  bulkUpdateCategory: (txnIds: string[], categoryId: string | null) => Promise<void>
+  bulkUpdateOwners: (txnIds: string[], ownerIds: string[]) => Promise<void>
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -106,8 +119,10 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
     if (filters.accountId) params.set('accountId', filters.accountId)
     if (filters.startDate) params.set('startDate', filters.startDate)
     if (filters.endDate) params.set('endDate', filters.endDate)
-    if (filters.categoryId) params.set('categoryId', filters.categoryId)
-    if (filters.ownerId) params.set('ownerId', filters.ownerId)
+    if (filters.categoryId && filters.categoryId !== 'all') params.set('categoryId', filters.categoryId)
+    if (filters.ownerId && filters.ownerId !== 'all') params.set('ownerId', filters.ownerId)
+    if (filters.type && filters.type !== 'all') params.set('type', filters.type)
+    if (filters.nature && filters.nature !== 'all') params.set('nature', filters.nature)
     if (filters.isOneTime !== undefined) params.set('isOneTime', String(filters.isOneTime))
     if (filters.search) params.set('search', filters.search)
     params.set('page', String(filters.page))
@@ -162,5 +177,33 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
     set((state) => ({
       transactions: state.transactions.map((t) => (t.id === txnId ? updated : t)),
     }))
+  },
+
+  bulkUpdateOneTime: async (txnIds, isOneTime) => {
+    await apiClient.fetch('/v1/transactions/bulk/one-time', {
+      method: 'PATCH',
+      body: JSON.stringify({ transactionIds: txnIds, isOneTime }),
+    })
+    set((state) => ({
+      transactions: state.transactions.map((t) =>
+        txnIds.includes(t.id) ? { ...t, isOneTime } : t
+      ),
+    }))
+  },
+
+  bulkUpdateCategory: async (txnIds, categoryId) => {
+    await apiClient.fetch('/v1/transactions/bulk/category', {
+      method: 'PATCH',
+      body: JSON.stringify({ transactionIds: txnIds, categoryId }),
+    })
+    await get().fetchTransactions()
+  },
+
+  bulkUpdateOwners: async (txnIds, ownerIds) => {
+    await apiClient.fetch('/v1/transactions/bulk/owners', {
+      method: 'PATCH',
+      body: JSON.stringify({ transactionIds: txnIds, ownerIds }),
+    })
+    await get().fetchTransactions()
   },
 }))

@@ -9,7 +9,7 @@ import {
 } from '@momoney/db'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, or, ilike, like, gte, lte, inArray, desc, asc, sql, isNull } from 'drizzle-orm'
+import { eq, and, or, ilike, like, gte, lte, inArray, notInArray, desc, asc, sql, isNull } from 'drizzle-orm'
 import { authMiddleware } from '../middleware/auth.js'
 
 export const transactionsRoute = new Hono<{
@@ -24,44 +24,126 @@ const listQuerySchema = z.object({
   accountId: z.string().uuid().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  categoryId: z.string().uuid().optional(),
-  ownerId: z.string().uuid().optional(),
+  categoryId: z.string().optional(),
+  ownerId: z.string().optional(),
+  type: z.enum(['all', 'debit', 'credit']).optional(),
+  nature: z.enum(['all', 'regular', 'one_time', 'investment']).optional(),
   isOneTime: z.string().optional().transform((v) => v === 'true' ? true : v === 'false' ? false : undefined),
   search: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(200).default(50),
 })
 
-transactionsRoute.get('/', zValidator('query', listQuerySchema), async (c) => {
-  const userId = c.get('userId')
-  const { accountId, startDate, endDate, categoryId, ownerId, isOneTime, search, page, limit } =
-    c.req.valid('query')
+async function buildTransactionConditions(userId: string, filters: z.infer<typeof listQuerySchema>) {
+  const { accountId, startDate, endDate, categoryId, ownerId, type, nature, isOneTime, search } = filters
 
   const conditions = [eq(transactions.userId, userId)]
 
   if (accountId) conditions.push(eq(transactions.accountId, accountId))
-  if (categoryId) conditions.push(eq(transactions.categoryId, categoryId))
-  if (isOneTime !== undefined) conditions.push(eq(transactions.isOneTime, isOneTime))
   if (search) conditions.push((isSqlite ? like : ilike)(transactions.description, `%${search}%`))
   if (startDate) conditions.push(gte(transactions.date, new Date(startDate)))
   if (endDate) conditions.push(lte(transactions.date, new Date(endDate)))
 
-  // If ownerId filter is provided, we need an EXISTS subquery
-  // We use a different approach: find all transaction IDs for that owner first
-  let txnIds: string[] | undefined
-  if (ownerId) {
-    const ownerTxns = await db
-      .select({ transactionId: transactionOwners.transactionId })
-      .from(transactionOwners)
-      .where(eq(transactionOwners.ownerId, ownerId))
-    txnIds = ownerTxns.map((r) => r.transactionId)
-    if (txnIds.length === 0) {
-      return c.json({
-        success: true,
-        data: { transactions: [], total: 0, page, limit },
-      })
+  if (type && type !== 'all') {
+    conditions.push(eq(transactions.type, type))
+  }
+
+  if (categoryId && categoryId !== 'all') {
+    if (categoryId === 'uncategorized') {
+      conditions.push(isNull(transactions.categoryId))
+    } else {
+      conditions.push(eq(transactions.categoryId, categoryId))
     }
-    conditions.push(inArray(transactions.id, txnIds))
+  }
+
+  if (nature && nature !== 'all') {
+    const investmentCategories = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.type, 'investment'))
+    const investmentCategoryIds = investmentCategories.map((c) => c.id)
+
+    if (nature === 'investment') {
+      if (investmentCategoryIds.length === 0) {
+        return { conditions: null }
+      }
+      conditions.push(inArray(transactions.categoryId, investmentCategoryIds)!)
+    } else if (nature === 'one_time') {
+      conditions.push(eq(transactions.isOneTime, true))
+      if (investmentCategoryIds.length > 0) {
+        conditions.push(or(isNull(transactions.categoryId), notInArray(transactions.categoryId, investmentCategoryIds)!)!)
+      }
+    } else if (nature === 'regular') {
+      conditions.push(eq(transactions.isOneTime, false))
+      if (investmentCategoryIds.length > 0) {
+        conditions.push(or(isNull(transactions.categoryId), notInArray(transactions.categoryId, investmentCategoryIds)!)!)
+      }
+    }
+  } else if (isOneTime !== undefined) {
+    conditions.push(eq(transactions.isOneTime, isOneTime))
+  }
+
+  if (ownerId && ownerId !== 'all') {
+    const ids = ownerId.split(',').map((s) => s.trim()).filter(Boolean)
+    if (ids.includes('unassigned')) {
+      const assignedTxns = await db
+        .select({ transactionId: transactionOwners.transactionId })
+        .from(transactionOwners)
+      const assignedIds = Array.from(new Set(assignedTxns.map((r) => r.transactionId)))
+
+      const realOwnerIds = ids.filter((id) => id !== 'unassigned')
+      if (realOwnerIds.length === 0) {
+        if (assignedIds.length > 0) {
+          conditions.push(notInArray(transactions.id, assignedIds)!)
+        }
+      } else {
+        const ownerTxns = await db
+          .select({ transactionId: transactionOwners.transactionId })
+          .from(transactionOwners)
+          .where(inArray(transactionOwners.ownerId, realOwnerIds))
+        const matchedTxnIds = Array.from(new Set(ownerTxns.map((r) => r.transactionId)))
+        if (assignedIds.length > 0) {
+          if (matchedTxnIds.length > 0) {
+            conditions.push(or(inArray(transactions.id, matchedTxnIds)!, notInArray(transactions.id, assignedIds)!)!)
+          } else {
+            conditions.push(notInArray(transactions.id, assignedIds)!)
+          }
+        }
+      }
+    } else if (ids.length > 0) {
+      const ownerTxns = await db
+        .select({ transactionId: transactionOwners.transactionId })
+        .from(transactionOwners)
+        .where(inArray(transactionOwners.ownerId, ids))
+      const txnIds = Array.from(new Set(ownerTxns.map((r) => r.transactionId)))
+      if (txnIds.length === 0) {
+        return { conditions: null }
+      }
+      conditions.push(inArray(transactions.id, txnIds)!)
+    }
+  }
+
+  return { conditions }
+}
+
+transactionsRoute.get('/', zValidator('query', listQuerySchema), async (c) => {
+  const userId = c.get('userId')
+  const query = c.req.valid('query')
+  const { page, limit } = query
+
+  const { conditions } = await buildTransactionConditions(userId, query)
+
+  if (!conditions) {
+    return c.json({
+      success: true,
+      data: {
+        transactions: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      },
+    })
   }
 
   const offset = (page - 1) * limit
@@ -73,6 +155,7 @@ transactionsRoute.get('/', zValidator('query', listQuerySchema), async (c) => {
       limit,
       offset,
       with: {
+        account: { columns: { id: true, accountName: true, accountType: true, bankName: true } },
         category: { columns: { id: true, name: true, color: true, icon: true, type: true } },
         transactionOwners: {
           with: {
@@ -375,14 +458,20 @@ transactionsRoute.put('/:id/owners', zValidator('json', assignOwnersSchema), asy
 
 transactionsRoute.get('/export', zValidator('query', listQuerySchema), async (c) => {
   const userId = c.get('userId')
-  const { accountId, startDate, endDate, categoryId, search } = c.req.valid('query')
+  const query = c.req.valid('query')
 
-  const conditions = [eq(transactions.userId, userId)]
-  if (accountId) conditions.push(eq(transactions.accountId, accountId))
-  if (categoryId) conditions.push(eq(transactions.categoryId, categoryId))
-  if (search) conditions.push(ilike(transactions.description, `%${search}%`))
-  if (startDate) conditions.push(gte(transactions.date, new Date(startDate)))
-  if (endDate) conditions.push(lte(transactions.date, new Date(endDate)))
+  const { conditions } = await buildTransactionConditions(userId, query)
+
+  const header = 'Date,Description,Amount,Type,Category,Comment\n'
+
+  if (!conditions) {
+    return new Response(header, {
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': 'attachment; filename="transactions.csv"',
+      },
+    })
+  }
 
   const rows = await db.query.transactions.findMany({
     where: and(...conditions),
@@ -392,7 +481,6 @@ transactionsRoute.get('/export', zValidator('query', listQuerySchema), async (c)
     },
   })
 
-  const header = 'Date,Description,Amount,Type,Category,Comment\n'
   const lines = rows.map((r) => {
     const date = r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date)
     const desc = `"${(r.description ?? '').replace(/"/g, '""')}"`
