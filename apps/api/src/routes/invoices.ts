@@ -125,6 +125,11 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
     const categoryId = transaction.category?.id ?? null
     const categoryColor = transaction.category?.color ?? null
     const categoryType = transaction.category?.type ?? 'expense'
+    
+    // Internal transfers (such as credit card bill payments and account settlements)
+    // are balance movements, not living spending, investments, or owner shares.
+    if (categoryType === 'transfer') continue
+
     const isInvestment = categoryType === 'investment'
     const isOneTime = Boolean(transaction.isOneTime)
 
