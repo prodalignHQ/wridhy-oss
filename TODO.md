@@ -55,3 +55,7 @@
 - `beforeunload` backup is best-effort; OPFS durability is the real guarantee.
 - `PUT /v1/vault` is full-replace with client-set version; only `/v1/vault/sync` is concurrency-safe.
 - `public/wa-sqlite.wasm` is vendored stock SQLite (no cipher inside) — refresh on wa-sqlite upgrades.
+
+## Roro's
+
+- If offline, do not enable passkey, encryption and all that.
