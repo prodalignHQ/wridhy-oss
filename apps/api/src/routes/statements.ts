@@ -5,7 +5,7 @@ import { eq, and, desc, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { createHash } from 'crypto'
-import { getParser } from '@momoney/parsers'
+import { getParser, listParsers } from '@momoney/parsers'
 import { categorize, getDefaultMerchants } from '@momoney/rules-engine'
 import { authMiddleware } from '../middleware/auth.js'
 
@@ -172,7 +172,7 @@ statementsRoute.post('/upload', async (c) => {
         success: false,
         error: {
           code: 'BAD_REQUEST',
-          message: `No parser found for bankId "${bankId}". Supported: icici_savings, icici_credit`,
+          message: `No parser found for bankId "${bankId}". Supported: ${listParsers().map((p) => p.bankId).join(', ')}`,
         },
       },
       400

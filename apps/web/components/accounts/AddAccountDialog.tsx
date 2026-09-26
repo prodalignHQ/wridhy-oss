@@ -23,6 +23,8 @@ import { Loader2 } from 'lucide-react'
 export const BANKS = [
   { id: 'icici_savings', label: 'ICICI Bank — Savings Account', defaultType: 'bank' as const },
   { id: 'icici_credit', label: 'ICICI Bank — Credit Card', defaultType: 'credit_card' as const },
+  { id: 'hdfc_savings', label: 'HDFC Bank — Savings Account', defaultType: 'bank' as const },
+  { id: 'hdfc_credit', label: 'HDFC Bank — Credit Card', defaultType: 'credit_card' as const },
 ]
 
 export const accountSchema = z.object({

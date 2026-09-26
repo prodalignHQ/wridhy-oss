@@ -43,6 +43,8 @@ interface PreviewRow {
 const BANKS = [
   { id: 'icici_savings', label: 'ICICI Bank — Savings Account', ext: '.xls' },
   { id: 'icici_credit', label: 'ICICI Bank — Credit Card', ext: '.csv' },
+  { id: 'hdfc_savings', label: 'HDFC Bank — Savings Account', ext: '.xlsx' },
+  { id: 'hdfc_credit', label: 'HDFC Bank — Credit Card', ext: '.xlsx' },
 ]
 
 // ─── Preview Table ─────────────────────────────────────────────────────────────

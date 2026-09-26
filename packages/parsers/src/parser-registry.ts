@@ -1,12 +1,16 @@
 import type { BankParser } from './base.parser.js'
 import { iciciSavingsParser } from './banks/icici-savings.parser.js'
 import { iciciCreditParser } from './banks/icici-credit.parser.js'
+import { hdfcSavingsParser } from './banks/hdfc-savings.parser.js'
+import { hdfcCreditParser } from './banks/hdfc-credit.parser.js'
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 const parsers: BankParser[] = [
   iciciSavingsParser,
   iciciCreditParser,
+  hdfcSavingsParser,
+  hdfcCreditParser,
 ]
 
 const registry = new Map<string, BankParser>(
