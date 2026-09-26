@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Lock, Unlock, KeyRound, Fingerprint, RefreshCw, ShieldCheck, TriangleAlert, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,7 @@ function defaultDeviceLabel(): string {
 }
 
 export default function VaultPage() {
+  const router = useRouter()
   const vault = useVaultStore()
   const user = useAuthStore((s) => s.user)
   const [password, setPassword] = useState('')
@@ -35,6 +37,20 @@ export default function VaultPage() {
   const [chosenCredential, setChosenCredential] = useState<string | null>(null)
   const [pendingEdits, setPendingEdits] = useState<number | null>(null)
   const [lastBackup, setLastBackup] = useState<string | null>(null)
+  // Post-login unlock gate (?from=login): offer the escape hatch and return
+  // to the dashboard after a successful unlock.
+  const [fromLogin, setFromLogin] = useState(false)
+  useEffect(() => {
+    try {
+      setFromLogin(new URLSearchParams(window.location.search).get('from') === 'login')
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const returnAfterUnlock = () => {
+    if (fromLogin) router.replace('/dashboard')
+  }
 
   const wraps = vault.blob?.wraps ?? []
 
@@ -82,6 +98,7 @@ export default function VaultPage() {
       await vault.unlockPassword(password)
       setPassword('')
       toast.success('Vault unlocked')
+      returnAfterUnlock()
     } catch {
       toast.error(vault.error ?? 'Unlock failed')
     }
@@ -91,6 +108,7 @@ export default function VaultPage() {
     try {
       await vault.unlockPasskey(credentialId ?? chosenCredential ?? undefined)
       toast.success('Vault unlocked with passkey')
+      returnAfterUnlock()
     } catch {
       toast.error(vault.error ?? 'Passkey unlock failed')
     }
@@ -101,6 +119,7 @@ export default function VaultPage() {
       await vault.unlockRecovery(recoveryInput)
       setRecoveryInput('')
       toast.success('Vault recovered — set a new password soon')
+      returnAfterUnlock()
     } catch {
       toast.error(vault.error ?? 'Recovery failed')
     }
@@ -142,6 +161,15 @@ export default function VaultPage() {
         <p className="text-sm text-muted-foreground mt-0.5">
           Your data is encrypted on this device. The server only ever sees ciphertext.
         </p>
+        {fromLogin && vault.status !== 'unlocked' && (
+          <div className="mt-3 rounded-xl border border-sky-500/40 bg-sky-500/5 px-4 py-3 text-sm">
+            <span className="text-muted-foreground">You just logged in — unlock to see your data, or </span>
+            <button onClick={() => router.replace('/dashboard')} className="font-semibold text-primary hover:underline">
+              continue without unlocking →
+            </button>
+            <span className="text-muted-foreground"> (limited view, most data stays sealed)</span>
+          </div>
+        )}
       </div>
 
       <Card className="bg-card border-border">

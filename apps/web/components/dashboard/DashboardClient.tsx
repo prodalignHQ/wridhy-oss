@@ -134,8 +134,9 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
   }, [loadInitialData])
 
   // Vault onboarding: no vault + not skipped → guided setup; skipped → banner.
-  // Existing vault but locked in this session → unlock banner (login and
-  // vault-unlock are deliberately separate: two keys, two jobs).
+  // Vault exists but locked → unlock gate once per session (with a vault,
+  // nearly all data is sealed — wandering the app locked is misleading).
+  // Login and vault-unlock stay separate by design: two keys, two jobs.
   useEffect(() => {
     if (loading) return
     let cancelled = false
@@ -156,7 +157,22 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
         }
       } else {
         if (useVaultStore.getState().status !== 'unlocked') {
-          setShowLockedBanner(true)
+          let prompted = false
+          try {
+            prompted = sessionStorage.getItem('momoney_vault_unlock_prompted') === '1'
+          } catch {
+            // ignore
+          }
+          if (!prompted) {
+            try {
+              sessionStorage.setItem('momoney_vault_unlock_prompted', '1')
+            } catch {
+              // ignore
+            }
+            router.replace('/settings/vault?from=login')
+          } else {
+            setShowLockedBanner(true)
+          }
         }
       }
     }).catch(() => {})
