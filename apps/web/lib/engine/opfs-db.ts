@@ -124,6 +124,10 @@ function rowToTransaction(r: Record<string, unknown>): LocalTransaction {
   }
 }
 
+export function mapCacheRowToTransaction(r: Record<string, unknown>): LocalTransaction {
+  return rowToTransaction(r)
+}
+
 function parseJsonArray(value: unknown): string[] {
   if (Array.isArray(value)) return value as string[]
   if (typeof value === 'string') {
@@ -257,6 +261,63 @@ export async function deleteStatementFromCache(statementId: string): Promise<boo
 export async function deleteTransactionsFromCache(ids: string[]): Promise<boolean> {
   if (ids.length === 0) return true
   const res = await call('deleteByIds', { ids })
+  return !!res?.ok
+}
+
+export interface OwnerShare {
+  ownerId: string
+  name: string
+  color: string | null
+  isDefault: boolean
+  amount: string
+  percentage: string
+}
+
+export interface ChangelogEntry {
+  id: number
+  table: string
+  rowId: string
+  op: string
+  createdAt: number
+}
+
+/** Patch local transaction fields (vault-gated mutation path). */
+export async function patchTransactionInCache(
+  id: string,
+  patch: { categoryId?: string | null; isOneTime?: boolean; comment?: string | null; merchant?: string | null }
+): Promise<boolean> {
+  const res = await call('patchTransaction', { id, patch })
+  return !!res?.ok
+}
+
+/** Replace local owner shares with equal split (mirrors the server). */
+export async function setTransactionOwnersInCache(
+  transactionId: string,
+  ownerIds: string[]
+): Promise<OwnerShare[] | null> {
+  const res = await call('setOwners', { transactionId, ownerIds })
+  if (!res?.ok) return null
+  return (res.rows ?? []) as unknown as OwnerShare[]
+}
+
+/** Read local transaction rows by id (for post-mutation UI merges). */
+export async function getTransactionsFromCache(ids: string[]): Promise<LocalTransaction[]> {
+  if (ids.length === 0) return []
+  const res = await call('getByIds', { ids })
+  if (!res?.ok) return []
+  return ((res.rows ?? []) as Record<string, unknown>[]).map(mapCacheRowToTransaction)
+}
+
+/** Read the pending-sync operation log (Phase 5 incremental sync reads this). */
+export async function readChangelog(): Promise<ChangelogEntry[]> {
+  const res = await call('getChangelog')
+  if (!res?.ok) return []
+  return (res.rows ?? []) as unknown as ChangelogEntry[]
+}
+
+/** Clear changelog entries up to an id (after a successful incremental sync). */
+export async function clearChangelog(upToId: number): Promise<boolean> {
+  const res = await call('clearChangelog', { upToId })
   return !!res?.ok
 }
 

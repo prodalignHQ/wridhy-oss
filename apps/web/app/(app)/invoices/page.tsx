@@ -716,6 +716,29 @@ function InvoicesContent() {
     }
   }, [])
 
+  // Refresh detail: OPFS-composed when the vault is unlocked (edits stay
+  // on-device), server refetch otherwise. Keeps invoice views consistent
+  // with whichever path performed the mutation.
+  const refreshActiveDetail = useCallback(async () => {
+    if (!activeInvoice) return
+    const [{ useVaultStore }, { readLocalCache }, { composeInvoiceDraftLocal }] = await Promise.all([
+      import('@/lib/store/vault.store'),
+      import('@/lib/engine/opfs-db'),
+      import('@/lib/engine/local-invoices'),
+    ])
+    if (useVaultStore.getState().isUnlocked()) {
+      const cache = await readLocalCache().catch(() => null)
+      const local = cache ? composeInvoiceDraftLocal(activeInvoice.id, cache) : null
+      if (local) {
+        setActiveInvoice(local)
+        setSelectedTransactionIds(new Set())
+        setPendingCategoryChange(null)
+        return
+      }
+    }
+    await loadInvoiceDetail(activeInvoice.id, true)
+  }, [activeInvoice, loadInvoiceDetail])
+
   const loadInitialData = useCallback(async () => {
     setLoading(true)
 
@@ -963,7 +986,10 @@ function InvoicesContent() {
         return
       }
 
-      if (transactionIds.length === 1) {
+      const { useLocalMutations, localSetOwners } = await import('@/lib/engine/mutations')
+      if (useLocalMutations()) {
+        await localSetOwners(transactionIds, ownerIds)
+      } else if (transactionIds.length === 1) {
         await apiClient.fetch(`/v1/transactions/${transactionIds[0]}/owners`, {
           method: 'PUT',
           body: JSON.stringify({ ownerIds }),
@@ -975,9 +1001,9 @@ function InvoicesContent() {
         })
       }
 
-      await loadInvoiceDetail(activeInvoice.id, true)
+      await refreshActiveDetail()
     },
-    [activeInvoice, loadInvoiceDetail]
+    [activeInvoice, refreshActiveDetail]
   )
 
   const handleOwnerSave = async (ownerIds: string[]) => {
@@ -1009,7 +1035,10 @@ function InvoicesContent() {
         return
       }
 
-      if (transactionIds.length === 1) {
+      const { useLocalMutations, localSetCategory } = await import('@/lib/engine/mutations')
+      if (useLocalMutations()) {
+        await localSetCategory(transactionIds, categoryId)
+      } else if (transactionIds.length === 1) {
         await apiClient.fetch(`/v1/transactions/${transactionIds[0]}`, {
           method: 'PATCH',
           body: JSON.stringify({ categoryId }),
@@ -1021,9 +1050,9 @@ function InvoicesContent() {
         })
       }
 
-      await loadInvoiceDetail(activeInvoice.id, true)
+      await refreshActiveDetail()
     },
-    [activeInvoice, loadInvoiceDetail]
+    [activeInvoice, refreshActiveDetail]
   )
 
   const applyOneTimeChange = useCallback(
@@ -1032,7 +1061,10 @@ function InvoicesContent() {
         return
       }
 
-      if (transactionIds.length === 1) {
+      const { useLocalMutations, localSetOneTime } = await import('@/lib/engine/mutations')
+      if (useLocalMutations()) {
+        await localSetOneTime(transactionIds, isOneTime)
+      } else if (transactionIds.length === 1) {
         await apiClient.fetch(`/v1/transactions/${transactionIds[0]}`, {
           method: 'PATCH',
           body: JSON.stringify({ isOneTime }),
@@ -1044,9 +1076,9 @@ function InvoicesContent() {
         })
       }
 
-      await loadInvoiceDetail(activeInvoice.id, true)
+      await refreshActiveDetail()
     },
-    [activeInvoice, loadInvoiceDetail]
+    [activeInvoice, refreshActiveDetail]
   )
 
   const handleToggleOneTime = async (transaction: InvoiceTransaction) => {

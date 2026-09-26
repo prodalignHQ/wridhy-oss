@@ -1,5 +1,13 @@
 import { create } from 'zustand'
 import { apiClient } from '../api'
+import {
+  localSetCategory,
+  localSetOneTime,
+  localSetOwners,
+  useLocalMutations,
+} from '../engine/mutations'
+import type { OwnerShare } from '../engine/opfs-db'
+import type { LocalTransaction } from '@momoney/local-engine'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -147,6 +155,17 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
   },
 
   updateTransactionOwners: async (txnId, ownerIds) => {
+    if (useLocalMutations()) {
+      const { rows, sharesByTxn } = await localSetOwners([txnId], ownerIds)
+      const row = rows[0]
+      const shares = sharesByTxn[txnId] ?? []
+      set((state) => ({
+        transactions: state.transactions.map((t) =>
+          t.id === txnId ? mergeLocalRow(t, row, mapShares(txnId, shares)) : t
+        ),
+      }))
+      return
+    }
     const updated = await apiClient.fetch<Transaction>(`/v1/transactions/${txnId}/owners`, {
       method: 'PUT',
       body: JSON.stringify({ ownerIds }),
@@ -158,6 +177,23 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
   },
 
   updateTransactionCategory: async (txnId, categoryId) => {
+    if (useLocalMutations()) {
+      const { rows, category } = await localSetCategory([txnId], categoryId)
+      const row = rows[0]
+      set((state) => ({
+        transactions: state.transactions.map((t) =>
+          t.id === txnId
+            ? {
+                ...mergeLocalRow(t, row),
+                category: category
+                  ? { id: category.id, name: category.name, color: category.color, icon: category.icon, type: t.category?.type }
+                  : null,
+              }
+            : t
+        ),
+      }))
+      return
+    }
     const updated = await apiClient.fetch<Transaction>(`/v1/transactions/${txnId}`, {
       method: 'PATCH',
       body: JSON.stringify({ categoryId }),
@@ -169,6 +205,14 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
   },
 
   updateTransactionOneTime: async (txnId, isOneTime) => {
+    if (useLocalMutations()) {
+      const { rows } = await localSetOneTime([txnId], isOneTime)
+      const row = rows[0]
+      set((state) => ({
+        transactions: state.transactions.map((t) => (t.id === txnId ? mergeLocalRow(t, row) : t)),
+      }))
+      return
+    }
     const updated = await apiClient.fetch<Transaction>(`/v1/transactions/${txnId}`, {
       method: 'PATCH',
       body: JSON.stringify({ isOneTime }),
@@ -180,6 +224,17 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
   },
 
   bulkUpdateOneTime: async (txnIds, isOneTime) => {
+    if (useLocalMutations()) {
+      const { rows } = await localSetOneTime(txnIds, isOneTime)
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      set((state) => ({
+        transactions: state.transactions.map((t) => {
+          const row = byId.get(t.id)
+          return row ? mergeLocalRow(t, row) : t
+        }),
+      }))
+      return
+    }
     await apiClient.fetch('/v1/transactions/bulk/one-time', {
       method: 'PATCH',
       body: JSON.stringify({ transactionIds: txnIds, isOneTime }),
@@ -192,6 +247,24 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
   },
 
   bulkUpdateCategory: async (txnIds, categoryId) => {
+    if (useLocalMutations()) {
+      const { rows, category } = await localSetCategory(txnIds, categoryId)
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      set((state) => ({
+        transactions: state.transactions.map((t) => {
+          const row = byId.get(t.id)
+          return row
+            ? {
+                ...mergeLocalRow(t, row),
+                category: category
+                  ? { id: category.id, name: category.name, color: category.color, icon: category.icon, type: t.category?.type }
+                  : null,
+              }
+            : t
+        }),
+      }))
+      return
+    }
     await apiClient.fetch('/v1/transactions/bulk/category', {
       method: 'PATCH',
       body: JSON.stringify({ transactionIds: txnIds, categoryId }),
@@ -200,6 +273,17 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
   },
 
   bulkUpdateOwners: async (txnIds, ownerIds) => {
+    if (useLocalMutations()) {
+      const { rows, sharesByTxn } = await localSetOwners(txnIds, ownerIds)
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      set((state) => ({
+        transactions: state.transactions.map((t) => {
+          const row = byId.get(t.id)
+          return row ? mergeLocalRow(t, row, mapShares(t.id, sharesByTxn[t.id] ?? [])) : t
+        }),
+      }))
+      return
+    }
     await apiClient.fetch('/v1/transactions/bulk/owners', {
       method: 'PATCH',
       body: JSON.stringify({ transactionIds: txnIds, ownerIds }),
@@ -207,3 +291,37 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
     await get().fetchTransactions()
   },
 }))
+
+// ─── Local merge helpers ─────────────────────────────────────────────────────
+
+/** Overlay OPFS row scalars onto a store row, preserving joined objects. */
+function mergeLocalRow(t: Transaction, row: LocalTransaction | undefined, owners?: TransactionOwner[]): Transaction {
+  if (!row) return t
+  return {
+    ...t,
+    accountId: row.accountId,
+    statementId: row.statementId,
+    date: row.date,
+    description: row.description,
+    merchant: row.merchant,
+    amount: row.amount,
+    type: row.type,
+    isOneTime: row.isOneTime,
+    categoryId: row.categoryId,
+    comment: row.comment,
+    dedupHash: row.dedupHash,
+    updatedAt: new Date().toISOString(),
+    ...(owners !== undefined ? { transactionOwners: owners } : {}),
+  }
+}
+
+function mapShares(txnId: string, shares: OwnerShare[]): TransactionOwner[] {
+  return shares.map((s) => ({
+    id: `${txnId}:${s.ownerId}`,
+    transactionId: txnId,
+    ownerId: s.ownerId,
+    amount: s.amount,
+    percentage: s.percentage,
+    owner: { id: s.ownerId, name: s.name, color: s.color ?? 'indigo', isDefault: s.isDefault },
+  }))
+}

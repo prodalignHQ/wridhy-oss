@@ -109,6 +109,16 @@ CREATE INDEX IF NOT EXISTS idx_local_txn_date ON local_transactions(date);
 CREATE INDEX IF NOT EXISTS idx_local_txn_account ON local_transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_local_txn_owners_txn ON local_transaction_owners(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_local_invoice_items_inv ON local_invoice_items(invoice_id);
+-- Operation log for incremental sync (Phase 5): every local mutation appends
+-- here; the sync engine uploads only logged rows, then clears up to its mark.
+CREATE TABLE IF NOT EXISTS local_changelog(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  table_name TEXT NOT NULL,
+  row_id TEXT NOT NULL,
+  op TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_local_changelog_id ON local_changelog(id);
 `
 
 export interface OpfsUpsertPatch {
@@ -251,7 +261,71 @@ export const OPFS_CLEAR_SQL =
   'DELETE FROM local_transactions; DELETE FROM local_statements; DELETE FROM local_categories;' +
   'DELETE FROM local_accounts; DELETE FROM local_owners; DELETE FROM local_transaction_owners;' +
   'DELETE FROM local_rules; DELETE FROM local_merchants; DELETE FROM local_invoices;' +
-  'DELETE FROM local_invoice_statements; DELETE FROM local_invoice_items;'
+  'DELETE FROM local_invoice_statements; DELETE FROM local_invoice_items;' +
+  'DELETE FROM local_changelog;'
+
+/** Allowed local field patches (camelCase) → columns. */
+const PATCH_COLUMNS: Record<string, string> = {
+  categoryId: 'category_id',
+  isOneTime: 'is_one_time',
+  comment: 'comment',
+  merchant: 'merchant',
+}
+
+export interface TxnPatch {
+  categoryId?: string | null
+  isOneTime?: boolean
+  comment?: string | null
+  merchant?: string | null
+}
+
+/** UPDATE local_transactions … WHERE id — plus a changelog entry. */
+export function buildPatchTransaction(id: string, patch: TxnPatch): OpfsBatch {
+  const sets: string[] = []
+  const vals: unknown[] = []
+  for (const [key, column] of Object.entries(PATCH_COLUMNS)) {
+    const v = (patch as Record<string, unknown>)[key]
+    if (v !== undefined) {
+      sets.push(`${column} = ?`)
+      vals.push(typeof v === 'boolean' ? (v ? 1 : 0) : v)
+    }
+  }
+  if (sets.length === 0) return { queries: [], params: [] }
+  return {
+    queries: [
+      `UPDATE local_transactions SET ${sets.join(', ')} WHERE id = ?`,
+      `INSERT INTO local_changelog(table_name, row_id, op, created_at) VALUES('transactions', ?, 'patch', ?)`,
+    ],
+    params: [[...vals, id], [id, Date.now()]],
+  }
+}
+
+/** Replace a transaction's owner shares (equal split, mirrors the server). */
+export function buildSetOwners(
+  transactionId: string,
+  ownerIds: string[],
+  amount: string
+): OpfsBatch {
+  const n = ownerIds.length
+  const shareAmount = (parseFloat(amount) / n).toFixed(2)
+  const sharePct = (100 / n).toFixed(2)
+  const queries = ['DELETE FROM local_transaction_owners WHERE transaction_id = ?']
+  const params: unknown[][] = [[transactionId]]
+  for (const ownerId of ownerIds) {
+    queries.push('INSERT INTO local_transaction_owners(transaction_id,owner_id,amount,percentage) VALUES(?,?,?,?)')
+    params.push([transactionId, ownerId, shareAmount, sharePct])
+  }
+  queries.push(`INSERT INTO local_changelog(table_name, row_id, op, created_at) VALUES('transactions', ?, 'owners', ?)`)
+  params.push([transactionId, Date.now()])
+  return { queries, params }
+}
+
+export function buildClearChangelog(upToId: number): OpfsBatch {
+  return {
+    queries: ['DELETE FROM local_changelog WHERE id <= ?'],
+    params: [[upToId]],
+  }
+}
 
 export const OPFS_READ_TABLES = [
   'local_transactions',

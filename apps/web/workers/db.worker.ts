@@ -15,11 +15,15 @@ import {
   OPFS_CLEAR_SQL,
   OPFS_READ_TABLES,
   OPFS_SCHEMA,
+  buildClearChangelog,
   buildDeleteByIds,
   buildDeleteByStatement,
+  buildPatchTransaction,
+  buildSetOwners,
   buildUpsertBatch,
   sealBytes,
   unsealBytes,
+  type TxnPatch,
 } from '@momoney/local-engine'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,7 +75,7 @@ function toArrayBufferView(u8: Uint8Array): Uint8Array<ArrayBuffer> {
 
 export interface DbWorkerRequest {
   id: number
-  op: 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'seal' | 'unseal' | 'sealedExists'
+  op: 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'seal' | 'unseal' | 'sealedExists'
   payload?: unknown
 }
 
@@ -144,6 +148,73 @@ interface UpsertPayload {
       const { ids } = req.payload as { ids: string[] }
       const batch = buildDeleteByIds(ids)
       if (batch.queries.length > 0) await sqlite3.executeBatch(db, batch.queries, batch.params)
+      return { ok: true }
+    }
+    case 'patchTransaction': {
+      await openDb()
+      const { id, patch } = req.payload as { id: string; patch: TxnPatch }
+      const batch = buildPatchTransaction(id, patch)
+      if (batch.queries.length > 0) await sqlite3.executeBatch(db, batch.queries, batch.params)
+      return { ok: true }
+    }
+    case 'setOwners': {
+      await openDb()
+      const { transactionId, ownerIds } = req.payload as { transactionId: string; ownerIds: string[] }
+      const found = await sqlite3.execWithParams(db, 'SELECT amount FROM local_transactions WHERE id = ?', [transactionId])
+      const amount = found.rows?.[0]?.[0] as string | undefined
+      if (amount === undefined) throw new Error('Transaction not found in local cache')
+      const batch = buildSetOwners(transactionId, ownerIds, String(amount))
+      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      // Return resolved shares (names/colors) for instant UI updates.
+      const placeholders = ownerIds.map(() => '?').join(',')
+      const ownersRes = await sqlite3.execWithParams(
+        db,
+        `SELECT id, name, color, is_default FROM local_owners WHERE id IN (${placeholders})`,
+        ownerIds
+      )
+      const n = ownerIds.length
+      const shareAmount = (parseFloat(String(amount)) / n).toFixed(2)
+      const sharePct = (100 / n).toFixed(2)
+      const byId = new Map(
+        (ownersRes.rows as unknown[][]).map((r) => [
+          String(r[0]),
+          { name: String(r[1]), color: r[2] as string | null, isDefault: Number(r[3]) === 1 },
+        ])
+      )
+      const rows = ownerIds.map((oid) => {
+        const o = byId.get(oid) ?? { name: 'Unknown', color: null, isDefault: false }
+        return { ownerId: oid, name: o.name, color: o.color, isDefault: o.isDefault, amount: shareAmount, percentage: sharePct }
+      })
+      return { ok: true, rows }
+    }
+    case 'getByIds': {
+      await openDb()
+      const { ids } = req.payload as { ids: string[] }
+      if (ids.length === 0) return { ok: true, rows: [] }
+      const placeholders = ids.map(() => '?').join(',')
+      const res = await sqlite3.execWithParams(db, `SELECT * FROM local_transactions WHERE id IN (${placeholders})`, ids)
+      const zipped = (res.rows as unknown[][]).map((r) =>
+        Object.fromEntries((res.columns as string[]).map((c, i) => [c, r[i]]))
+      )
+      return { ok: true, rows: zipped as Record<string, unknown>[] }
+    }
+    case 'getChangelog': {
+      await openDb()
+      const res = await sqlite3.execWithParams(db, 'SELECT id, table_name, row_id, op, created_at FROM local_changelog ORDER BY id', null)
+      const rows = (res.rows as unknown[][]).map((r) => ({
+        id: r[0] as number,
+        table: r[1] as string,
+        rowId: r[2] as string,
+        op: r[3] as string,
+        createdAt: r[4] as number,
+      }))
+      return { ok: true, rows: rows as unknown as Record<string, unknown>[] }
+    }
+    case 'clearChangelog': {
+      await openDb()
+      const { upToId } = req.payload as { upToId: number }
+      const batch = buildClearChangelog(upToId)
+      await sqlite3.executeBatch(db, batch.queries, batch.params)
       return { ok: true }
     }
     case 'clear': {
