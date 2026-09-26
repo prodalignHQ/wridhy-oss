@@ -264,6 +264,82 @@ export async function deleteTransactionsFromCache(ids: string[]): Promise<boolea
   return !!res?.ok
 }
 
+// ─── Pending-backup tracking ─────────────────────────────────────────────────
+// Statement imports register here; mutation edits land in local_changelog.
+// A backup (pushEncrypted) snapshots the whole OPFS cache, so success clears
+// both. Single-writer: only the vault store clears; everyone else only reads.
+
+export const PENDING_BACKUP_KEY = 'momoney_pending_backup'
+export const LAST_BACKUP_AT_KEY = 'momoney_last_backup_at'
+
+function readStorage(key: string): string | null {
+  try {
+    return typeof window !== 'undefined' ? localStorage.getItem(key) : null
+  } catch {
+    return null
+  }
+}
+
+function writeStorage(key: string, value: string): void {
+  try {
+    if (typeof window !== 'undefined') localStorage.setItem(key, value)
+  } catch {
+    // private mode — markers just won't persist
+  }
+}
+
+/** Statement ids imported locally but not yet covered by any backup. */
+export function readPendingStatements(): Set<string> {
+  try {
+    const raw = readStorage(PENDING_BACKUP_KEY)
+    const arr: unknown = raw ? JSON.parse(raw) : []
+    return new Set(Array.isArray(arr) ? arr.filter((v): v is string => typeof v === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+export function writePendingStatements(ids: Set<string>): void {
+  writeStorage(PENDING_BACKUP_KEY, JSON.stringify([...ids]))
+}
+
+export function readLastBackupAt(): string | null {
+  return readStorage(LAST_BACKUP_AT_KEY)
+}
+
+function writeLastBackupAt(iso: string): void {
+  writeStorage(LAST_BACKUP_AT_KEY, iso)
+}
+
+export function markBackupComplete(): void {
+  writePendingStatements(new Set())
+  writeLastBackupAt(new Date().toISOString())
+}
+
+export interface PendingWork {
+  /** Local-only statement imports awaiting backup. */
+  statements: string[]
+  /** Mutation-log entries awaiting backup (edits). */
+  edits: number
+}
+
+/** Everything not yet covered by a successful backup. */
+export async function getPendingWork(): Promise<PendingWork> {
+  const [statements, changelog] = await Promise.all([
+    Promise.resolve(readPendingStatements()),
+    call('getChangelog').then(
+      (res) => (res?.rows ?? []) as unknown as Array<{ id: number }>,
+      () => [] as Array<{ id: number }>
+    ),
+  ])
+  return { statements: [...statements], edits: changelog.length }
+}
+
+export async function hasPendingWork(): Promise<boolean> {
+  const w = await getPendingWork().catch(() => ({ statements: [], edits: 0 }))
+  return w.statements.length > 0 || w.edits > 0
+}
+
 export interface OwnerShare {
   ownerId: string
   name: string

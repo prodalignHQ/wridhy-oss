@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { UploadDropzone } from '@/components/statements/upload-dropzone'
 import { apiClient } from '@/lib/api'
+import { readPendingStatements, writePendingStatements } from '@/lib/engine/opfs-db'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { AmountBadge } from '@/components/ui/custom/AmountBadge'
 
@@ -416,23 +417,9 @@ export default function StatementsPage() {
     setParseError(null)
   }
 
-  const readPendingBackup = (): Set<string> => {
-    try {
-      const raw = localStorage.getItem('momoney_pending_backup')
-      const arr: unknown = raw ? JSON.parse(raw) : []
-      return new Set(Array.isArray(arr) ? arr.filter((v): v is string => typeof v === 'string') : [])
-    } catch {
-      return new Set()
-    }
-  }
+  const readPendingBackup = (): Set<string> => readPendingStatements()
 
-  const writePendingBackup = (ids: Set<string>) => {
-    try {
-      localStorage.setItem('momoney_pending_backup', JSON.stringify([...ids]))
-    } catch {
-      // private mode — badges just won't persist
-    }
-  }
+  const writePendingBackup = (ids: Set<string>) => writePendingStatements(ids)
 
   const refreshLocalStatements = async (serverList?: Statement[]) => {
     try {

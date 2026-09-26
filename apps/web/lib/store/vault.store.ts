@@ -15,7 +15,7 @@ import {
   unlockWithRecovery,
   type VaultBlob,
 } from '../engine/vault-sync'
-import { sealLocalDb, unsealLocalDb } from '../engine/opfs-db'
+import { sealLocalDb, unsealLocalDb, readChangelog, clearChangelog, markBackupComplete, hasPendingWork } from '../engine/opfs-db'
 
 // ─── In-memory vault session ─────────────────────────────────────────────────
 // DEK lives here only. Locking wipes it. Nothing key-related is persisted.
@@ -214,6 +214,10 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         import('../engine/opfs-db'),
         import('../engine/vault-sync'),
       ])
+      // Capture the changelog mark BEFORE snapshotting: entries written
+      // during the build belong to the next backup, not this one.
+      const log = await readChangelog().catch(() => [])
+      const maxId = log.reduce((m, e) => Math.max(m, e.id), 0)
       const cache = await readLocalCache()
       // Empty cache still syncs (records the version; keeps backup fresh).
       const snapshot = buildVaultSnapshot(
@@ -224,6 +228,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         }
       )
       const updated = await syncEncryptedSnapshot(blob, dek, snapshot)
+      if (maxId > 0) await clearChangelog(maxId).catch(() => {})
+      markBackupComplete()
       set({ blob: updated, snapshot })
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Encrypted backup failed' })
@@ -240,6 +246,15 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   lock: async () => {
+    // Flush pending edits FIRST (needs the DEK), so lock never drops an
+    // un-backed-up change. Best-effort: failures stay local with markers.
+    try {
+      if (dek && (await hasPendingWork().catch(() => false))) {
+        await get().pushEncrypted()
+      }
+    } catch {
+      // ignore — seal + wipe below are the guarantee
+    }
     // Seal the OPFS database file BEFORE wiping the DEK, so a locked device
     // holds ciphertext only. Best-effort: lock always completes.
     try {

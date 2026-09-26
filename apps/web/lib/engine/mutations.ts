@@ -13,6 +13,7 @@
 import { useVaultStore } from '@/lib/store/vault.store'
 import {
   getTransactionsFromCache,
+  hasPendingWork,
   patchTransactionInCache,
   readLocalCache,
   setTransactionOwnersInCache,
@@ -37,11 +38,27 @@ export function scheduleEncryptedBackup(): void {
   if (backupTimer) clearTimeout(backupTimer)
   backupTimer = setTimeout(() => {
     backupTimer = null
-    useVaultStore
-      .getState()
-      .pushEncrypted()
-      .catch(() => {})
+    void flushEncryptedBackup()
   }, 5000)
+}
+
+/**
+ * Immediate backup, but only when there is pending work (imports or logged
+ * edits). Used by lock/unload/online triggers. Never throws.
+ */
+export async function flushEncryptedBackup(): Promise<boolean> {
+  if (backupTimer) {
+    clearTimeout(backupTimer)
+    backupTimer = null
+  }
+  try {
+    if (!useLocalMutations()) return false
+    if (!(await hasPendingWork())) return true
+    await useVaultStore.getState().pushEncrypted()
+    return true
+  } catch {
+    return false
+  }
 }
 
 export interface LocalCategoryRef {

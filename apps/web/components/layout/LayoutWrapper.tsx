@@ -1,10 +1,18 @@
 "use client"
 
+import { useEffect } from "react"
 import { useUIStore } from "@/lib/store/ui.store"
 import { cn } from "@/lib/utils"
+import { initBackupTriggers } from "@/lib/engine/backup-triggers"
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const { isSidebarCollapsed } = useUIStore()
+
+  // Flush pending encrypted backups on tab-hide/close/reconnect.
+  // Registered once for the whole authenticated area.
+  useEffect(() => {
+    initBackupTriggers()
+  }, [])
 
   return (
     <main

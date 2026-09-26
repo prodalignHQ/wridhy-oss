@@ -33,8 +33,24 @@ export default function VaultPage() {
   const [prfSupported, setPrfSupported] = useState<boolean | null>(null)
   const [deviceLabel, setDeviceLabel] = useState('')
   const [chosenCredential, setChosenCredential] = useState<string | null>(null)
+  const [pendingEdits, setPendingEdits] = useState<number | null>(null)
+  const [lastBackup, setLastBackup] = useState<string | null>(null)
 
   const wraps = vault.blob?.wraps ?? []
+
+  useEffect(() => {
+    let cancelled = false
+    import('@/lib/engine/opfs-db').then(async ({ getPendingWork, readLastBackupAt }) => {
+      if (cancelled) return
+      const work = await getPendingWork().catch(() => ({ statements: [], edits: 0 }))
+      if (cancelled) return
+      setPendingEdits(work.edits + work.statements.length)
+      setLastBackup(readLastBackupAt())
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [vault.status, vault.blob?.updatedAt])
 
   useEffect(() => {
     vault.refresh()
@@ -251,6 +267,20 @@ export default function VaultPage() {
                 ? `${vault.snapshot.transactions.length} transactions • ${vault.snapshot.statements.length} statements cached locally`
                 : 'Decrypted in memory only.'}
             </CardDescription>
+            <p className="px-6 text-xs text-muted-foreground">
+              Last backup:{' '}
+              {lastBackup
+                ? new Date(lastBackup).toLocaleString()
+                : vault.blob?.updatedAt
+                  ? new Date(vault.blob.updatedAt).toLocaleString()
+                  : '—'}
+              {pendingEdits !== null && pendingEdits > 0 && (
+                <span className="ml-2 font-semibold text-amber-500">
+                  • {pendingEdits} change{pendingEdits !== 1 ? 's' : ''} not yet backed up
+                </span>
+              )}
+              {pendingEdits === 0 && <span className="ml-2 text-emerald-500">• everything backed up</span>}
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
