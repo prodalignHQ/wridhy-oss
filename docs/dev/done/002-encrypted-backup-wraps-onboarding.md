@@ -68,7 +68,100 @@ What the server operator can now see for a vault user: email, opaque blob + vers
 
 ---
 
-## 5. How to verify
+## 6. Flow diagrams
+
+### 6a. Onboarding (passkey-first)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant App as Browser app
+    participant Auth as Authenticator (chip)
+    participant API as Server (opaque)
+
+    U->>App: Finish signup, land on /onboarding/vault
+    App->>U: Two-keys explainer (login vs vault key)
+    U->>App: Choose Passkey
+    App->>Auth: create() credential
+    Auth-->>App: credentialId
+    App->>App: Fresh salt, PRF input from salt
+    App->>Auth: get() + prf.eval (2nd tap)
+    Auth-->>App: 32-B PRF output (KEK-prf)
+    App->>App: Random DEK + recovery code
+    App->>App: Wrap DEK with KEK-prf + KEK-recovery, encrypt snapshot
+    App->>API: PUT /v1/vault (ciphertext + wrap metadata)
+    App->>API: POST /v1/vault/wraps (per-device wrap)
+    App->>U: Recovery code (type-to-confirm gate)
+    U->>App: Retypes code correctly
+    App->>U: Dashboard (banner gone)
+```
+
+> 🧠 **ELI5:** make the key (device invents it) → lock it twice (once with your face-key, once with a write-it-down code) → mail only locked boxes to us → prove you saved the code by retyping it. At no point does an unlockable secret travel anywhere.
+
+### 6b. Statement import: local-first + backup branch
+
+```mermaid
+flowchart TD
+    A[Drop bank file] --> B[Parse in Web Worker]
+    B --> C[Categorize with cached rules]
+    C --> D[Dedup by fingerprint vs OPFS]
+    D --> E[Insert into OPFS - instant]
+    E --> F{Vault unlocked?}
+    F -- Yes --> G[Snapshot OPFS, encrypt with DEK]
+    G --> H[POST /v1/vault/sync]
+    H --> I{409 conflict?}
+    I -- Yes --> J[Refetch blob, retry once]
+    I -- No --> K[Backed up encrypted]
+    F -- No --> L[Legacy POST /upload]
+    L --> M[Converge by dedupHash]
+    M --> N[Backed up readable + vault nudge]
+    J --> K
+```
+
+> 🧠 **ELI5:** read it at your table, file it in your drawer — *then* decide the delivery method. Vault open? Armored truck (encrypted sync). No vault? Bicycle (old upload) plus a polite note saying "hey, the truck exists." Either way the drawer (OPFS) is the real filing cabinet; the server is just the off-site copy.
+
+### 6c. Analytics and invoices: offline-first reads
+
+```mermaid
+flowchart LR
+    subgraph Device
+        OPFS[(OPFS SQLite - all tables)]
+        ENG[local-engine insights\n+ invoice analysis]
+    end
+    subgraph Server
+        SQL[(Postgres\nplaintext legacy rows)]
+        BLOB[(vault_blobs\nciphertext)]
+    end
+    OPFS -->|cache hit| ENG
+    SQL -->|cache miss: fetch, converge, cache| OPFS
+    BLOB -->|other device or reinstall| OPFS
+    ENG --> UI[Dashboard, insights,\ninvoice drafts]
+```
+
+> 🧠 **ELI5:** the app asks the drawer first. Drawer has it? Done — no internet needed. Drawer empty? Fetch from the office, photocopy into the drawer, *then* answer. New phone? Download your locked safe, open it with your key, restock the drawer.
+
+### 6d. Why this is safer: trust boundary before vs after
+
+```mermaid
+flowchart TB
+    subgraph Before["BEFORE - server sees everything"]
+        D1[Device - dumb display] -->|raw bank file| S1[Server parses + analyzes]
+        S1 --> DB1[(Postgres - plaintext rows)]
+        DB1 -.->|breach, backup, host| X1[everything readable]
+    end
+    subgraph After["AFTER - server holds locked safes"]
+        D2[Device parses + encrypts] -->|ciphertext only| S2[Opaque blob store]
+        S2 --> DB2[(vault_blobs - ciphertext + wraps)]
+        DB2 -.->|breach, backup, host| X2[random noise without your key]
+    end
+```
+
+> 🧠 **ELI5:** before, we ran the office with open filing cabinets and promised to be careful. After, the office only stores customer safes — we never received the keys, and the building was constructed *without* a master-key room. A robber gets the same thing from us that we have: locked metal boxes.
+
+---
+
+## 7. How to verify (renumbered — diagrams inserted above as §6)
 
 ```bash
 # Full vault E2E incl. wraps + sync + conflict (needs API on :3001)
