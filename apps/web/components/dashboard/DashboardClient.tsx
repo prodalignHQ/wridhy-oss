@@ -23,11 +23,13 @@ import {
   FileText,
   Clock,
   Loader2,
+  Lock,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api'
 import { formatINR } from '@/lib/format'
+import { useVaultStore } from '@/lib/store/vault.store'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -84,6 +86,8 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
   const [owners, setOwners] = useState<Owner[]>([])
   const [insights, setInsights] = useState<MonthlyInsight | null>(null)
   const [showVaultBanner, setShowVaultBanner] = useState(false)
+  const [showLockedBanner, setShowLockedBanner] = useState(false)
+  const vaultStatus = useVaultStore((s) => s.status)
   
   const [loading, setLoading] = useState(true)
   const [insightsLoading, setInsightsLoading] = useState(false)
@@ -124,6 +128,8 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
   }, [loadInitialData])
 
   // Vault onboarding: no vault + not skipped → guided setup; skipped → banner.
+  // Existing vault but locked in this session → unlock banner (login and
+  // vault-unlock are deliberately separate: two keys, two jobs).
   useEffect(() => {
     if (loading) return
     let cancelled = false
@@ -142,12 +148,21 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
         } else {
           setShowVaultBanner(true)
         }
+      } else {
+        if (useVaultStore.getState().status !== 'unlocked') {
+          setShowLockedBanner(true)
+        }
       }
     }).catch(() => {})
     return () => {
       cancelled = true
     }
   }, [loading, router])
+
+  // Vault unlocked elsewhere (e.g. settings tab) → drop the locked banner.
+  useEffect(() => {
+    if (vaultStatus === 'unlocked') setShowLockedBanner(false)
+  }, [vaultStatus])
 
   useEffect(() => {
     loadInsights(currentMonth)
@@ -182,6 +197,27 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
 
   return (
     <div className="space-y-8 pb-12">
+      {showLockedBanner && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-sky-500/40 bg-sky-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Lock size={18} className="mt-0.5 shrink-0 text-sky-500" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Your vault is locked</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Logging in proves who you are — unlocking is separate and needs your passkey, password, or recovery code.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Link href="/settings/vault">
+              <Button size="sm" className="bg-primary text-white">Unlock vault</Button>
+            </Link>
+            <Button variant="ghost" size="sm" onClick={() => setShowLockedBanner(false)} className="text-muted-foreground">
+              Later
+            </Button>
+          </div>
+        </div>
+      )}
       {showVaultBanner && (
         <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
