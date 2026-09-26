@@ -306,7 +306,7 @@ export default function StatementsPage() {
         formData.append('file', selectedFile)
         formData.append('bankId', selectedBankId)
 
-        const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+        const baseURL = process.env.NEXT_PUBLIC_API_URL !== undefined ? process.env.NEXT_PUBLIC_API_URL : (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
         const res = await fetch(`${baseURL}/v1/statements/preview`, {
           method: 'POST',
           body: formData,
@@ -357,7 +357,7 @@ export default function StatementsPage() {
       formData.append('accountId', selectedAccountId)
       formData.append('statementMonth', selectedMonth + '-01')
 
-      const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+      const baseURL = process.env.NEXT_PUBLIC_API_URL !== undefined ? process.env.NEXT_PUBLIC_API_URL : (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
       const res = await fetch(`${baseURL}/v1/statements/upload`, {
         method: 'POST',
         body: formData,

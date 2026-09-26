@@ -34,18 +34,32 @@ accountsRoute.get('/', async (c) => {
 })
 
 accountsRoute.post('/', zValidator('json', insertAccountSchema), async (c) => {
-  const userId = c.get('userId')
-  const body = c.req.valid('json')
+  try {
+    const userId = c.get('userId')
+    const body = c.req.valid('json')
 
-  const [account] = await db
-    .insert(financialAccounts)
-    .values({
-      ...body,
-      userId,
-    })
-    .returning()
+    const [account] = await db
+      .insert(financialAccounts)
+      .values({
+        ...body,
+        userId,
+      })
+      .returning()
 
-  return c.json({ success: true, data: account }, 201)
+    return c.json({ success: true, data: account }, 201)
+  } catch (err: any) {
+    console.error('Failed to create account:', err)
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'DATABASE_ERROR',
+          message: err?.message || 'Failed to create account',
+        },
+      },
+      500
+    )
+  }
 })
 
 accountsRoute.patch('/:id', zValidator('json', updateAccountSchema), async (c) => {
