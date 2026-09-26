@@ -2,7 +2,11 @@
 // handles intentionally — the message protocol (DbWorkerRequest/Response) is
 // the typed boundary. Revisit if @types/wa-sqlite ever exists.
 declare module 'wa-sqlite/dist/wa-sqlite.mjs' {
-  const SQLiteESMFactory: (opts?: { locateFile?: (file: string) => string }) => Promise<unknown>;
+  const SQLiteESMFactory: (opts?: {
+    locateFile?: (file: string) => string
+    /** Pre-fetched WASM bytes — skips the loader's internal fetch entirely. */
+    wasmBinary?: Uint8Array | ArrayBuffer
+  }) => Promise<unknown>;
   export default SQLiteESMFactory;
 }
 

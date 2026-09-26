@@ -40,11 +40,27 @@ const SEALED_NAME = 'momoney.db.sealed'
 let sqlite3: Sqlite3 | null = null
 let db: number | null = null
 
+// WASM module, bootable two ways:
+// 1. Preferred: main thread fetches /wa-sqlite.wasm (it has a real origin)
+//    and posts the bytes via the `boot` op → instantiate with `wasmBinary`,
+//    no fetch inside the worker at all.
+// 2. Fallback: locateFile load (works when the worker has a resolvable base
+//    URL, e.g. production same-origin workers). Blob-URL workers (dev) fail
+//    here with "Failed to parse URL" — hence path 1.
+let modulePromise: Promise<unknown> | null = null
+
+async function getModule(): Promise<unknown> {
+  if (!modulePromise) {
+    modulePromise = SQLiteESMFactory({
+      locateFile: (file: string) => `/${file}`,
+    })
+  }
+  return modulePromise
+}
+
 async function openDb(): Promise<void> {
   if (db !== null) return
-  const module = await SQLiteESMFactory({
-    locateFile: (file: string) => `/${file}`,
-  })
+  const module = await getModule()
   sqlite3 = SQLite.Factory(module)
   const vfs = new OriginPrivateFileSystemVFS()
   await sqlite3.vfs_register(vfs, false)
@@ -96,7 +112,7 @@ function toArrayBufferView(u8: Uint8Array): Uint8Array<ArrayBuffer> {
 
 export interface DbWorkerRequest {
   id: number
-  op: 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'stats' | 'seal' | 'unseal' | 'sealedExists'
+  op: 'boot' | 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'stats' | 'seal' | 'unseal' | 'sealedExists'
   payload?: unknown
 }
 
@@ -122,6 +138,13 @@ interface UpsertPayload {
   invoiceItems?: Array<Record<string, unknown>>
 }async function handle(req: DbWorkerRequest): Promise<Omit<DbWorkerResponse, 'id'>> {
   switch (req.op) {
+    case 'boot': {
+      const { wasm } = req.payload as { wasm: ArrayBuffer }
+      // Emscripten instantiates from memory — no fetch, no URL resolution.
+      modulePromise = SQLiteESMFactory({ wasmBinary: new Uint8Array(wasm) })
+      await modulePromise
+      return { ok: true }
+    }
     case 'init': {
       await openDb()
       return { ok: true }

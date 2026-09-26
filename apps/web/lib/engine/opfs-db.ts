@@ -23,6 +23,50 @@ let worker: Worker | null = null
 let seq = 0
 const pending = new Map<number, { resolve: (v: DbWorkerResponse) => void; reject: (e: Error) => void }>()
 
+// Resolves once the worker has instantiated SQLite. The WASM bytes are
+// fetched on the MAIN thread (real document origin) and transferred in —
+// the worker itself must never fetch, because bundlers may serve it from a
+// blob: URL where relative fetches cannot resolve.
+let bootPromise: Promise<void> | null = null
+let cachedWasm: ArrayBuffer | null = null
+
+async function fetchWasmBytes(): Promise<ArrayBuffer> {
+  if (!cachedWasm) {
+    const res = await fetch('/wa-sqlite.wasm')
+    if (!res.ok) throw new Error(`wa-sqlite.wasm HTTP ${res.status} — is apps/web/public/wa-sqlite.wasm being served?`)
+    cachedWasm = await res.arrayBuffer()
+  }
+  return cachedWasm
+}
+
+function bootWorker(w: Worker): Promise<void> {
+  if (!bootPromise) {
+    bootPromise = (async () => {
+      const wasm = await fetchWasmBytes()
+      const id = ++seq
+      await new Promise<DbWorkerResponse>((resolve, reject) => {
+        pending.set(id, { resolve, reject })
+        setTimeout(() => {
+          if (pending.has(id)) {
+            pending.delete(id)
+            reject(new Error('DB worker boot timeout'))
+          }
+        }, 30_000)
+        // Transfer (not copy): the worker gets the bytes, this side keeps
+        // the cached original for future restarts.
+        const copy = wasm.slice(0)
+        w.postMessage({ id, op: 'boot', payload: { wasm: copy } }, [copy])
+      }).then((res) => {
+        if (!res.ok) throw new Error(res.error ?? 'DB worker boot failed')
+      })
+    })()
+    bootPromise.catch(() => {
+      bootPromise = null
+    })
+  }
+  return bootPromise
+}
+
 // Last worker failure, human-readable. Surfaced in Settings → Vault →
 // diagnostics so users can paste it into a bug report instead of guessing.
 let lastWorkerError: string | null = null
@@ -51,6 +95,7 @@ function getWorker(): Worker | null {
         noteError('worker crashed on startup (bundling/serve failure?)')
         for (const [, entry] of pending) entry.reject(new Error('DB worker error'))
         pending.clear()
+        bootPromise = null
         try {
           worker?.terminate()
         } catch {
@@ -69,6 +114,12 @@ async function call(op: DbWorkerRequest['op'], payload?: unknown, timeoutMs = 30
   const w = getWorker()
   if (!w) {
     noteError('Workers unavailable in this browser/context')
+    return null
+  }
+  try {
+    await bootWorker(w)
+  } catch (err) {
+    noteError(`boot failed: ${err instanceof Error ? err.message : String(err)}`)
     return null
   }
   const id = ++seq
