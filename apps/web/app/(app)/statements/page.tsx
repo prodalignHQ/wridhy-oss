@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useCallback } from 'react'
-import { UploadCloud, Trash2, History, ChevronRight } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { UploadCloud, Trash2, History, ChevronRight, AlertTriangle, Mail, Landmark, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -270,6 +270,13 @@ function StatementHistory({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+interface ParseErrorState {
+  fileName: string
+  accountName: string
+  bankName: string
+  message?: string
+}
+
 export default function StatementsPage() {
   const [accounts, setAccounts] = useState<FinancialAccount[]>([])
   const [statements, setStatements] = useState<Statement[]>([])
@@ -280,14 +287,25 @@ export default function StatementsPage() {
   const [isParsing, setIsParsing] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState('')
+  const [parseError, setParseError] = useState<ParseErrorState | null>(null)
 
   // Derived bankId from selected account
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId)
   const selectedBankId = selectedAccount?.bankId || ''
 
-  // Load accounts and statements on mount
+  // Load accounts and statements on mount (with support for accountId query parameter)
   useEffect(() => {
-    apiClient.fetch<FinancialAccount[]>('/v1/accounts').then(setAccounts).catch(console.error)
+    apiClient
+      .fetch<FinancialAccount[]>('/v1/accounts')
+      .then((accs) => {
+        setAccounts(accs)
+        const params = new URLSearchParams(window.location.search)
+        const qAccountId = params.get('accountId')
+        if (qAccountId && accs.some((a) => a.id === qAccountId)) {
+          setSelectedAccountId(qAccountId)
+        }
+      })
+      .catch(console.error)
     apiClient.fetch<Statement[]>('/v1/statements').then(setStatements).catch(console.error)
   }, [])
 
@@ -301,6 +319,7 @@ export default function StatementsPage() {
 
     const fetchPreview = async () => {
       setIsParsing(true)
+      setParseError(null)
       try {
         const formData = new FormData()
         formData.append('file', selectedFile)
@@ -313,9 +332,14 @@ export default function StatementsPage() {
           credentials: 'include',
         })
         const result = await res.json()
-        if (!res.ok || !result.success) throw new Error(result?.error?.message || 'Preview failed')
+        if (!res.ok || !result.success) {
+          throw new Error(result?.error?.message || 'Preview failed')
+        }
 
-        const rows: PreviewRow[] = result.data
+        const rows: PreviewRow[] = result.data || []
+        if (rows.length === 0) {
+          throw new Error('No transactions found in this statement file.')
+        }
 
         // Derive default month from earliest transaction
         if (rows.length > 0) {
@@ -328,19 +352,44 @@ export default function StatementsPage() {
         setTotalParsed(rows.length)
         setPreviewRows(rows.slice(0, 20))
       } catch (err) {
-        toast.error('Failed to preview file. Check the format.')
-        console.error(err)
+        console.error('Preview error:', err)
+        setPreviewRows([])
+        setTotalParsed(0)
+        setParseError({
+          fileName: selectedFile.name,
+          accountName: selectedAccount?.accountName || 'Selected account',
+          bankName: selectedAccount?.bankName || selectedBankId,
+          message: err instanceof Error ? err.message : 'Failed to parse statement',
+        })
       } finally {
         setIsParsing(false)
       }
     }
 
     fetchPreview()
-  }, [selectedFile, selectedBankId])
+  }, [selectedFile, selectedBankId, selectedAccount])
+
+  const handleAccountChange = (accId: string | null) => {
+    setSelectedAccountId(accId ?? '')
+    setParseError(null)
+  }
+
+  const handleClearFile = () => {
+    setSelectedFile(null)
+    setPreviewRows([])
+    setTotalParsed(0)
+    setSelectedMonth('')
+    setParseError(null)
+  }
 
   const handleImport = async () => {
     if (!selectedFile || !selectedBankId || !selectedAccountId) {
-      toast.error('Please select a bank, account, and file first')
+      setParseError({
+        fileName: selectedFile?.name || 'Statement file',
+        accountName: selectedAccount?.accountName || 'Selected account',
+        bankName: selectedAccount?.bankName || selectedBankId,
+        message: 'Please select an account and upload a statement file first.',
+      })
       return
     }
 
@@ -350,6 +399,7 @@ export default function StatementsPage() {
     }
 
     setIsImporting(true)
+    setParseError(null)
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
@@ -379,7 +429,13 @@ export default function StatementsPage() {
       const updated = await apiClient.fetch<Statement[]>('/v1/statements')
       setStatements(updated)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Import failed')
+      console.error('Import error:', err)
+      setParseError({
+        fileName: selectedFile?.name || 'Statement file',
+        accountName: selectedAccount?.accountName || 'Selected account',
+        bankName: selectedAccount?.bankName || selectedBankId,
+        message: err instanceof Error ? err.message : 'Import failed',
+      })
     } finally {
       setIsImporting(false)
     }
@@ -395,7 +451,7 @@ export default function StatementsPage() {
     }
   }
 
-  const canImport = !!selectedFile && !!selectedAccountId && totalParsed > 0
+  const canImport = !!selectedFile && !!selectedAccountId && totalParsed > 0 && !parseError
 
   return (
     <div className="space-y-8">
@@ -408,78 +464,211 @@ export default function StatementsPage() {
       </div>
 
       {/* Upload section */}
-      <div className="rounded-2xl border border-border bg-card/50 p-6 space-y-5">
-        <h2 className="text-sm font-semibold text-foreground/80 uppercase tracking-wide">Import Statement</h2>
+      <div className="rounded-2xl border border-border bg-card/50 p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground/80 uppercase tracking-wide">Import Statement</h2>
+          {selectedAccount && (
+            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium">
+              {selectedAccount.bankName} · {selectedAccount.accountType === 'credit_card' ? 'Credit Card' : 'Bank Account'}
+            </span>
+          )}
+        </div>
 
-        {/* Account selector */}
-        <Select value={selectedAccountId} onValueChange={(v) => setSelectedAccountId(v || '')}>
-          <SelectTrigger className="bg-muted border-border text-foreground/90 w-full sm:w-[300px]" disabled={accounts.length === 0}>
-            <SelectValue placeholder={accounts.length === 0 ? 'No accounts yet' : 'Select account'} />
-          </SelectTrigger>
-          <SelectContent className="bg-card border-border">
-            {accounts.map((a) => (
-              <SelectItem key={a.id} value={a.id} className="text-foreground/90 focus:bg-muted">
-                {a.accountName} — {a.bankName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Dropzone */}
-        <UploadDropzone
-          onFileSelect={setSelectedFile}
-          selectedFile={selectedFile}
-          onClear={() => {
-            setSelectedFile(null)
-            setPreviewRows([])
-            setTotalParsed(0)
-            setSelectedMonth('')
-          }}
-        />
-
-        {/* Parsing indicator */}
-        {isParsing && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-4 h-4 border-2 border-border border-t-primary rounded-full animate-spin" />
-            Parsing statement…
-          </div>
-        )}
-
-        {/* Month selector */}
-        {totalParsed > 0 && !isParsing && (
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-muted-foreground">Tag to month:</label>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground/90 focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-        )}
-
-        {/* Preview */}
-        {previewRows.length > 0 && !isParsing && (
-          <PreviewTable rows={previewRows} totalCount={totalParsed} />
-        )}
-
-        {/* Import button */}
-        {totalParsed > 0 && !isParsing && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/15 text-primary border border-primary/20">
-                {totalParsed} transactions ready
-              </span>
-              <span className="text-muted-foreground/70">from {selectedFile?.name}</span>
+        {accounts.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-8 flex flex-col items-center justify-center text-center bg-muted/20">
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mb-3">
+              <Landmark size={24} className="text-muted-foreground/70" />
             </div>
-            <Button
-              onClick={handleImport}
-              disabled={!canImport || isImporting}
-              className="bg-primary hover:bg-primary text-white gap-2"
-            >
-              <UploadCloud size={16} />
-              {isImporting ? 'Importing…' : 'Confirm Import'}
-            </Button>
+            <p className="text-sm font-semibold text-foreground/90 mb-1">No accounts found</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              Add a bank or credit card account first to start importing statements.
+            </p>
+            <Link href="/accounts">
+              <Button size="sm" variant="outline" className="gap-2 text-xs">
+                <Landmark size={14} />
+                Go to Accounts
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Step 1: Account selector */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Step 1: Choose Account
+                </label>
+                {selectedAccountId && (
+                  <span className="text-xs text-emerald-400 flex items-center gap-1 font-medium">
+                    ✓ Account selected
+                  </span>
+                )}
+              </div>
+              <Select value={selectedAccountId} onValueChange={handleAccountChange}>
+                <SelectTrigger
+                  id="account-select-trigger"
+                  className="bg-muted border-border text-foreground/90 w-full sm:w-[340px]"
+                >
+                  <SelectValue placeholder="Choose an account to import into..." />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id} className="text-foreground/90 focus:bg-muted">
+                      {a.accountName} — {a.bankName} ({a.accountType === 'credit_card' ? 'Credit Card' : 'Bank'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectedAccountId && (
+                <p className="text-xs text-muted-foreground">
+                  Select your bank or credit card account before uploading your statement file.
+                </p>
+              )}
+            </div>
+
+            {/* Step 2: Statement Dropzone - ONLY shown after account is chosen */}
+            {!selectedAccountId ? (
+              <div className="rounded-xl border border-dashed border-border/80 p-8 flex flex-col items-center justify-center text-center bg-muted/10">
+                <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mb-3">
+                  <FileSpreadsheet size={24} className="text-muted-foreground/60" />
+                </div>
+                <p className="text-sm font-medium text-foreground/80 mb-1">Choose an account above</p>
+                <p className="text-xs text-muted-foreground max-w-sm">
+                  Once you select an account, you&apos;ll be able to drop your bank statement here for parsing.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Step 2: Upload Bank Statement
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    Target: <strong className="text-foreground/90">{selectedAccount?.accountName}</strong>
+                  </span>
+                </div>
+
+                <UploadDropzone
+                  onFileSelect={(file) => {
+                    setParseError(null)
+                    setSelectedFile(file)
+                  }}
+                  selectedFile={selectedFile}
+                  description={`Upload statements for ${selectedAccount?.accountName} (${selectedAccount?.bankName})`}
+                  onClear={handleClearFile}
+                />
+
+                {/* Parsing error notification banner */}
+                {parseError && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50/90 dark:border-rose-800/60 dark:bg-rose-950/40 p-5 space-y-4 animate-in fade-in-50 duration-200 shadow-xs">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-10 h-10 rounded-lg bg-rose-100 border border-rose-200 dark:bg-rose-900/60 dark:border-rose-800 flex items-center justify-center shrink-0 text-rose-700 dark:text-rose-300 mt-0.5 shadow-2xs">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-rose-950 dark:text-rose-100">
+                          Unable to parse statement
+                        </h3>
+                        <p className="text-sm text-rose-900 dark:text-rose-200/95 leading-relaxed">
+                          We couldn&apos;t parse <span className="font-semibold text-rose-950 underline decoration-rose-400 dark:text-white dark:decoration-rose-400/60">{parseError.fileName}</span> with your selected account{' '}
+                          <span className="font-semibold text-rose-950 dark:text-white">{parseError.accountName}</span> ({parseError.bankName}).
+                        </p>
+                        <p className="text-xs text-rose-800 dark:text-rose-300/90 leading-relaxed">
+                          You might have chosen the wrong account. Please check your account selection above or change it.
+                        </p>
+                        <div className="text-xs text-rose-800/90 dark:text-rose-300/80 leading-relaxed pt-2.5 border-t border-rose-200/80 dark:border-rose-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <span>
+                            If we don&apos;t support this bank or statement format yet, please write to us to request adding support.
+                          </span>
+                          <a
+                            href={`mailto:hello@rohanmallya.com?subject=${encodeURIComponent(
+                              `Bank Support Request - ${parseError.bankName || 'New Bank'}`
+                            )}&body=${encodeURIComponent(
+                              `Hi Rohan,\n\nI tried importing a statement for ${parseError.accountName} (${parseError.bankName}) with file "${parseError.fileName}", but parsing failed.\n\nCould you please add support for this statement format?\n\nThanks!`
+                            )}`}
+                            className="inline-flex items-center gap-1.5 text-xs text-white bg-rose-600 hover:bg-rose-700 dark:bg-rose-600 dark:hover:bg-rose-500 rounded-lg px-2.5 py-1.5 font-medium transition-colors shrink-0 w-fit shadow-xs"
+                          >
+                            <Mail size={13} />
+                            Write to hello@rohanmallya.com
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-rose-200/80 dark:border-rose-800/40">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const trigger = document.getElementById('account-select-trigger')
+                          trigger?.focus()
+                          trigger?.click()
+                        }}
+                        className="border-rose-300 bg-white hover:bg-rose-100/70 text-rose-900 shadow-2xs dark:border-rose-700 dark:bg-rose-900/40 dark:text-rose-100 dark:hover:bg-rose-900/70 text-xs h-8 font-medium"
+                      >
+                        Change Account
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleClearFile}
+                        className="text-rose-800 hover:text-rose-950 hover:bg-rose-100/70 dark:text-rose-300 dark:hover:text-white dark:hover:bg-rose-900/30 text-xs h-8 font-medium"
+                      >
+                        Try another file
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Parsing indicator */}
+                {isParsing && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <div className="w-4 h-4 border-2 border-border border-t-primary rounded-full animate-spin" />
+                    Parsing statement…
+                  </div>
+                )}
+
+                {/* Month selector */}
+                {totalParsed > 0 && !isParsing && !parseError && (
+                  <div className="flex items-center gap-3 pt-2">
+                    <label className="text-sm text-muted-foreground">Tag to month:</label>
+                    <input
+                      type="month"
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground/90 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                )}
+
+                {/* Preview */}
+                {previewRows.length > 0 && !isParsing && !parseError && (
+                  <PreviewTable rows={previewRows} totalCount={totalParsed} />
+                )}
+
+                {/* Import button */}
+                {totalParsed > 0 && !isParsing && !parseError && (
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/15 text-primary border border-primary/20">
+                        {totalParsed} transactions ready
+                      </span>
+                      <span className="text-muted-foreground/70">from {selectedFile?.name}</span>
+                    </div>
+                    <Button
+                      onClick={handleImport}
+                      disabled={!canImport || isImporting}
+                      className="bg-primary hover:bg-primary text-white gap-2"
+                    >
+                      <UploadCloud size={16} />
+                      {isImporting ? 'Importing…' : 'Confirm Import'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

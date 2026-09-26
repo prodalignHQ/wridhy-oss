@@ -9,9 +9,10 @@ interface UploadDropzoneProps {
   selectedFile: File | null
   onClear: () => void
   accept?: string
+  description?: string
 }
 
-export function UploadDropzone({ onFileSelect, selectedFile, onClear, accept }: UploadDropzoneProps) {
+export function UploadDropzone({ onFileSelect, selectedFile, onClear, accept, description }: UploadDropzoneProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -90,7 +91,9 @@ export function UploadDropzone({ onFileSelect, selectedFile, onClear, accept }: 
       <p className="text-base font-semibold text-foreground/90 mb-1">
         {isDragOver ? 'Release to upload' : 'Drop your bank statement here'}
       </p>
-      <p className="text-sm text-muted-foreground">Supports CSV, PDF and Excel from ICICI Bank</p>
+      <p className="text-sm text-muted-foreground">
+        {description ?? 'Supports CSV, PDF and Excel statement files'}
+      </p>
       <p className="text-xs text-muted-foreground/70 mt-3">or click to browse</p>
 
       <input

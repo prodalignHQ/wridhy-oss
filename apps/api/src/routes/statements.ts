@@ -101,6 +101,18 @@ statementsRoute.post('/preview', async (c) => {
 
   try {
     const parsedTxns = await parser.parse(buffer)
+    if (parsedTxns.length === 0) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: 'PARSE_ERROR',
+            message: 'No transactions found. The file could not be parsed for this account type.',
+          },
+        },
+        422
+      )
+    }
     return c.json({
       success: true,
       data: parsedTxns.map((t) => ({
