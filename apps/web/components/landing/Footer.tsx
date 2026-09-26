@@ -34,12 +34,11 @@ export default function Footer() {
               ₹
             </span>
             <span className="font-semibold text-white">MoMoney</span>
-            <span>· MIT open source</span>
+            <span>· Private by default</span>
           </div>
           <div className="flex gap-5">
             <a href="#features" className="hover:text-white">Features</a>
             <a href="#privacy" className="hover:text-white">Privacy</a>
-            <a href="#docs" className="hover:text-white">Docs</a>
           </div>
         </div>
       </div>

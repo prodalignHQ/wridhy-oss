@@ -39,21 +39,21 @@ export default function HowItWorks() {
             <p className="text-3xl">🔒</p>
             <h3 className="mt-2 text-xl font-bold">Your data never leaves you.</h3>
             <p className="mt-2 text-sm leading-relaxed text-white/85">
-              Single-file app + local SQLite. No bank logins, no scrapers, no ads. Delete anytime — it&apos;s literally a file.
+              Everything stays on your device. No bank logins, no ads, no selling data. Delete anytime.
             </p>
             <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
               <span className="rounded-full bg-white/15 px-3 py-1.5">✓ 100% offline</span>
-              <span className="rounded-full bg-white/15 px-3 py-1.5">✓ Zero cloud needed</span>
-              <span className="rounded-full bg-white/15 px-3 py-1.5">✓ MIT licensed</span>
+              <span className="rounded-full bg-white/15 px-3 py-1.5">✓ No cloud needed</span>
+              <span className="rounded-full bg-white/15 px-3 py-1.5">✓ You own your data</span>
             </div>
           </div>
           <div className="rounded-2xl border-2 border-border bg-card p-6 sm:p-8">
             <p className="text-3xl">☁️</p>
-            <h3 className="mt-2 text-xl font-bold">Want it everywhere? Self-host.</h3>
+            <h3 className="mt-2 text-xl font-bold">Use it on all your devices.</h3>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Same app, your server, Postgres. Phone + laptop in sync. You hold the keys.
+              Phone + laptop stay in sync. Your money, always with you, safely.
             </p>
-            <div id="docs" className="mt-4 flex scroll-mt-24 flex-col gap-2 sm:flex-row">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <Link
                 href="/dashboard"
                 className="rounded-xl bg-primary px-5 py-2.5 text-center text-sm font-semibold text-white"
@@ -61,10 +61,10 @@ export default function HowItWorks() {
                 Try the demo →
               </Link>
               <a
-                href="https://github.com"
+                href="#features"
                 className="rounded-xl border-2 border-border px-5 py-2 text-center text-sm font-semibold hover:bg-muted"
               >
-                ⭐ Star on GitHub
+                👀 See features
               </a>
             </div>
           </div>

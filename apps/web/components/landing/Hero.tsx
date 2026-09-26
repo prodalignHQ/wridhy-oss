@@ -29,7 +29,7 @@ export default function Hero() {
 
           <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
             Drop in bank statements. MoMoney cleans, splits & explains them.
-            Offline-first. No snooping.
+            Works offline. No snooping.
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -118,7 +118,7 @@ export default function Hero() {
       {/* ticker strip */}
       <div className="border-y-2 border-border bg-primary py-2.5 text-white">
         <p className="mx-auto max-w-6xl overflow-hidden whitespace-nowrap px-4 text-center text-[13px] font-semibold tracking-wide sm:text-sm">
-          NO TRACKERS ✦ NO BANK LOGINS ✦ NO SUBSCRIPTIONS ✦ YOUR DATA STAYS YOURS ✦ MIT OPEN SOURCE ✦
+          NO TRACKERS ✦ NO BANK LOGINS ✦ NO SUBSCRIPTIONS ✦ YOUR DATA STAYS YOURS ✦ MADE FOR FAMILIES ✦
         </p>
       </div>
     </section>

@@ -5,9 +5,13 @@ export async function middleware(request: NextRequest) {
   const sessionToken = request.cookies.get('better-auth.session_token')
   const { pathname } = request.nextUrl
   
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup')
+  const isPublicRoute =
+    pathname === "/" ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/verify-email")
 
-  if (!sessionToken && !isAuthRoute) {
+  if (!sessionToken && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

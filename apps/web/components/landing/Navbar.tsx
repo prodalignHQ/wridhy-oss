@@ -8,7 +8,6 @@ const links = [
   { label: "Features", href: "#features" },
   { label: "How it works", href: "#how" },
   { label: "Privacy", href: "#privacy" },
-  { label: "Docs", href: "#docs" },
 ]
 
 export default function Navbar() {
