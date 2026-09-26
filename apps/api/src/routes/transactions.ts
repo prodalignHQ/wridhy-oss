@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { db } from '@momoney/db'
+import { db, isSqlite } from '@momoney/db'
 import {
   transactions,
   transactionOwners,
@@ -9,7 +9,7 @@ import {
 } from '@momoney/db'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, or, ilike, gte, lte, inArray, desc, asc, sql, isNull } from 'drizzle-orm'
+import { eq, and, or, ilike, like, gte, lte, inArray, desc, asc, sql, isNull } from 'drizzle-orm'
 import { authMiddleware } from '../middleware/auth.js'
 
 export const transactionsRoute = new Hono<{
@@ -42,7 +42,7 @@ transactionsRoute.get('/', zValidator('query', listQuerySchema), async (c) => {
   if (accountId) conditions.push(eq(transactions.accountId, accountId))
   if (categoryId) conditions.push(eq(transactions.categoryId, categoryId))
   if (isOneTime !== undefined) conditions.push(eq(transactions.isOneTime, isOneTime))
-  if (search) conditions.push(ilike(transactions.description, `%${search}%`))
+  if (search) conditions.push((isSqlite ? like : ilike)(transactions.description, `%${search}%`))
   if (startDate) conditions.push(gte(transactions.date, new Date(startDate)))
   if (endDate) conditions.push(lte(transactions.date, new Date(endDate)))
 

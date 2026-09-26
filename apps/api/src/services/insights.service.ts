@@ -1,4 +1,4 @@
-import { db } from '@momoney/db'
+import { db, isSqlite } from '@momoney/db'
 import {
   transactions,
   transactionOwners,
@@ -16,6 +16,18 @@ import {
   AccountingMode,
 } from '@momoney/types'
 
+const txnDateMonthSql = isSqlite
+  ? sql<string>`strftime('%Y-%m', ${transactions.date}, 'unixepoch')`
+  : sql<string>`to_char(${transactions.date}::date, 'YYYY-MM')`
+
+const invoiceMonthSql = isSqlite
+  ? sql<string>`strftime('%Y-%m', ${invoices.invoiceMonth})`
+  : sql<string>`to_char(${invoices.invoiceMonth}, 'YYYY-MM')`
+
+const statementMonthSql = isSqlite
+  ? sql<string>`strftime('%Y-%m', ${statements.statementMonth})`
+  : sql<string>`to_char(${statements.statementMonth}, 'YYYY-MM')`
+
 /**
  * Resolves the effective grouping month (YYYY-MM) for a transaction.
  * In 'invoice' mode:
@@ -27,13 +39,13 @@ import {
  */
 function getEffectiveMonthExpr(mode: AccountingMode) {
   if (mode === 'transaction') {
-    return sql<string>`to_char(${transactions.date}::date, 'YYYY-MM')`
+    return txnDateMonthSql
   }
   return sql<string>`
     COALESCE(
-      to_char(${invoices.invoiceMonth}, 'YYYY-MM'),
-      to_char(${statements.statementMonth}, 'YYYY-MM'),
-      to_char(${transactions.date}::date, 'YYYY-MM')
+      ${invoiceMonthSql},
+      ${statementMonthSql},
+      ${txnDateMonthSql}
     )
   `
 }
@@ -160,7 +172,7 @@ export class InsightsService {
 
     // ── Uncategorized count ──
     const uncategorizedResult = await db
-      .select({ count: sql<number>`count(*)::int` })
+      .select({ count: sql<number>`count(*)` })
       .from(transactions)
       .leftJoin(statements, eq(transactions.statementId, statements.id))
       .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
@@ -171,7 +183,7 @@ export class InsightsService {
     const matchedInvoice = await db.query.invoices.findFirst({
       where: and(
         eq(invoices.userId, userId),
-        sql`to_char(${invoices.invoiceMonth}, 'YYYY-MM') = ${month}`
+        sql`${invoiceMonthSql} = ${month}`
       ),
       with: {
         statements: true,
@@ -181,7 +193,7 @@ export class InsightsService {
     const stmtsForMonth = await db.query.statements.findMany({
       where: and(
         eq(statements.userId, userId),
-        sql`to_char(${statements.statementMonth}, 'YYYY-MM') = ${month}`
+        sql`${statementMonthSql} = ${month}`
       ),
       with: {
         account: true,

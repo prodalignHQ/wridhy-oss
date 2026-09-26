@@ -31,8 +31,14 @@ pnpm --filter @momoney/db exec tsx src/seed.ts
 
 ### Building & Linting
 ```bash
-# Build all packages and apps
+# Build all packages and apps (hosted/PostgreSQL mode)
 pnpm build
+
+# Build single standalone binary (SQLite embedded, zero-setup for non-tech users)
+pnpm run build:binary
+
+# Cross-compile standalone binary for macOS, Linux, and Windows
+pnpm run build:binary:all
 
 # Type-check all
 pnpm type-check
@@ -95,7 +101,14 @@ All routes live in `src/routes/` and are versioned under `/v1/`. Every route fil
 
 ### Database Schema Key Concepts
 
-All tables in `packages/db/src/schema.ts`. Key relationships:
+Schema files in `packages/db/src/`:
+- `schema.ts` — PostgreSQL schema (hosted mode).
+- `schema.sqlite.ts` — SQLite schema (standalone binary mode).
+- `sqlite-init.ts` — SQLite table creation DDL and indexes.
+
+> **CRITICAL RULE**: Whenever adding or altering tables/columns in `schema.ts`, you **must** also update `schema.sqlite.ts` and `sqlite-init.ts` to keep SQLite and PostgreSQL in sync!
+
+Key relationships:
 
 - **`owners`** — People who share finances (e.g., "Self", "Partner"). Transactions can be split between multiple owners via the `transaction_owners` junction table, which tracks each owner's `amount` and `percentage` share.
 - **`categories`** — `userId = NULL` means system-level (shared); user-created categories have a `userId`. Supports parent/child hierarchy via `parentId`.

@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./auth": "./src/auth.ts",
-    "./email": "./src/email.ts"
+    "./email": "./src/email.ts",
+    "./local-seed": "./src/local-seed.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
@@ -18,9 +19,11 @@
   },
   "dependencies": {
     "better-auth": "^1.5.5",
+    "better-sqlite3": "^13.0.3",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.13.10",
     "drizzle-kit": "^0.31.9",
     "drizzle-orm": "^0.45.1",

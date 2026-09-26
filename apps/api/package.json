@@ -20,6 +20,7 @@
     "@momoney/types": "workspace:*",
     "@momoney/utils": "workspace:*",
     "better-auth": "^1.5.5",
+    "better-sqlite3": "^13.0.3",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.7.4",

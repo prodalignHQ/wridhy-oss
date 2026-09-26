@@ -1,7 +1,8 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { db } from './index.js'
+import { db, isSqlite } from './index.js'
 import * as schema from './schema.js'
+import * as sqliteSchema from './schema.sqlite.js'
 import { owners } from './schema.js'
 import { sendEmail } from './email.js'
 
@@ -28,8 +29,8 @@ export const auth = betterAuth({
     },
   },
   database: drizzleAdapter(db, {
-    provider: 'pg',
-    schema,
+    provider: isSqlite ? 'sqlite' : 'pg',
+    schema: isSqlite ? (sqliteSchema as any) : schema,
     usePlural: true,
   }),
   emailAndPassword: {
@@ -41,12 +42,20 @@ export const auth = betterAuth({
     sendOnSignIn: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
-      await sendEmail({
-        to: user.email,
-        subject: 'Verify your MoMoney email',
-        text: `Verify your email for MoMoney by visiting this link:\n\n${url}`,
-        html: `<p>Verify your email for <strong>MoMoney</strong>.</p><p><a href="${url}">Verify email</a></p><p>${url}</p>`,
-      })
+      if (isSqlite || process.env['MOMONEY_LOCAL_MODE'] === 'true') {
+        console.log(`[Local Auth] Verification URL: ${url}`)
+        return
+      }
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: 'Verify your MoMoney email',
+          text: `Verify your email for MoMoney by visiting this link:\n\n${url}`,
+          html: `<p>Verify your email for <strong>MoMoney</strong>.</p><p><a href="${url}">Verify email</a></p><p>${url}</p>`,
+        })
+      } catch (err) {
+        console.warn('Failed to send verification email, continuing:', err)
+      }
     },
   },
   databaseHooks: {

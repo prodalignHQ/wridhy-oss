@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   ArrowDown,
@@ -326,7 +326,7 @@ function InvoiceListSection({
   )
 }
 
-export default function InvoicesPage() {
+function InvoicesContent() {
   const searchParams = useSearchParams()
   const requestedMonth = searchParams.get('month')?.slice(0, 7) ?? ''
 
@@ -2417,5 +2417,13 @@ export default function InvoicesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function InvoicesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading invoices...</div>}>
+      <InvoicesContent />
+    </Suspense>
   )
 }

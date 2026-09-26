@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "build:binary": "NEXT_OUTPUT_EXPORT=true NEXT_PUBLIC_API_URL=\"\" pnpm --filter web build && bun scripts/bundle-assets.ts && bun build apps/api/src/standalone.ts --compile --outfile dist/momoney",
+    "build:binary:all": "NEXT_OUTPUT_EXPORT=true NEXT_PUBLIC_API_URL=\"\" pnpm --filter web build && bun scripts/bundle-assets.ts && bun build apps/api/src/standalone.ts --compile --outfile dist/momoney && bun build apps/api/src/standalone.ts --compile --target=bun-linux-x64 --outfile dist/momoney-linux-x64 && bun build apps/api/src/standalone.ts --compile --target=bun-windows-x64 --outfile dist/momoney-windows-x64.exe",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "clean": "turbo clean"

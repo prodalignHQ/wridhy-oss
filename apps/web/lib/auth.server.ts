@@ -16,6 +16,22 @@ type AuthSession = {
 }
 
 export async function getServerSession(): Promise<AuthSession | null> {
+  if (process.env.NEXT_OUTPUT_EXPORT === 'true') {
+    return {
+      session: {
+        id: 'local-session',
+        userId: 'local-user',
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      user: {
+        id: 'local-user',
+        email: 'local@momoney.internal',
+        emailVerified: true,
+        name: 'Local User',
+      },
+    }
+  }
+
   const cookieStore = await cookies()
   const cookieHeader = cookieStore.toString()
 

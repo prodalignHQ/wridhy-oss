@@ -1,80 +1,116 @@
-# MoMoney
+# 💰 MoMoney
 
-Privacy-first personal finance application focusing on data ownership, transparent categorization, and actionable insights.
+> **Take complete control of your personal finances. Private, fast, and built for you.**
 
-## Project Structure
+MoMoney is a modern, privacy-first personal finance management platform and net worth tracker. It is designed for individuals, families, and freelancers who want complete ownership over their financial life—without monthly subscriptions, privacy-invasive data aggregators, or vendor lock-in.
 
-This project is a Turborepo monorepo using `pnpm` workspaces. It is divided into two main applications (frontend and backend API) and shared internal packages.
+Whether you want a lightweight single-file desktop application running 100% offline on your laptop, or a self-hosted cloud platform accessible anywhere, MoMoney adapts to your workflow.
 
-### Apps (`/apps`)
+---
 
-- `web`: The Next.js 16 frontend app using App Router and Tailwind CSS v4. Contains the dashboard, statements upload UI, and transaction management interfaces.
-- `api`: A minimal lightweight Hono.js backend API meant to support both the web app and future mobile applications.
+## 🌟 Key Features
 
-### Packages (`/packages`)
+### 📊 1. Unified Financial Command Center
+Get an instant, crystal-clear snapshot of your entire financial health the moment you log in.
+- **Cash Flow at a Glance**: Track real-time monthly income, expenses, and net savings.
+- **Spending Velocity**: See how your current month compares against historical averages before you overspend.
+- **Visual Trends**: Beautiful, intuitive charts that illuminate where your money is flowing.
 
-- `db`: The global database schema definition using **Drizzle ORM** (PostgreSQL). It exports all tables (users, accounts, transactions, statements, categories, rules, assets, liabilities) as well as the Drizzle database client.
-- `types`: Shared **Zod** models and inferred Typescript types used by both the frontend and the `api`. It enforces type safety across the entire monorepo boundaries.
-- `utils`: Shared isomorphic utility functions (currency formatters, string hashers, `cn` class merger for Tailwind, color assignment logic).
+<!-- SCREENSHOT: Main Dashboard overview showing cash flow chart, monthly savings, and recent activity -->
 
-## Setup & Running Locally
+---
 
-1. **Install Dependencies**
-   Run the following from the root directory:
+### 💳 2. All Your Accounts in One Place
+Eliminate the chaos of logging into five different banking portals and credit card apps.
+- **Unified Register**: View checking accounts, savings accounts, credit cards, and investment portfolios in a single ledger.
+- **Lightning-Fast Search**: Instantly find any transaction by keyword, merchant, category, date range, or amount.
+- **Clean Interface**: Visual category badges, account pills, and clear debit/credit indicators.
 
-   ```bash
-   pnpm install
-   ```
+<!-- SCREENSHOT: Interactive transaction ledger with search filters, category tags, and account indicators -->
 
-2. **Environment Variables**
-   Set up your environment variables for the API and Database. Create a `.env` inside `apps/api/`:
-   
-   ```bash
-   DATABASE_URL=postgres://momoney:momoney_dev@localhost:5432/momoney_db
-   BETTER_AUTH_SECRET=your_super_secret_string
-   ```
+---
 
-3. **Database Setup**
-   The project uses PostgreSQL. A `docker-compose.yml` file is provided at the root:
+### 📄 3. Drag-and-Drop Bank Statement Imports
+Importing your financial data should take seconds, not hours of copy-pasting into spreadsheets.
+- **Format Flexibility**: Drop your monthly bank statements in CSV, Excel (`.xls`, `.xlsx`), or PDF format.
+- **Built-in Parsers**: Out-of-the-box support for leading banks (HDFC Savings, HDFC Credit Cards, ICICI Bank, and more).
+- **Zero Duplicates**: Smart SHA-256 fingerprinting ensures you can re-import statements without creating duplicate transactions.
 
-   ```bash
-   # Start the local database
-   docker-compose up -d
-   ```
+<!-- SCREENSHOT: Statement upload interface with drag-and-drop file zone and statement history -->
 
-4. **Initialize Database Schema**
-   Once the database is running, push the Drizzle ORM schema to create the initial tables (this includes the tables required for `better-auth` as they are woven into the Drizzle schema):
+---
 
-   ```bash
-   pnpm --filter @momoney/db exec drizzle-kit push
-   ```
+### ⚡ 4. Automated Categorization & Rules Engine
+Tired of manually labeling transactions every weekend? Let MoMoney do the tedious work for you.
+- **Pattern-Matching Rules**: Create custom rules that automatically detect recurring vendors and assign the right categories.
+- **Merchant Normalization**: Cleans cryptic bank descriptions (`POS 491028 SWIGGY BANGALORE IN` $\rightarrow$ `Swiggy`).
+- **Priority Ordering**: Fine-tune your rules with priority evaluation so specific conditions always override general rules.
 
-   > **Note:** `drizzle-kit push` is interactive — it will show pending changes and wait for confirmation. Use arrow keys to select "Yes" and press Enter. If you need a non-interactive alternative, you can pipe the confirmation:
-   > ```bash
-   > yes | pnpm --filter @momoney/db exec drizzle-kit push
-   > ```
+<!-- SCREENSHOT: Rules management screen showing keyword matching conditions and category mapping -->
 
-   *(Optional) If you ever need to apply Better Auth specific migrations directly via their CLI, you can run `DATABASE_URL=... pnpm dlx @better-auth/cli migrate`*.
+---
 
-5. **Start Development Servers**
-   To start both the Next.js web application and the Hono.js API server simultaneously, run:
+### 👥 5. Multi-Owner Expense Tracking & Splitting
+Perfect for couples, roommates, and small business owners managing shared finances.
+- **Owner Tagging**: Attribute transactions to specific people (e.g. *Self*, *Partner*, *Kids*, *Business*).
+- **Split Transactions**: Split a single bill across multiple owners by exact percentage or fixed dollar amount.
+- **Shared vs. Personal Breakdown**: See exactly who spent what, making monthly reimbursements and budgeting painless.
 
-   ```bash
-   pnpm dev
-   ```
+<!-- SCREENSHOT: Split expense modal showing multi-owner percentage allocation -->
 
-   This will spin up:
-   - **Web App**: http://localhost:3000
-   - **API Server Check**: http://localhost:3001/health
+---
 
-> **Note on Ports:** If `pnpm dev` fails to start due to port conflicts, ensure you don't have zombie Node/Next.js processes running. You can kill them using `lsof -ti :3000,3001 | xargs kill -9`.
+### 🧾 6. Monthly Invoices & Family Expense Settlement
+Real-world finances don't follow rigid calendar boundaries: when you swipe a credit card in August, that money actually leaves your account in September when you clear the bill. MoMoney's Invoicing system solves this by letting you pool and settle your true monthly outflow:
+- **Pool Statements into an Invoice**: Aggregate multiple statements (credit cards, checking accounts, household bills) into a single monthly spending invoice representing your actual cash outlay.
+- **Categorize & Allocate Owners**: Review all aggregated line items in one place, adjusting categories and assigning who is responsible for each expense.
+- **Settle with Family & Friends**: Generate a clean, transparent invoice breaking down each person's exact share, ready to share with family members, partners, or roommates to settle balances effortlessly.
 
-## Development Phases
+<!-- SCREENSHOT: Monthly Invoice view showing pooled statement items and per-owner settlement breakdown -->
 
-This project is being built in distinct phases. We have currently completed **Phase 0:**
+---
 
-- Setup monorepo structure
-- Drizzle schema definition
-- Shared typing definitions
-- Next.js 16 Dark-mode app shell with Shadcn UI custom components
-- Minimal API health check and route stubs
+### 📈 7. Long-Term Net Worth & Asset Tracking
+Building wealth requires seeing the big picture. Track your assets and liabilities over time.
+- **Comprehensive Asset Coverage**: Track bank balances, stocks, mutual funds, real estate, gold, and retirement funds (EPF/PPF/401k).
+- **Liability Tracking**: Monitor mortgages, car loans, education debt, and credit balances.
+- **Monthly Net Worth Snapshots**: Automatically record monthly snapshots to visualize your net worth growth trajectory over months and years.
+
+<!-- SCREENSHOT: Net worth dashboard showing asset vs. liability breakdown and trajectory graph -->
+
+---
+
+### 💡 8. Deep Financial Insights & Analytics
+Gain deep clarity on your spending habits with data-driven insights.
+- **Category Deep Dives**: Drill into specific categories (e.g. Dining, Subscriptions, Utilities) to see spending patterns.
+- **Trajectory Analysis**: Compare your month-over-month savings rate to ensure you stay on track with your financial goals.
+- **Smart Budgeting**: Identify unnecessary recurring expenses and leaky subscriptions before they compound.
+
+<!-- SCREENSHOT: Insights page with visual category distribution and monthly spending trends -->
+
+---
+
+### 🔒 9. 100% Data Privacy & Total Freedom
+Your financial data is private. It should never be mined, monetized, or shared with third parties.
+- **Local-First Architecture**: Run MoMoney as a single self-contained application with an offline SQLite database stored entirely on your computer.
+- **Zero Cloud Required**: No third-party data aggregators scraping your bank credentials.
+- **Self-Host Anywhere**: When you want cloud access across multiple devices, self-host MoMoney on your own private server using PostgreSQL.
+
+---
+
+## 📚 Documentation & Guides
+
+Explore our dedicated guides for installation, configuration, and customization:
+
+| Guide | Description |
+| :--- | :--- |
+| 🚀 **[Installation (Non-Developers)](docs/installation-non-dev.md)** | Download the single-file binary and get running in seconds on Mac, Linux, or Windows with zero coding or setup. |
+| 🛠️ **[Installation (Developers)](docs/installation-developers.md)** | Step-by-step developer setup: bootstrapping SQLite or PostgreSQL, running development servers, and compiling binaries. |
+| ⚙️ **[Configuration Reference](docs/configuration.md)** | Complete reference of all environment variables, database options, authentication settings, and email drivers. |
+| 🧩 **[Customization & Developer Guides](docs/customization/index.md)** | Architecture guides, writing custom bank parsers, categorization rules, and essential guidelines for AI agents & contributors. |
+
+---
+
+## 📄 License
+
+MoMoney is open source under the MIT License.

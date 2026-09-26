@@ -1,6 +1,6 @@
 export const apiClient = {
   fetch: async <T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-    const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    const baseURL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
     const url = `${baseURL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
 
     const response = await fetch(url, {
