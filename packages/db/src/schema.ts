@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, integer, numeric, boolean, jsonb, pgEnum, date } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, uuid, integer, numeric, boolean, jsonb, pgEnum, date, primaryKey } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
@@ -299,8 +299,8 @@ export const netWorthDrafts = pgTable('net_worth_drafts', {
 // XChaCha20-Poly1305(plaintext snapshot) under a client-held DEK. The server
 // NEVER sees the DEK, the password, or any plaintext. Key wraps:
 //   - wrappedDekPassword: DEK wrapped by Argon2id(password, salt) KEK
-//   - wrappedDekPrf: DEK wrapped by WebAuthn PRF output (passkey unlock)
 //   - wrappedDekRecovery: DEK wrapped by Argon2id(recovery code) KEK
+//   - vaultWraps rows: DEK wrapped by per-device WebAuthn PRF outputs
 // Each wrap value is base64(nonce24 || secretbox). `cipher`/`nonce` are the
 // encrypted snapshot envelope. See packages/local-engine/src/crypto.ts.
 
@@ -312,12 +312,26 @@ export const vaultBlobs = pgTable('vault_blobs', {
   opslimit: integer('opslimit').notNull(),
   memlimit: integer('memlimit').notNull(),
   wrappedDekPassword: text('wrapped_dek_password'), // base64(nonce||box), nullable until password set
-  wrappedDekPrf: text('wrapped_dek_prf'), // base64(nonce||box), nullable until passkey registered
-  prfCredentialId: text('prf_credential_id'), // base64url credential id for allowCredentials
   wrappedDekRecovery: text('wrapped_dek_recovery'), // base64(nonce||box), nullable until recovery issued
   version: integer('version').notNull().default(1),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+// ─── Vault Wraps (per-device passkey unlocks) ────────────────────────────────
+// PRF output is device-bound, so each passkey gets its own DEK wrap row.
+// credentialId is globally unique per authenticator; the composite PK scopes
+// it to the user. Revoking a row removes that device's unlock (full rotation
+// additionally re-encrypts — see backlog).
+
+export const vaultWraps = pgTable('vault_wraps', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  credentialId: text('credential_id').notNull(), // base64url, for allowCredentials
+  wrappedDek: text('wrapped_dek').notNull(), // base64(nonce||box) under the PRF output
+  label: text('label').notNull().default('Passkey'), // user-given device name
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.credentialId] }),
+])
 
 // ─── Relations ────────────────────────────────────────────────────────────────
 
@@ -337,6 +351,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   netWorthSnapshots: many(netWorthSnapshots),
   netWorthDraft: one(netWorthDrafts, { fields: [users.id], references: [netWorthDrafts.userId] }),
   vaultBlob: one(vaultBlobs, { fields: [users.id], references: [vaultBlobs.userId] }),
+  vaultWraps: many(vaultWraps),
 }))
 
 export const ownersRelations = relations(owners, ({ one, many }) => ({
@@ -424,6 +439,13 @@ export const netWorthDraftsRelations = relations(netWorthDrafts, ({ one }) => ({
 
 export const vaultBlobsRelations = relations(vaultBlobs, ({ one }) => ({
   user: one(users, { fields: [vaultBlobs.userId], references: [users.id] }),
+  // NOTE: wraps are fetched with a separate query in routes/vault.ts —
+  // vaultBlobs→vaultWraps shares only userId (no direct FK), so drizzle
+  // cannot infer a relational `with`. Do not add `many(vaultWraps)` here.
+}))
+
+export const vaultWrapsRelations = relations(vaultWraps, ({ one }) => ({
+  user: one(users, { fields: [vaultWraps.userId], references: [users.id] }),
 }))
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({

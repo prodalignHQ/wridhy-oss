@@ -1,11 +1,13 @@
 // E2E: opaque vault store round-trip against momoney_db_secure.
-// 1. Seeds a verified user + session directly in the new DB.
+// 1. Real signup + verified session.
 // 2. Builds a REAL encrypted envelope with @momoney/local-engine crypto.
-// 3. PUT → GET (byte-compare) → DELETE → GET (NO_VAULT).
+// 3. PUT → GET (byte-compare) → client decrypt → per-device wraps (register,
+//    list, per-device unwrap, cross-unwrap rejection, revoke) → versioned
+//    sync → stale-write conflict → DELETE → GET (NO_VAULT).
 // 4. Cleans up the test user.
 import 'dotenv/config'
-import { randomUUID } from 'crypto'
-import { db, users, vaultBlobs } from '@momoney/db'
+import { randomBytes, randomUUID } from 'crypto'
+import { db, users, vaultBlobs, vaultWraps } from '@momoney/db'
 import { eq } from 'drizzle-orm'
 import {
   createVaultParams,
@@ -101,6 +103,47 @@ async function main() {
     const dekBack = await unwrapDek(body.data['wrappedDekPassword'] as string, kek)
     const snapBack = await decryptSnapshot(body.data['cipher'] as string, body.data['nonce'] as string, dekBack)
     console.log('client decrypt txns:', (snapBack.transactions as unknown[]).length)
+
+    // Per-device wraps: register two fake-device wraps (PRF output simulated
+    // by random 32B — proves store mechanics; real PRF needs a browser).
+    const fakePrf1 = randomBytes(32)
+    const fakePrf2 = randomBytes(32)
+    const postWrap = async (credentialId: string, prf: Uint8Array, label: string) => {
+      const r = await req('/v1/vault/wraps', {
+        method: 'POST',
+        body: JSON.stringify({ credentialId, wrappedDek: wrapDek(dekBack, prf), label }),
+      })
+      if (r.status !== 201) throw new Error('wrap register failed: ' + (await r.text()).slice(0, 200))
+    }
+    await postWrap('cred-device-a', fakePrf1, 'Test MacBook')
+    await postWrap('cred-device-b', fakePrf2, 'Test Pixel')
+
+    res = await req('/v1/vault')
+    const withWraps = (await res.json()) as {
+      success: boolean
+      data: { wraps: Array<{ credentialId: string; label: string; wrappedDek: string }> }
+    }
+    console.log('wraps listed:', withWraps.data.wraps.length)
+    if (withWraps.data.wraps.length !== 2) throw new Error('Wraps not listed')
+    // Each device unwraps with its own PRF output; cross-unwrap must fail.
+    const w1 = withWraps.data.wraps.find((w) => w.credentialId === 'cred-device-a')!
+    const d1 = await unwrapDek(w1.wrappedDek, fakePrf1)
+    if (Buffer.from(d1).toString('hex') !== Buffer.from(dekBack).toString('hex')) throw new Error('Wrap 1 mismatch')
+    try {
+      await unwrapDek(w1.wrappedDek, fakePrf2)
+      throw new Error('cross-unwrap accepted')
+    } catch (e) {
+      if ((e as Error).message === 'cross-unwrap accepted') throw e
+    }
+    console.log('per-device wraps ok, cross-unwrap rejected: true')
+
+    // Revoke one device; the other keeps working.
+    res = await req('/v1/vault/wraps/cred-device-b', { method: 'DELETE' })
+    if (res.status !== 200) throw new Error('Revoke failed')
+    res = await req('/v1/vault')
+    const afterRevoke = (await res.json()) as { success: boolean; data: { wraps: unknown[] } }
+    if (afterRevoke.data.wraps.length !== 1) throw new Error('Revoke did not remove wrap')
+    console.log('revoke ok, remaining wraps: 1')
 
     // Encrypted sync: same DEK, new snapshot bytes, version-guarded.
     const env2 = encryptSnapshot({ ...snapshot, updatedAt: 'v2' }, dekBack)

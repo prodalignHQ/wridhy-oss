@@ -259,11 +259,18 @@ export function initSqliteDatabase(sqlite: SqliteDatabaseLike) {
       opslimit INTEGER NOT NULL,
       memlimit INTEGER NOT NULL,
       wrapped_dek_password TEXT,
-      wrapped_dek_prf TEXT,
-      prf_credential_id TEXT,
       wrapped_dek_recovery TEXT,
       version INTEGER NOT NULL DEFAULT 1,
       updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS vault_wraps (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      credential_id TEXT NOT NULL,
+      wrapped_dek TEXT NOT NULL,
+      label TEXT NOT NULL DEFAULT 'Passkey',
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, credential_id)
     );
 
     CREATE INDEX IF NOT EXISTS idx_transactions_userId_date ON transactions(user_id, date);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Landmark,
   CreditCard,
@@ -77,10 +78,12 @@ const AVATAR_BG: Record<string, string> = {
 }
 
 export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
+  const router = useRouter()
   const [currentMonth, setCurrentMonth] = useState(() => format(new Date(), 'yyyy-MM'))
   const [accounts, setAccounts] = useState<Account[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
   const [insights, setInsights] = useState<MonthlyInsight | null>(null)
+  const [showVaultBanner, setShowVaultBanner] = useState(false)
   
   const [loading, setLoading] = useState(true)
   const [insightsLoading, setInsightsLoading] = useState(false)
@@ -120,6 +123,32 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
     loadInitialData()
   }, [loadInitialData])
 
+  // Vault onboarding: no vault + not skipped → guided setup; skipped → banner.
+  useEffect(() => {
+    if (loading) return
+    let cancelled = false
+    import('@/lib/engine/vault-sync').then(async ({ fetchVaultBlob }) => {
+      const blob = await fetchVaultBlob().catch(() => 'error' as const)
+      if (cancelled) return
+      if (blob === null) {
+        let skipped = false
+        try {
+          skipped = sessionStorage.getItem('momoney_vault_onboarding_skip') === '1'
+        } catch {
+          // ignore
+        }
+        if (!skipped) {
+          router.replace('/onboarding/vault')
+        } else {
+          setShowVaultBanner(true)
+        }
+      }
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [loading, router])
+
   useEffect(() => {
     loadInsights(currentMonth)
   }, [currentMonth, loadInsights])
@@ -153,6 +182,27 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
 
   return (
     <div className="space-y-8 pb-12">
+      {showVaultBanner && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <ShieldCheck size={18} className="mt-0.5 shrink-0 text-amber-500" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Your data isn&apos;t end-to-end encrypted yet</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Secure your vault in 60 seconds — passkey or password, plus a recovery code.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Link href="/onboarding/vault">
+              <Button size="sm" className="bg-primary text-white">Secure my vault</Button>
+            </Link>
+            <Button variant="ghost" size="sm" onClick={() => setShowVaultBanner(false)} className="text-muted-foreground">
+              Later
+            </Button>
+          </div>
+        </div>
+      )}
       {/* ─── Header & Period Selector ─────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

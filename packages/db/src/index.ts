@@ -98,5 +98,6 @@ export const liabilities = (isSqlite ? sqliteSchema.liabilities : pgSchema.liabi
 export const netWorthSnapshots = (isSqlite ? sqliteSchema.netWorthSnapshots : pgSchema.netWorthSnapshots) as typeof pgSchema.netWorthSnapshots
 export const netWorthDrafts = (isSqlite ? sqliteSchema.netWorthDrafts : pgSchema.netWorthDrafts) as typeof pgSchema.netWorthDrafts
 export const vaultBlobs = (isSqlite ? sqliteSchema.vaultBlobs : pgSchema.vaultBlobs) as typeof pgSchema.vaultBlobs
+export const vaultWraps = (isSqlite ? sqliteSchema.vaultWraps : pgSchema.vaultWraps) as typeof pgSchema.vaultWraps
 
 export * from './schema.js'

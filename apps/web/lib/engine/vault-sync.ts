@@ -38,6 +38,13 @@ export function buildVaultSnapshot(cache: LocalCache): VaultSnapshot {
   }
 }
 
+export interface VaultWrap {
+  credentialId: string
+  wrappedDek: string
+  label: string
+  createdAt: string
+}
+
 export interface VaultBlob {
   userId?: string
   cipher: string
@@ -46,11 +53,11 @@ export interface VaultBlob {
   opslimit: number
   memlimit: number
   wrappedDekPassword: string | null
-  wrappedDekPrf: string | null
-  prfCredentialId: string | null
   wrappedDekRecovery: string | null
   version: number
   updatedAt?: string
+  /** Per-device passkey wraps (PRF output is device-bound). */
+  wraps: VaultWrap[]
 }
 
 export class VaultError extends Error {
@@ -74,10 +81,12 @@ export async function fetchVaultBlob(): Promise<VaultBlob | null> {
   }
 }
 
-async function pushBlob(blob: Omit<VaultBlob, 'userId' | 'updatedAt'>): Promise<void> {
+async function pushBlob(blob: Omit<VaultBlob, 'userId' | 'updatedAt' | 'wraps'>): Promise<void> {
+  const { wraps: _wraps, ...body } = blob as VaultBlob & { wraps?: unknown }
+  void _wraps
   await apiClient.fetch('/v1/vault', {
     method: 'PUT',
-    body: JSON.stringify(blob),
+    body: JSON.stringify(body),
   })
 }
 
@@ -104,13 +113,73 @@ export async function setupVaultWithPassword(
     opslimit: params.iterations,
     memlimit: params.memorySize,
     wrappedDekPassword,
-    wrappedDekPrf: null,
-    prfCredentialId: null,
     wrappedDekRecovery,
     version: 1,
+    wraps: [],
   }
   await pushBlob(blob)
   return { blob, recoveryCode, dek }
+}
+
+export interface PasskeySetupWrap {
+  credentialId: string
+  label: string
+  /** Resolved PRF output (32 B). Wiped by this function after use. */
+  prfOutput: Uint8Array
+}
+
+/**
+ * Passwordless setup: DEK wrapped by one or more passkey PRF outputs plus a
+ * mandatory recovery wrap. No password wrap is stored.
+ * @param params explicit Argon2 params — passkey onboarding derives the PRF
+ *   input from `params.saltB64` *before* setup, so it must be caller-provided
+ *   there (standard-base64 salt, as produced by `createVaultParams`).
+ */
+export async function setupVaultWithPasskeys(
+  passkeys: PasskeySetupWrap[],
+  snapshot: VaultSnapshot,
+  params: VaultParams = createVaultParams()
+): Promise<{ blob: VaultBlob; recoveryCode: string; dek: Uint8Array; wrapError: string | null }> {
+  if (passkeys.length === 0) throw new VaultError('NO_WRAP', 'At least one passkey is required')
+  const dek = generateDek()
+  const recoveryCode = createRecoveryCode()
+  const kekRec = await deriveKek(normalizeRecoveryCode(recoveryCode), params)
+  const env = await encryptSnapshot(snapshot, dek)
+  const blob: VaultBlob = {
+    cipher: env.cipherB64,
+    nonce: env.nonceB64,
+    salt: params.saltB64,
+    opslimit: params.iterations,
+    memlimit: params.memorySize,
+    wrappedDekPassword: null,
+    wrappedDekRecovery: await wrapDek(dek, kekRec),
+    version: 1,
+    wraps: [],
+  }
+  await pushBlob(blob)
+  // Store each per-device wrap independently. The recovery wrap is already
+  // stored, so a failing authenticator degrades (warning) instead of
+  // stranding the vault — the recovery code always unlocks.
+  const wraps: VaultBlob['wraps'] = []
+  let wrapError: string | null = null
+  for (const pk of passkeys) {
+    try {
+      const wrappedDek = wrapDek(dek, pk.prfOutput)
+      const saved = await apiClient.fetch<{ credentialId: string; label: string; createdAt: string }>(
+        '/v1/vault/wraps',
+        {
+          method: 'POST',
+          body: JSON.stringify({ credentialId: pk.credentialId, wrappedDek, label: pk.label }),
+        }
+      )
+      wraps.push({ credentialId: saved.credentialId, wrappedDek, label: saved.label, createdAt: saved.createdAt })
+    } catch (err) {
+      wrapError = err instanceof Error ? err.message : 'Passkey wrap failed'
+    } finally {
+      pk.prfOutput.fill(0)
+    }
+  }
+  return { blob: { ...blob, wraps }, recoveryCode, dek, wrapError }
 }
 
 export async function unlockWithPassword(blob: VaultBlob, password: string): Promise<Uint8Array> {
@@ -123,11 +192,12 @@ export async function unlockWithPassword(blob: VaultBlob, password: string): Pro
   }
 }
 
-/** Register a passkey and add its PRF wrap. Requires the DEK (i.e. unlocked). */
+/** Register a passkey and store its per-device PRF wrap. Requires the DEK (unlocked). */
 export async function registerPasskey(
   blob: VaultBlob,
   dek: Uint8Array,
-  userName: string
+  userName: string,
+  label: string
 ): Promise<VaultBlob> {
   const { credentialIdB64url } = await registerPrfCredential(userName)
   // Verify the credential can actually evaluate PRF before storing the wrap.
@@ -138,31 +208,51 @@ export async function registerPasskey(
   } catch {
     throw new VaultError('PRF_UNSUPPORTED', 'This passkey does not support the PRF extension')
   }
-  const updated: VaultBlob = {
-    ...blob,
-    wrappedDekPrf: wrapDek(dek, prfOut),
-    prfCredentialId: credentialIdB64url,
-  }
-  await pushBlob(updated)
-  return updated
+  const wrappedDek = wrapDek(dek, prfOut)
+  prfOut.fill(0)
+  const saved = await apiClient.fetch<{ credentialId: string; label: string; createdAt: string }>(
+    '/v1/vault/wraps',
+    {
+      method: 'POST',
+      body: JSON.stringify({ credentialId: credentialIdB64url, wrappedDek, label }),
+    }
+  )
+  const wraps = [
+    ...blob.wraps.filter((w) => w.credentialId !== saved.credentialId),
+    { credentialId: saved.credentialId, wrappedDek, label: saved.label, createdAt: saved.createdAt },
+  ]
+  return { ...blob, wraps }
 }
 
-export async function unlockWithPasskey(blob: VaultBlob): Promise<Uint8Array> {
-  if (!blob.wrappedDekPrf || !blob.prfCredentialId) {
-    throw new VaultError('NO_WRAP', 'No passkey registered on this vault')
+export async function unlockWithPasskey(blob: VaultBlob, credentialId?: string): Promise<Uint8Array> {
+  const wraps = blob.wraps ?? []
+  const target =
+    (credentialId ? wraps.find((w) => w.credentialId === credentialId) : undefined) ??
+    (wraps.length === 1 ? wraps[0] : undefined)
+  if (!target) {
+    throw new VaultError('NO_WRAP', 'No matching passkey registered on this vault')
   }
   const prfInput = await derivePrfInput(blob.salt)
   let prfOut: Uint8Array
   try {
-    prfOut = await evalPrf(blob.prfCredentialId, prfInput)
+    prfOut = await evalPrf(target.credentialId, prfInput)
   } catch {
     throw new VaultError('PRF_UNSUPPORTED', 'PRF evaluation failed on this device')
   }
   try {
-    return await unwrapDek(blob.wrappedDekPrf, prfOut)
+    const dek = await unwrapDek(target.wrappedDek, prfOut)
+    return dek
   } catch {
     throw new VaultError('DECRYPT_FAILED', 'Passkey did not unlock this vault')
+  } finally {
+    prfOut.fill(0)
   }
+}
+
+/** Revoke a device's passkey wrap (removes future unlocks from that device). */
+export async function revokePasskey(blob: VaultBlob, credentialId: string): Promise<VaultBlob> {
+  await apiClient.fetch(`/v1/vault/wraps/${encodeURIComponent(credentialId)}`, { method: 'DELETE' })
+  return { ...blob, wraps: blob.wraps.filter((w) => w.credentialId !== credentialId) }
 }
 
 export async function unlockWithRecovery(blob: VaultBlob, code: string): Promise<Uint8Array> {

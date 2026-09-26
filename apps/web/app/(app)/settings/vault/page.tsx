@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Lock, Unlock, KeyRound, Fingerprint, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Lock, Unlock, KeyRound, Fingerprint, RefreshCw, ShieldCheck, TriangleAlert, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +15,14 @@ function emptySnapshot(): VaultSnapshot {
   return { transactions: [], categories: [], statements: [], owners: [], updatedAt: new Date().toISOString() }
 }
 
+function defaultDeviceLabel(): string {
+  if (typeof navigator === 'undefined') return 'Passkey'
+  const ua = navigator.userAgent
+  const os = ua.includes('Mac') ? 'Mac' : ua.includes('Windows') ? 'Windows' : ua.includes('Android') ? 'Android' : ua.includes('iPhone') || ua.includes('iPad') ? 'iPhone' : 'Device'
+  const browser = ua.includes('Chrome') ? 'Chrome' : ua.includes('Safari') ? 'Safari' : ua.includes('Firefox') ? 'Firefox' : 'Browser'
+  return `${os} · ${browser}`
+}
+
 export default function VaultPage() {
   const vault = useVaultStore()
   const user = useAuthStore((s) => s.user)
@@ -23,6 +31,10 @@ export default function VaultPage() {
   const [recoveryInput, setRecoveryInput] = useState('')
   const [mode, setMode] = useState<'password' | 'passkey' | 'recovery'>('password')
   const [prfSupported, setPrfSupported] = useState<boolean | null>(null)
+  const [deviceLabel, setDeviceLabel] = useState('')
+  const [chosenCredential, setChosenCredential] = useState<string | null>(null)
+
+  const wraps = vault.blob?.wraps ?? []
 
   useEffect(() => {
     vault.refresh()
@@ -59,9 +71,9 @@ export default function VaultPage() {
     }
   }
 
-  const handleUnlockPasskey = async () => {
+  const handleUnlockPasskey = async (credentialId?: string) => {
     try {
-      await vault.unlockPasskey()
+      await vault.unlockPasskey(credentialId ?? chosenCredential ?? undefined)
       toast.success('Vault unlocked with passkey')
     } catch {
       toast.error(vault.error ?? 'Passkey unlock failed')
@@ -80,10 +92,21 @@ export default function VaultPage() {
 
   const handleAddPasskey = async () => {
     try {
-      await vault.addPasskey(user?.email ?? 'momoney-user')
-      toast.success('Passkey registered for PRF unlock')
+      const label = deviceLabel.trim() || defaultDeviceLabel()
+      await vault.addPasskey(user?.email ?? 'momoney-user', label)
+      setDeviceLabel('')
+      toast.success(`Passkey registered (${label})`)
     } catch {
       toast.error(vault.error ?? 'Passkey registration failed')
+    }
+  }
+
+  const handleRevokePasskey = async (credentialId: string, label: string) => {
+    try {
+      await vault.revokePasskey(credentialId)
+      toast.success(`Revoked ${label} — it can no longer unlock this vault`)
+    } catch {
+      toast.error(vault.error ?? 'Revoke failed')
     }
   }
 
@@ -163,11 +186,11 @@ export default function VaultPage() {
             <div className="flex gap-2 text-xs">
               {( (['password', 'passkey', 'recovery'] as const).filter((m) => {
                 if (m === 'password') return !!vault.blob?.wrappedDekPassword
-                if (m === 'passkey') return !!vault.blob?.wrappedDekPrf
+                if (m === 'passkey') return wraps.length > 0
                 return !!vault.blob?.wrappedDekRecovery
               })).map((m) => (
                 <Button key={m} variant={mode === m ? 'default' : 'outline'} size="sm" onClick={() => setMode(m)}>
-                  {m === 'password' ? 'Password' : m === 'passkey' ? 'Passkey' : 'Recovery'}
+                  {m === 'password' ? 'Password' : m === 'passkey' ? `Passkey${wraps.length > 1 ? ` (${wraps.length})` : ''}` : 'Recovery'}
                 </Button>
               ))}
             </div>
@@ -179,12 +202,33 @@ export default function VaultPage() {
                 </Button>
               </div>
             )}
-            {mode === 'passkey' && vault.blob.wrappedDekPrf && (
+            {mode === 'passkey' && wraps.length > 0 && (
               <div className="space-y-2">
                 {!isWebAuthnAvailable() && <p className="text-xs text-rose-500">WebAuthn is not available in this browser.</p>}
                 {prfSupported === false && <p className="text-xs text-amber-500">This browser may not support the PRF extension.</p>}
-                <Button onClick={handleUnlockPasskey} disabled={vault.busy} className="w-full">
-                  <Fingerprint size={14} className="mr-2" /> {vault.busy ? 'Waiting for authenticator…' : 'Unlock with passkey'}
+                {wraps.length > 1 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">Choose which device&apos;s passkey to use:</p>
+                    {wraps.map((w) => (
+                      <button
+                        key={w.credentialId}
+                        onClick={() => setChosenCredential(w.credentialId)}
+                        className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                          (chosenCredential ?? wraps[0]?.credentialId) === w.credentialId
+                            ? 'border-primary bg-primary/10 text-foreground'
+                            : 'border-border text-muted-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        <span className="font-medium">{w.label}</span>
+                        <span className="ml-2 text-xs opacity-70">
+                          added {w.createdAt ? new Date(w.createdAt).toLocaleDateString() : '—'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Button onClick={() => handleUnlockPasskey()} disabled={vault.busy} className="w-full">
+                  <Fingerprint size={14} className="mr-2" /> {vault.busy ? 'Waiting for authenticator…' : wraps.length > 1 ? `Unlock with ${wraps.find((w) => w.credentialId === (chosenCredential ?? wraps[0]?.credentialId))?.label ?? 'passkey'}` : 'Unlock with passkey'}
                 </Button>
               </div>
             )}
@@ -208,18 +252,51 @@ export default function VaultPage() {
                 : 'Decrypted in memory only.'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={handleSync} disabled={vault.busy}>
-              <RefreshCw size={14} className="mr-2" /> Sync now
-            </Button>
-            {!vault.blob?.wrappedDekPrf && (
-              <Button variant="outline" size="sm" onClick={handleAddPasskey} disabled={vault.busy || !isWebAuthnAvailable()}>
-                <Fingerprint size={14} className="mr-2" /> Add passkey unlock
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleSync} disabled={vault.busy}>
+                <RefreshCw size={14} className="mr-2" /> Sync now
               </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={() => { void vault.lock() }}>
-              <Lock size={14} className="mr-2" /> Lock
-            </Button>
+              <Button variant="ghost" size="sm" onClick={() => { void vault.lock() }}>
+                <Lock size={14} className="mr-2" /> Lock
+              </Button>
+            </div>
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Passkeys ({wraps.length})
+              </p>
+              {wraps.length === 0 && (
+                <p className="text-xs text-muted-foreground">No passkeys yet — add one per device for Face ID / fingerprint unlock.</p>
+              )}
+              {wraps.map((w) => (
+                <div key={w.credentialId} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <span className="font-medium text-foreground">{w.label}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      added {w.createdAt ? new Date(w.createdAt).toLocaleDateString() : '—'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleRevokePasskey(w.credentialId, w.label)}
+                    disabled={vault.busy}
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"
+                  >
+                    <Trash2 size={13} /> Revoke
+                  </button>
+                </div>
+              ))}
+              <div className="flex gap-2 pt-1">
+                <Input
+                  placeholder={`Device name (e.g. ${defaultDeviceLabel()})`}
+                  value={deviceLabel}
+                  onChange={(e) => setDeviceLabel(e.target.value)}
+                  className="h-9 text-sm"
+                />
+                <Button variant="outline" size="sm" onClick={handleAddPasskey} disabled={vault.busy || !isWebAuthnAvailable()} className="shrink-0">
+                  <Fingerprint size={14} className="mr-2" /> Add this device
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

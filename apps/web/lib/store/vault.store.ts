@@ -6,6 +6,7 @@ import {
   decryptVaultSnapshot,
   fetchVaultBlob,
   registerPasskey,
+  revokePasskey,
   setupVaultWithPassword,
   syncEncryptedSnapshot,
   syncSnapshot,
@@ -28,10 +29,13 @@ interface VaultState {
   busy: boolean
   refresh: () => Promise<void>
   setup: (password: string, snapshot: VaultSnapshot) => Promise<void>
+  /** Adopt an already-created session (e.g. passkey-first onboarding). */
+  adoptSession: (blob: VaultBlob, dek: Uint8Array, snapshot: VaultSnapshot, recoveryCode: string | null) => void
   unlockPassword: (password: string) => Promise<void>
-  unlockPasskey: () => Promise<void>
+  unlockPasskey: (credentialId?: string) => Promise<void>
   unlockRecovery: (code: string) => Promise<void>
-  addPasskey: (userName: string) => Promise<void>
+  addPasskey: (userName: string, label: string) => Promise<void>
+  revokePasskey: (credentialId: string) => Promise<void>
   sync: (snapshot: VaultSnapshot) => Promise<void>
   lock: () => Promise<void>
   clearError: () => void
@@ -116,12 +120,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
   },
 
-  unlockPasskey: async () => {
+  unlockPasskey: async (credentialId) => {
     const { blob } = get()
     if (!blob) throw new Error('No vault loaded')
     set({ busy: true, error: null })
     try {
-      const newDek = await unlockWithPasskey(blob)
+      const newDek = await unlockWithPasskey(blob, credentialId)
       await unsealLocalDb(newDek).catch(() => {})
       const snapshot = await decryptVaultSnapshot(blob, newDek)
       wipeBytes(dek)
@@ -154,15 +158,30 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
   },
 
-  addPasskey: async (userName) => {
+  addPasskey: async (userName, label) => {
     const { blob } = get()
     if (!blob || !dek) throw new Error('Vault must be unlocked to add a passkey')
     set({ busy: true, error: null })
     try {
-      const updated = await registerPasskey(blob, dek, userName)
+      const updated = await registerPasskey(blob, dek, userName, label)
       set({ blob: updated })
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Passkey registration failed' })
+      throw err
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  revokePasskey: async (credentialId) => {
+    const { blob } = get()
+    if (!blob) throw new Error('No vault loaded')
+    set({ busy: true, error: null })
+    try {
+      const updated = await revokePasskey(blob, credentialId)
+      set({ blob: updated })
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to revoke passkey' })
       throw err
     } finally {
       set({ busy: false })
@@ -214,7 +233,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
   },
 
-  lock: async () => {    // Seal the OPFS database file BEFORE wiping the DEK, so a locked device
+  adoptSession: (blob, newDek, snapshot, recoveryCode) => {
+    wipeBytes(dek)
+    dek = newDek
+    set({ status: 'unlocked', blob, snapshot, recoveryCode, error: null, busy: false })
+  },
+
+  lock: async () => {
+    // Seal the OPFS database file BEFORE wiping the DEK, so a locked device
     // holds ciphertext only. Best-effort: lock always completes.
     try {
       if (dek) await sealLocalDb(dek)

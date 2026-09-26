@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core'
 import { relations } from 'drizzle-orm'
 
 // ─── Enums (Typed string constants for SQLite) ────────────────────────────────
@@ -301,12 +301,20 @@ export const vaultBlobs = sqliteTable('vault_blobs', {
   opslimit: integer('opslimit').notNull(),
   memlimit: integer('memlimit').notNull(),
   wrappedDekPassword: text('wrapped_dek_password'),
-  wrappedDekPrf: text('wrapped_dek_prf'),
-  prfCredentialId: text('prf_credential_id'),
   wrappedDekRecovery: text('wrapped_dek_recovery'),
   version: integer('version').notNull().default(1),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
+
+export const vaultWraps = sqliteTable('vault_wraps', {
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  credentialId: text('credential_id').notNull(),
+  wrappedDek: text('wrapped_dek').notNull(),
+  label: text('label').notNull().default('Passkey'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.credentialId] }),
+])
 
 // ─── Relations ────────────────────────────────────────────────────────────────
 
@@ -326,6 +334,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   netWorthSnapshots: many(netWorthSnapshots),
   netWorthDraft: one(netWorthDrafts, { fields: [users.id], references: [netWorthDrafts.userId] }),
   vaultBlob: one(vaultBlobs, { fields: [users.id], references: [vaultBlobs.userId] }),
+  vaultWraps: many(vaultWraps),
 }))
 
 export const ownersRelations = relations(owners, ({ one, many }) => ({
@@ -413,6 +422,12 @@ export const netWorthDraftsRelations = relations(netWorthDrafts, ({ one }) => ({
 
 export const vaultBlobsRelations = relations(vaultBlobs, ({ one }) => ({
   user: one(users, { fields: [vaultBlobs.userId], references: [users.id] }),
+  // NOTE: wraps are fetched with a separate query — vaultBlobs→vaultWraps
+  // shares only userId (no direct FK), so drizzle cannot infer `with`.
+}))
+
+export const vaultWrapsRelations = relations(vaultWraps, ({ one }) => ({
+  user: one(users, { fields: [vaultWraps.userId], references: [users.id] }),
 }))
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({

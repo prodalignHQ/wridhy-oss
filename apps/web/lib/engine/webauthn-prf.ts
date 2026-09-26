@@ -37,7 +37,8 @@ export async function isPrfSupported(): Promise<boolean> {
 }
 
 export async function derivePrfInput(vaultSaltB64: string): Promise<Uint8Array> {
-  const salt = b64urlToBytes(vaultSaltB64)
+  // Accept standard base64 (vault column) or base64url — normalize first.
+  const salt = b64urlToBytes(b64ToB64url(vaultSaltB64))
   const prefix = new TextEncoder().encode('MoMoney-Vault-PRF-v1')
   const combined = new Uint8Array(prefix.length + salt.length)
   combined.set(prefix)
