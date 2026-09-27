@@ -264,6 +264,17 @@ export default function RulesPage() {
 
   const fetchData = useCallback(async () => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { loadReferenceMerged } = await import('@/lib/engine/reference')
+        const [rulesData, categoriesData] = await Promise.all([
+          loadReferenceMerged('rules', () => apiClient.fetch<Rule[]>('/v1/rules')),
+          loadReferenceMerged('categories', () => apiClient.fetch<Category[]>('/v1/categories')),
+        ])
+        setRules(rulesData as Rule[])
+        setCategories(categoriesData as Category[])
+        return
+      }
       const [rulesData, categoriesData] = await Promise.all([
         apiClient.fetch<Rule[]>('/v1/rules'),
         apiClient.fetch<Category[]>('/v1/categories'),
@@ -304,7 +315,7 @@ export default function RulesPage() {
     }
   }, [dialogOpen, editingRule, categories.length])
 
-  // Fetch preview when form changes
+  // Fetch preview when form changes — pure local compute (no server needed).
   useEffect(() => {
     if (!formMatchValue || !formCategoryId) {
       setPreview(null)
@@ -314,6 +325,38 @@ export default function RulesPage() {
     const timer = setTimeout(async () => {
       setPreviewLoading(true)
       try {
+        const { useVaultStore } = await import('@/lib/store/vault.store')
+        if (useVaultStore.getState().isUnlocked()) {
+          const [{ readLocalCache }, { categorize }] = await Promise.all([
+            import('@/lib/engine/opfs-db'),
+            import('@momoney/rules-engine'),
+          ])
+          const cache = await readLocalCache().catch(() => null)
+          const txns = cache?.transactions ?? []
+          const proposed = {
+            id: 'preview',
+            userId: null,
+            matchField: formMatchField as 'merchant' | 'description' | 'amount',
+            matchType: formMatchType as 'contains' | 'equals' | 'regex' | 'gt' | 'lt',
+            matchValue: formMatchValue,
+            categoryId: formCategoryId,
+            priority: 1,
+            source: 'user' as const,
+            isActive: true,
+          }
+          const matched = txns.filter((t) => {
+            const r = categorize(
+              { date: new Date(t.date), description: t.description, amount: parseFloat(t.amount), type: t.type },
+              [proposed],
+              [],
+              [],
+              []
+            )
+            return r.matchedOn === 'rule'
+          })
+          setPreview({ count: matched.length, samples: matched.slice(0, 5) as any })
+          return
+        }
         const result = await apiClient.fetch<PreviewResult>('/v1/rules/preview', {
           method: 'POST',
           body: JSON.stringify({
@@ -342,13 +385,57 @@ export default function RulesPage() {
     setFormCategoryId(value)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const data = {
       matchField: formMatchField,
       matchType: formMatchType,
       matchValue: formMatchValue,
       categoryId: formCategoryId,
       priority: formPriority,
+    }
+
+    const { useVaultStore } = await import('@/lib/store/vault.store')
+    if (useVaultStore.getState().isUnlocked()) {
+      try {
+        const { createReferenceRow, updateReferenceRow } = await import('@/lib/engine/reference')
+        if (editingRule) {
+          const ok = await updateReferenceRow('rules', {
+            id: editingRule.id,
+            userId: (editingRule as any).userId ?? null,
+            matchField: data.matchField,
+            matchType: data.matchType,
+            matchValue: data.matchValue,
+            categoryId: data.categoryId,
+            priority: data.priority,
+            source: (editingRule as any).source ?? 'user',
+            isActive: (editingRule as any).isActive ?? true,
+          })
+          if (!ok) throw new Error('Could not save on this device')
+          toast.success('Rule updated')
+        } else {
+          const ok = await createReferenceRow('rules', {
+            id: crypto.randomUUID(),
+            userId: null,
+            matchField: data.matchField,
+            matchType: data.matchType,
+            matchValue: data.matchValue,
+            categoryId: data.categoryId,
+            priority: data.priority ?? 100,
+            source: 'user',
+            isActive: true,
+          })
+          if (!ok) throw new Error('Could not save on this device')
+          toast.success('Rule created')
+        }
+        fetchData()
+      } catch (err) {
+        console.error('Failed to save rule:', err)
+        toast.error('Failed to save rule')
+      } finally {
+        setDialogOpen(false)
+        setEditingRule(null)
+      }
+      return
     }
 
     if (editingRule) {
@@ -383,6 +470,24 @@ export default function RulesPage() {
 
     setCategoryLoading(true)
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { createReferenceRow } = await import('@/lib/engine/reference')
+        const ok = await createReferenceRow('categories', {
+          id: crypto.randomUUID(),
+          name: categoryName.trim(),
+          type: categoryType,
+          icon: categoryIcon,
+          color: categoryColor,
+        })
+        if (!ok) throw new Error('Could not save on this device')
+        toast.success('Category created')
+        setCategoryName('')
+        setCategoryType('expense')
+        setCategoryDialogOpen(false)
+        fetchData()
+        return
+      }
       await apiClient.fetch('/v1/categories', {
         method: 'POST',
         body: JSON.stringify({
@@ -413,6 +518,17 @@ export default function RulesPage() {
     setReassignAction('remap')
     setLoadingCategoryUsage(true)
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { categoryUsageLocal } = await import('@/lib/engine/reference')
+        const usage = await categoryUsageLocal(cat.id)
+        setCategoryUsage({ ...usage, isProtected: false })
+        const otherCats = categories.filter(c => c.id !== cat.id)
+        if (otherCats.length > 0) {
+          setCategoryRemapTargetId(otherCats[0].id)
+        }
+        return
+      }
       const res = await apiClient.fetch<{
         transactionCount: number
         ruleCount: number
@@ -435,6 +551,25 @@ export default function RulesPage() {
     if (!deleteCategoryTarget) return
     setDeletingCategory(true)
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        let moveToCategoryId: string | null | undefined = undefined
+        if (categoryUsage && categoryUsage.transactionCount > 0) {
+          moveToCategoryId = reassignAction === 'remap' ? categoryRemapTargetId : null
+        }
+        const { deleteCategoryLocal } = await import('@/lib/engine/reference')
+        const res = await deleteCategoryLocal(deleteCategoryTarget.id, moveToCategoryId)
+        if (res.remappedTransactionsCount > 0) {
+          toast.success(
+            `Category deleted and ${res.remappedTransactionsCount} transaction${res.remappedTransactionsCount > 1 ? 's' : ''} remapped`
+          )
+        } else {
+          toast.success('Category deleted')
+        }
+        setDeleteCategoryTarget(null)
+        fetchData()
+        return
+      }
       let moveToCategoryId: string | null | undefined = undefined
       if (categoryUsage && categoryUsage.transactionCount > 0) {
         moveToCategoryId = reassignAction === 'remap' ? categoryRemapTargetId : null
@@ -471,6 +606,16 @@ export default function RulesPage() {
   const handleDeleteRule = async () => {
     if (!deleteTarget) return
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { deleteReferenceRow } = await import('@/lib/engine/reference')
+        const ok = await deleteReferenceRow('rules', deleteTarget.id)
+        if (!ok) throw new Error('Could not delete on this device')
+        toast.success('Rule deleted')
+        setDeleteTarget(null)
+        fetchData()
+        return
+      }
       await apiClient.fetch(`/v1/rules/${deleteTarget.id}`, {
         method: 'DELETE',
       })
@@ -485,6 +630,14 @@ export default function RulesPage() {
 
   const handleToggleRule = async (rule: Rule, active: boolean) => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { updateReferenceRow } = await import('@/lib/engine/reference')
+        const ok = await updateReferenceRow('rules', { ...(rule as unknown as Record<string, unknown>), isActive: active, id: rule.id })
+        if (!ok) throw new Error('Could not save on this device')
+        fetchData()
+        return
+      }
       await apiClient.fetch(`/v1/rules/${rule.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ isActive: active }),
@@ -499,6 +652,48 @@ export default function RulesPage() {
   const handleReapply = async () => {
     setReapplyLoading(true)
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        // Local reapply: full categorize() over uncategorized transactions
+        // (a superset of the server's description/merchant-only matching —
+        // amount rules also apply here).
+        const [{ readLocalCache, patchTransactionInCache }, { categorize }, { getDefaultMerchants }] =
+          await Promise.all([
+            import('@/lib/engine/opfs-db'),
+            import('@momoney/rules-engine'),
+            import('@momoney/rules-engine'),
+          ])
+        const cache = await readLocalCache().catch(() => null)
+        if (!cache) throw new Error('Local cache unavailable')
+        const uncategorizedName = 'Uncategorized'
+        const targets = cache.transactions.filter((t) => {
+          if (t.categoryId) {
+            const cat = cache.categories.find((c) => c.id === t.categoryId)
+            return !cat || cat.name === uncategorizedName
+          }
+          return true
+        })
+        const activeRules = cache.rules.filter((r) => r.isActive)
+        const userMerchants = cache.merchants.filter((m) => !m.isSystem)
+        let updatedCount = 0
+        for (const t of targets) {
+          const result = categorize(
+            { date: new Date(t.date), description: t.description, amount: parseFloat(t.amount), type: t.type },
+            activeRules,
+            cache.categories.map((c) => ({ id: c.id, name: c.name, color: c.color })),
+            userMerchants,
+            getDefaultMerchants()
+          )
+          if (result.categoryId && result.categoryId !== (t.categoryId ?? '')) {
+            if (await patchTransactionInCache(t.id, { categoryId: result.categoryId })) updatedCount++
+          }
+        }
+        const { scheduleEncryptedBackup } = await import('@/lib/engine/mutations')
+        scheduleEncryptedBackup()
+        toast.success(`Updated ${updatedCount} transactions`)
+        fetchData()
+        return
+      }
       const result = await apiClient.fetch<{ updatedCount: number }>('/v1/rules/reapply', {
         method: 'POST',
       })

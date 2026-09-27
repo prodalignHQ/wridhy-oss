@@ -321,7 +321,18 @@ export default function StatementsPage() {
   useEffect(() => {
     apiClient
       .fetch<FinancialAccount[]>('/v1/accounts')
-      .then((accs) => {
+      .then(async (accs) => {
+        // Merge OPFS accounts so vault-only accounts are import targets.
+        try {
+          const { useVaultStore } = await import('@/lib/store/vault.store')
+          if (useVaultStore.getState().isUnlocked()) {
+            const { loadReferenceMerged } = await import('@/lib/engine/reference')
+            const merged = await loadReferenceMerged('accounts', () => Promise.resolve(accs as unknown[]))
+            accs = merged as FinancialAccount[]
+          }
+        } catch {
+          // fall through with server list
+        }
         setAccounts(accs)
         const params = new URLSearchParams(window.location.search)
         const qAccountId = params.get('accountId')

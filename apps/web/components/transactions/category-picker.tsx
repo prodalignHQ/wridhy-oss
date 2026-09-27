@@ -30,7 +30,19 @@ export function CategoryPicker({ categoryId, category, onUpdate }: CategoryPicke
 
   useEffect(() => {
     if (open && categories.length === 0) {
-      apiClient.fetch<Category[]>('/v1/categories').then(setCategories).catch(console.error)
+      ;(async () => {
+        try {
+          const { useVaultStore } = await import('@/lib/store/vault.store')
+          if (useVaultStore.getState().isUnlocked()) {
+            const { loadReferenceMerged } = await import('@/lib/engine/reference')
+            setCategories((await loadReferenceMerged('categories', () => apiClient.fetch<Category[]>('/v1/categories'))) as Category[])
+            return
+          }
+        } catch {
+          // fall through to server
+        }
+        apiClient.fetch<Category[]>('/v1/categories').then(setCategories).catch(console.error)
+      })()
     }
   }, [open, categories.length])
 

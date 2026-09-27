@@ -41,6 +41,15 @@ export default function AccountsPage() {
 
   const fetchAccounts = async () => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { loadReferenceMerged } = await import('@/lib/engine/reference')
+        const merged = await loadReferenceMerged('accounts', () =>
+          apiClient.fetch<Account[]>('/v1/accounts')
+        )
+        setAccounts(merged as Account[])
+        return
+      }
       const data = await apiClient.fetch<Account[]>('/v1/accounts')
       setAccounts(data)
     } catch (err: any) {
@@ -53,6 +62,15 @@ export default function AccountsPage() {
   const onDeleteConfirm = async () => {
     if (!accountToDelete) return
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { deleteReferenceRow } = await import('@/lib/engine/reference')
+        const ok = await deleteReferenceRow('accounts', accountToDelete)
+        if (!ok) throw new Error('Could not delete account on this device')
+        toast.success('Account deleted')
+        setAccounts(accounts.filter(a => a.id !== accountToDelete))
+        return
+      }
       await apiClient.fetch(`/v1/accounts/${accountToDelete}`, { method: 'DELETE' })
       toast.success('Account deleted')
       setAccounts(accounts.filter(a => a.id !== accountToDelete))

@@ -421,6 +421,47 @@ export function buildClearChangelog(upToId: number): OpfsBatch {
   }
 }
 
+/** Tables directly mutable by id (UI CRUD). Transactions/statements keep
+ * dedicated ops with richer semantics; everything else goes through here. */
+export const MUTABLE_TABLES = [
+  'local_accounts',
+  'local_owners',
+  'local_rules',
+  'local_merchants',
+  'local_categories',
+  'local_assets',
+  'local_liabilities',
+  'local_networth_snapshots',
+  'local_networth_drafts',
+] as const
+
+export type MutableTable = (typeof MUTABLE_TABLES)[number]
+
+export function buildLogChange(table: string, rowId: string, op: 'create' | 'update' | 'delete'): OpfsBatch {
+  return {
+    queries: [`INSERT INTO local_changelog(table_name, row_id, op, created_at) VALUES(?,?,?,?)`],
+    params: [[table, rowId, op, Date.now()]],
+  }
+}
+
+export function buildDeleteRow(table: MutableTable, id: string): OpfsBatch {
+  return {
+    queries: [`DELETE FROM ${table} WHERE id = ?`],
+    params: [[id]],
+  }
+}
+
+/** Reassign all shares from one owner to another (mirrors owner delete). */
+export function buildReassignOwners(fromOwnerId: string, toOwnerId: string): OpfsBatch {
+  return {
+    queries: [
+      'UPDATE local_transaction_owners SET owner_id = ? WHERE owner_id = ?',
+      `INSERT INTO local_changelog(table_name, row_id, op, created_at) VALUES('local_transaction_owners', ?, 'reassign', ?)`,
+    ],
+    params: [[toOwnerId, fromOwnerId], [fromOwnerId, Date.now()]],
+  }
+}
+
 /** Local invoice lifecycle (vault users): headers/links/items live in OPFS. */
 
 export interface LocalInvoiceCreate {

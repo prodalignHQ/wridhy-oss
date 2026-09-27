@@ -132,6 +132,16 @@ export default function NetWorthPage() {
 
   const fetchAll = useCallback(async () => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { loadNetWorthPageLocal } = await import('@/lib/engine/networth-local')
+        const local = await loadNetWorthPageLocal(selectedOwnerIds, isAllSelected, singleOwnerId, defaultOwnerId)
+        setData(local.data as unknown as NetWorthData)
+        setSnapshots(local.snapshots as Snapshot[])
+        setDraft(local.draft)
+        setOwners(local.owners)
+        return
+      }
       const ownerQuery = isAllSelected ? '' : `?ownerIds=${selectedOwnerIds.join(',')}`
       const singleQuery = singleOwnerId ? `?ownerId=${singleOwnerId}` : (defaultOwnerId ? `?ownerId=${defaultOwnerId}` : '')
 
@@ -232,6 +242,17 @@ export default function NetWorthPage() {
   const handleSaveSnapshot = async (date?: string) => {
     setSavingSnapshot(true)
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { saveSnapshotLocal } = await import('@/lib/engine/networth-local')
+        await saveSnapshotLocal(targetOwnerId, date)
+        const dateLabel = format(date ? new Date(date) : new Date(), 'dd MMM yyyy')
+        toast.success(`Snapshot saved for ${dateLabel}`)
+        setDraft(null)
+        setDraftDismissed(true)
+        await fetchAll()
+        return
+      }
       await apiClient.fetch('/v1/networth/snapshot', { 
         method: 'POST',
         body: JSON.stringify({ ownerId: targetOwnerId, date })
@@ -258,6 +279,14 @@ export default function NetWorthPage() {
   const handleSaveDraft = async () => {
     setSavingDraft(true)
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { saveDraftLocal } = await import('@/lib/engine/networth-local')
+        await saveDraftLocal(targetOwnerId)
+        toast.success('Draft saved')
+        await fetchAll()
+        return
+      }
       await apiClient.fetch(`/v1/networth/draft?ownerId=${targetOwnerId}`, { method: 'PUT', body: JSON.stringify({}) })
       toast.success('Draft saved')
       await fetchAll()
@@ -270,6 +299,14 @@ export default function NetWorthPage() {
 
   const handleDiscardDraft = async () => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { deleteDraftLocal } = await import('@/lib/engine/networth-local')
+        await deleteDraftLocal(targetOwnerId)
+        setDraft(null)
+        setDraftDismissed(true)
+        return
+      }
       await apiClient.fetch(`/v1/networth/draft?ownerId=${targetOwnerId}`, { method: 'DELETE' })
       setDraft(null)
       setDraftDismissed(true)
@@ -284,6 +321,15 @@ export default function NetWorthPage() {
     const payload = {
       ...formData,
       ownerId: formData.ownerId || targetOwnerId,
+    }
+
+    const { useVaultStore } = await import('@/lib/store/vault.store')
+    if (useVaultStore.getState().isUnlocked()) {
+      const { saveAssetLocal } = await import('@/lib/engine/networth-local')
+      await saveAssetLocal(payload, id, targetOwnerId)
+      toast.success(id ? 'Asset updated' : 'Asset added')
+      await fetchAll()
+      return
     }
 
     if (id) {
@@ -303,6 +349,14 @@ export default function NetWorthPage() {
   }
 
   const handleDeleteAsset = async (id: string) => {
+    const { useVaultStore } = await import('@/lib/store/vault.store')
+    if (useVaultStore.getState().isUnlocked()) {
+      const { deleteAssetLocal } = await import('@/lib/engine/networth-local')
+      await deleteAssetLocal(id)
+      toast.success('Asset removed')
+      await fetchAll()
+      return
+    }
     await apiClient.fetch(`/v1/networth/assets/${id}`, { method: 'DELETE' })
     toast.success('Asset removed')
     await fetchAll()
@@ -314,6 +368,15 @@ export default function NetWorthPage() {
     const payload = {
       ...formData,
       ownerId: formData.ownerId || targetOwnerId,
+    }
+
+    const { useVaultStore } = await import('@/lib/store/vault.store')
+    if (useVaultStore.getState().isUnlocked()) {
+      const { saveLiabilityLocal } = await import('@/lib/engine/networth-local')
+      await saveLiabilityLocal(payload, id, targetOwnerId)
+      toast.success(id ? 'Liability updated' : 'Liability added')
+      await fetchAll()
+      return
     }
 
     if (id) {
@@ -333,6 +396,14 @@ export default function NetWorthPage() {
   }
 
   const handleDeleteLiability = async (id: string) => {
+    const { useVaultStore } = await import('@/lib/store/vault.store')
+    if (useVaultStore.getState().isUnlocked()) {
+      const { deleteLiabilityLocal } = await import('@/lib/engine/networth-local')
+      await deleteLiabilityLocal(id)
+      toast.success('Liability removed')
+      await fetchAll()
+      return
+    }
     await apiClient.fetch(`/v1/networth/liabilities/${id}`, { method: 'DELETE' })
     toast.success('Liability removed')
     await fetchAll()
@@ -342,6 +413,16 @@ export default function NetWorthPage() {
 
   const handleCopySnapshot = async (snapshotId: string, adjustedData?: { adjustedAssets: any[], adjustedLiabilities: any[] }) => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { copySnapshotLocal } = await import('@/lib/engine/networth-local')
+        await copySnapshotLocal(snapshotId, adjustedData)
+        const snap = snapshots.find((s) => s.id === snapshotId)
+        const label = snap ? format(new Date(snap.snapshotDate), 'MMMM yyyy') : 'previous snapshot'
+        toast.success(`Loaded values from ${label}. Review and save when ready.`)
+        await fetchAll()
+        return
+      }
       await apiClient.fetch(`/v1/networth/snapshot/${snapshotId}/copy`, {
         method: 'POST',
         body: adjustedData ? JSON.stringify(adjustedData) : undefined
@@ -357,6 +438,14 @@ export default function NetWorthPage() {
 
   const handleDeleteSnapshot = async (snapshotId: string) => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { deleteSnapshotLocal } = await import('@/lib/engine/networth-local')
+        await deleteSnapshotLocal(snapshotId)
+        toast.success('Snapshot deleted successfully')
+        await fetchAll()
+        return
+      }
       await apiClient.fetch(`/v1/networth/snapshot/${snapshotId}`, { method: 'DELETE' })
       toast.success('Snapshot deleted successfully')
       await fetchAll()

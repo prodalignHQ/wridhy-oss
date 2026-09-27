@@ -777,6 +777,16 @@ function InvoicesContent() {
       setStatements(statementList)
       setOwners(ownerList)
 
+      // Merge OPFS owners so splits work for vault-only household members.
+      import('@/lib/store/vault.store').then(async ({ useVaultStore }) => {
+        if (!useVaultStore.getState().isUnlocked()) return
+        const { loadReferenceMerged } = await import('@/lib/engine/reference')
+        const merged = await loadReferenceMerged('owners', () => Promise.resolve(ownerList as unknown[])).catch(
+          () => null
+        )
+        if (merged) setOwners(merged as Owner[])
+      }).catch(() => {})
+
       // Merge on-device rows (OPFS) so vault-only imports are visible and
       // selectable. Local rows carry localOnly / local- ids; server flows
       // skip them (invoice creation from local statements needs unlock).

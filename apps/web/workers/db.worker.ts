@@ -19,11 +19,15 @@ import {
   buildDeleteByStatement,
   buildDeleteInvoice,
   buildDeleteInvoiceItems,
+  buildDeleteRow,
+  buildLogChange,
   buildPatchTransaction,
+  buildReassignOwners,
   buildRewriteInvoiceLinks,
   buildSetInvoiceStatus,
   buildSetOwners,
   buildUpsertBatch,
+  MUTABLE_TABLES,
   sealBytes,
   unsealBytes,
   type LocalInvoiceCreate,
@@ -243,7 +247,7 @@ function toArrayBufferView(u8: Uint8Array): Uint8Array<ArrayBuffer> {
 
 export interface DbWorkerRequest {
   id: number
-  op: 'boot' | 'ping' | 'setUser' | 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'stats' | 'seal' | 'unseal' | 'sealedExists'
+  op: 'boot' | 'ping' | 'setUser' | 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'deleteRow' | 'reassignOwners' | 'logChange' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'stats' | 'seal' | 'unseal' | 'sealedExists'
   payload?: unknown
 }
 
@@ -338,6 +342,33 @@ interface UpsertPayload {
       const { ids } = req.payload as { ids: string[] }
       const batch = buildDeleteByIds(ids)
       if (batch.queries.length > 0) await runBatch(batch.queries, batch.params)
+      return { ok: true }
+    }
+    case 'deleteRow': {
+      await openDb()
+      const { table, id } = req.payload as { table: string; id: string }
+      // Strict allowlist: table names interpolate into SQL.
+      if (!(MUTABLE_TABLES as readonly string[]).includes(table)) {
+        throw new Error(`Table not mutable: ${table}`)
+      }
+      const batch = buildDeleteRow(table as (typeof MUTABLE_TABLES)[number], id)
+      await runBatch(batch.queries, batch.params)
+      const log = buildLogChange(table, id, 'delete')
+      await runBatch(log.queries, log.params)
+      return { ok: true }
+    }
+    case 'reassignOwners': {
+      await openDb()
+      const { fromOwnerId, toOwnerId } = req.payload as { fromOwnerId: string; toOwnerId: string }
+      const batch = buildReassignOwners(fromOwnerId, toOwnerId)
+      await runBatch(batch.queries, batch.params)
+      return { ok: true }
+    }
+    case 'logChange': {
+      await openDb()
+      const { table, rowId, op } = req.payload as { table: string; rowId: string; op: 'create' | 'update' | 'delete' }
+      const batch = buildLogChange(table, rowId, op)
+      await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'patchTransaction': {

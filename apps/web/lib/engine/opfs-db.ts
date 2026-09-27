@@ -539,6 +539,28 @@ export async function deleteTransactionsFromCache(ids: string[]): Promise<boolea
   return !!res?.ok
 }
 
+/** Delete one reference/net-worth row by id (allowlisted tables only). */
+export async function deleteRowFromCache(table: string, id: string): Promise<boolean> {
+  const res = await call('deleteRow', { table, id })
+  return !!res?.ok
+}
+
+/** Reassign all shares from one owner to another (owner delete mirror). */
+export async function reassignOwnersInCache(fromOwnerId: string, toOwnerId: string): Promise<boolean> {
+  const res = await call('reassignOwners', { fromOwnerId, toOwnerId })
+  return !!res?.ok
+}
+
+/** Record a create/update for the incremental-sync log. */
+export async function logChangeToCache(
+  table: string,
+  rowId: string,
+  op: 'create' | 'update' | 'delete'
+): Promise<boolean> {
+  const res = await call('logChange', { table, rowId, op })
+  return !!res?.ok
+}
+
 // ─── Pending-backup tracking ─────────────────────────────────────────────────
 // Statement imports register here; mutation edits land in local_changelog.
 // A backup (pushEncrypted) snapshots the whole OPFS cache, so success clears

@@ -114,12 +114,31 @@ export default function TransactionsPage() {
 
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Initial data load
+  // Initial data load (reference lists merge OPFS-first when unlocked)
   useEffect(() => {
     fetchTransactions()
-    apiClient.fetch<Owner[]>('/v1/owners').then(setOwners).catch(console.error)
-    apiClient.fetch<Category[]>('/v1/categories').then(setCategories).catch(console.error)
-    apiClient.fetch<FinancialAccount[]>('/v1/accounts').then(setAccounts).catch(console.error)
+    ;(async () => {
+      try {
+        const { useVaultStore } = await import('@/lib/store/vault.store')
+        if (useVaultStore.getState().isUnlocked()) {
+          const { loadReferenceMerged } = await import('@/lib/engine/reference')
+          const [ownList, catList, acctList] = await Promise.all([
+            loadReferenceMerged('owners', () => apiClient.fetch<Owner[]>('/v1/owners')),
+            loadReferenceMerged('categories', () => apiClient.fetch<Category[]>('/v1/categories')),
+            loadReferenceMerged('accounts', () => apiClient.fetch<FinancialAccount[]>('/v1/accounts')),
+          ])
+          setOwners(ownList as Owner[])
+          setCategories(catList as Category[])
+          setAccounts(acctList as FinancialAccount[])
+          return
+        }
+      } catch {
+        // fall through to server
+      }
+      apiClient.fetch<Owner[]>('/v1/owners').then(setOwners).catch(console.error)
+      apiClient.fetch<Category[]>('/v1/categories').then(setCategories).catch(console.error)
+      apiClient.fetch<FinancialAccount[]>('/v1/accounts').then(setAccounts).catch(console.error)
+    })()
   }, [fetchTransactions])
 
   // Re-fetch when store filters change

@@ -98,6 +98,13 @@ export default function OwnersPage() {
 
   const fetchOwners = async () => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { loadReferenceMerged } = await import('@/lib/engine/reference')
+        const merged = await loadReferenceMerged('owners', () => apiClient.fetch<Owner[]>('/v1/owners'))
+        setOwners(merged as Owner[])
+        return
+      }
       const data = await apiClient.fetch<Owner[]>('/v1/owners')
       setOwners(data)
     } catch (err: any) {
@@ -125,6 +132,16 @@ export default function OwnersPage() {
 
     setIsSavingEdit(true)
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { updateReferenceRow } = await import('@/lib/engine/reference')
+        const ok = await updateReferenceRow('owners', { ...ownerToEdit, name: trimmed })
+        if (!ok) throw new Error('Could not save on this device')
+        setOwners((prev) => prev.map((o) => (o.id === ownerToEdit.id ? { ...o, name: trimmed } : o)))
+        toast.success('Name updated successfully')
+        setOwnerToEdit(null)
+        return
+      }
       const updated = await apiClient.fetch<Owner>(`/v1/owners/${ownerToEdit.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ name: trimmed }),
@@ -141,6 +158,25 @@ export default function OwnersPage() {
 
   const onSubmitAdd = async (values: OwnerFormValues) => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { createReferenceRow } = await import('@/lib/engine/reference')
+        const palette = ['indigo', 'emerald', 'rose', 'amber', 'sky', 'violet']
+        const id = crypto.randomUUID()
+        const ok = await createReferenceRow('owners', {
+          id,
+          name: values.name.trim(),
+          notes: values.notes?.trim() || null,
+          color: palette[Math.floor(Math.random() * palette.length)],
+          isDefault: false,
+        })
+        if (!ok) throw new Error('Could not save on this device')
+        toast.success('Household member added')
+        setIsAddOpen(false)
+        reset()
+        fetchOwners()
+        return
+      }
       await apiClient.fetch('/v1/owners', {
         method: 'POST',
         body: JSON.stringify(values),
@@ -157,6 +193,27 @@ export default function OwnersPage() {
   const onDeleteConfirm = async () => {
     if (!ownerToDelete) return
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const target = owners.find((o) => o.id === ownerToDelete.id)
+        if (target?.isDefault) {
+          toast.error('Cannot delete default owner')
+          return
+        }
+        const selfOwner = owners.find((o) => o.isDefault)
+        const [{ deleteReferenceRow }, { reassignOwnersInCache }] = await Promise.all([
+          import('@/lib/engine/reference'),
+          import('@/lib/engine/opfs-db'),
+        ])
+        if (selfOwner) {
+          await reassignOwnersInCache(ownerToDelete.id, selfOwner.id)
+        }
+        const ok = await deleteReferenceRow('owners', ownerToDelete.id)
+        if (!ok) throw new Error('Could not delete on this device')
+        toast.success('Member removed')
+        setOwners(owners.filter(o => o.id !== ownerToDelete.id))
+        return
+      }
       await apiClient.fetch(`/v1/owners/${ownerToDelete.id}`, { method: 'DELETE' })
       toast.success('Member removed')
       setOwners(owners.filter(o => o.id !== ownerToDelete.id))

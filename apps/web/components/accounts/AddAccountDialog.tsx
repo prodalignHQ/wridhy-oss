@@ -70,6 +70,32 @@ export function AddAccountDialog({ open, onOpenChange, onSuccess }: AddAccountDi
   const onSubmit = async (values: AccountFormValues) => {
     setIsSubmitting(true)
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { createReferenceRow } = await import('@/lib/engine/reference')
+        const id = crypto.randomUUID()
+        const ok = await createReferenceRow('accounts', {
+          id,
+          accountName: values.accountName,
+          accountType: values.accountType,
+          bankId: values.bankId,
+          bankName: values.bankName,
+          currency: values.currency ?? 'INR',
+        })
+        if (!ok) throw new Error('Could not save account on this device')
+        toast.success('Account created successfully')
+        onOpenChange(false)
+        reset()
+        onSuccess?.({
+          id,
+          accountName: values.accountName,
+          accountType: values.accountType,
+          bankId: values.bankId,
+          bankName: values.bankName,
+          currency: values.currency ?? 'INR',
+        })
+        return
+      }
       const result = await apiClient.fetch<any>('/v1/accounts', {
         method: 'POST',
         body: JSON.stringify(values),
