@@ -94,6 +94,36 @@ async function openDb(): Promise<void> {
   if (db === null) throw new Error('Database open failed')
 }
 
+/**
+ * Run a statement batch atomically with honest errors. (Deliberately NOT
+ * sqlite3.executeBatch: it swallows failures internally, which once hid a
+ * broken upsert behind a success response — every statement below names
+ * itself in the thrown error instead.)
+ */
+async function runBatch(queries: string[], params: unknown[][]): Promise<void> {
+  if (queries.length === 0) return
+  await sqlite3.exec(db, 'BEGIN')
+  try {
+    for (let i = 0; i < queries.length; i++) {
+      try {
+        await sqlite3.run(db, queries[i], params[i] ?? null)
+      } catch (err) {
+        throw new Error(
+          `SQL failed: ${err instanceof Error ? err.message : String(err)} @ ${(queries[i] ?? '').slice(0, 120)}`
+        )
+      }
+    }
+    await sqlite3.exec(db, 'COMMIT')
+  } catch (err) {
+    try {
+      await sqlite3.exec(db, 'ROLLBACK')
+    } catch {
+      // ignore rollback errors — original error matters
+    }
+    throw err
+  }
+}
+
 async function doOpen(): Promise<void> {
   const module = await getModule()
   // Singleton API object + single VFS registration for the worker lifetime.
@@ -260,7 +290,7 @@ interface UpsertPayload {
     case 'upsert': {
       await openDb()
       const batch = buildUpsertBatch((req.payload ?? {}) as UpsertPayload)
-      if (batch.queries.length > 0) await sqlite3.executeBatch(db, batch.queries, batch.params)
+      if (batch.queries.length > 0) await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'readAll': {
@@ -296,21 +326,21 @@ interface UpsertPayload {
       await openDb()
       const { statementId } = req.payload as { statementId: string }
       const batch = buildDeleteByStatement(statementId)
-      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'deleteByIds': {
       await openDb()
       const { ids } = req.payload as { ids: string[] }
       const batch = buildDeleteByIds(ids)
-      if (batch.queries.length > 0) await sqlite3.executeBatch(db, batch.queries, batch.params)
+      if (batch.queries.length > 0) await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'patchTransaction': {
       await openDb()
       const { id, patch } = req.payload as { id: string; patch: TxnPatch }
       const batch = buildPatchTransaction(id, patch)
-      if (batch.queries.length > 0) await sqlite3.executeBatch(db, batch.queries, batch.params)
+      if (batch.queries.length > 0) await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'setOwners': {
@@ -320,7 +350,7 @@ interface UpsertPayload {
       const amount = found.rows?.[0]?.[0] as string | undefined
       if (amount === undefined) throw new Error('Transaction not found in local cache')
       const batch = buildSetOwners(transactionId, ownerIds, String(amount))
-      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      await runBatch(batch.queries, batch.params)
       // Return resolved shares (names/colors) for instant UI updates.
       const placeholders = ownerIds.map(() => '?').join(',')
       const ownersRes = await sqlite3.execWithParams(
@@ -370,7 +400,7 @@ interface UpsertPayload {
       await openDb()
       const { upToId } = req.payload as { upToId: number }
       const batch = buildClearChangelog(upToId)
-      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'rewriteInvoiceLinks': {
@@ -380,21 +410,21 @@ interface UpsertPayload {
         statements: LocalInvoiceCreate['statements']
       }
       const batch = buildRewriteInvoiceLinks(invoiceId, statements)
-      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'deleteInvoice': {
       await openDb()
       const { invoiceId } = req.payload as { invoiceId: string }
       const batch = buildDeleteInvoice(invoiceId)
-      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'deleteInvoiceItems': {
       await openDb()
       const { invoiceId } = req.payload as { invoiceId: string }
       const batch = buildDeleteInvoiceItems(invoiceId)
-      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'setInvoiceStatus': {
@@ -405,7 +435,7 @@ interface UpsertPayload {
         generatedAt: string | null
       }
       const batch = buildSetInvoiceStatus(invoiceId, status, generatedAt)
-      await sqlite3.executeBatch(db, batch.queries, batch.params)
+      await runBatch(batch.queries, batch.params)
       return { ok: true }
     }
     case 'clear': {

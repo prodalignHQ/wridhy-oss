@@ -47,3 +47,6 @@ pnpm-debug.log*
 
 # Testing
 coverage/
+
+# Local database dumps (may contain plaintext financial data — never commit)
+db-dump/
