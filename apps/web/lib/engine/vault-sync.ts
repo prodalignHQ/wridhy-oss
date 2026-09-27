@@ -23,6 +23,12 @@ import type { LocalCache } from './opfs-db'
 
 /** Shape the OPFS cache into the encrypted-sync snapshot (all tables). */
 export function buildVaultSnapshot(cache: LocalCache): VaultSnapshot {
+  // NOTE: every array on LocalCache MUST be mapped here. These fields are
+  // optional on VaultSnapshot (old vaults predate them), so TypeScript will
+  // NOT catch an omission — and the result is a silent data gap exactly like
+  // the net-worth 0-count incident. When adding a table: types.ts,
+  // opfs-schema.ts, db.worker readAll, opfs-db mappings, analytics-client
+  // fetch, AND this function.
   return {
     transactions: cache.transactions,
     categories: cache.categories,
@@ -35,6 +41,10 @@ export function buildVaultSnapshot(cache: LocalCache): VaultSnapshot {
     invoices: cache.invoices,
     invoiceStatements: cache.invoiceStatements,
     invoiceItems: cache.invoiceItems,
+    assets: cache.assets,
+    liabilities: cache.liabilities,
+    netWorthSnapshots: cache.netWorthSnapshots,
+    netWorthDrafts: cache.netWorthDrafts,
     updatedAt: new Date().toISOString(),
   }
 }
