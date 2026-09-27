@@ -38,6 +38,27 @@ const SEALED_NAME = 'momoney.db.sealed'
 let sqlite3: Sqlite3 | null = null
 let db: number | null = null
 
+// Per-user database files: OPFS is origin-scoped, not account-scoped, so
+// sharing one file across accounts would merge everyone's rows (local tables
+// carry no userId). The client re-scopes on every call; the worker keeps one
+// open handle and switches files on change. `null` (signed out) uses the
+// legacy shared file.
+let currentUser: string | null | undefined = undefined
+
+function sanitizeUserId(userId: string | null): string {
+  if (!userId) return ''
+  return userId.replace(/[^a-zA-Z0-9-]/g, '').slice(0, 32)
+}
+
+function dbFileName(): string {
+  const suffix = sanitizeUserId(currentUser ?? null)
+  return suffix ? `momoney-${suffix}.db` : DB_NAME
+}
+
+function sealedFileName(): string {
+  return `${dbFileName()}.sealed`
+}
+
 // WASM module, bootable two ways:
 // 1. Preferred: main thread fetches /wa-sqlite.wasm (it has a real origin)
 //    and posts the bytes via the `boot` op → instantiate with `wasmBinary`,
@@ -84,11 +105,14 @@ async function doOpen(): Promise<void> {
   try {
     await tryOpen()
   } catch (err) {
+    db = null
+    // SEALED is routine locked-state, not corruption: no quarantine, just
+    // propagate (callers fall back; unlock unseals). Quarantining here used
+    // to log scary NotFoundErrors on every locked read.
+    if (err instanceof Error && err.message.startsWith('SEALED:')) throw err
     // A failed open must never leave a stuck handle (that produced the
     // permanent "no such table" state). Quarantine the suspect file so a
-    // corrupt leftover from earlier buggy runs can't wedge us again, then
-    // retry exactly once on a fresh file.
-    db = null
+    // corrupt leftover can't wedge us again, then retry once on fresh.
     await quarantineDbFile().catch(() => {})
     await tryOpen()
   }
@@ -97,8 +121,10 @@ async function doOpen(): Promise<void> {
 async function tryOpen(): Promise<void> {
   // Never shadow a sealed database with a fresh empty one: if the sealed
   // file exists but the live file is gone, the vault is locked — creating
-  // momoney.db here would make reads return empty and let later upserts
+  // the live file here would make reads return empty and let later upserts
   // fork the data. Unlock (unseal) must happen first.
+  const live = dbFileName()
+  const sealed = sealedFileName()
   const root = await navigator.storage.getDirectory()
   const names: string[] = []
   try {
@@ -108,14 +134,14 @@ async function tryOpen(): Promise<void> {
   } catch {
     // listing unsupported — proceed; unseal path still guards decrypt errors
   }
-  if (!names.includes(DB_NAME) && names.includes(SEALED_NAME)) {
+  if (!names.includes(live) && names.includes(sealed)) {
     throw new Error('SEALED: database is locked — unlock the vault first')
   }
   // Assign db ONLY after the handle validates (open + schema + probe).
   // Assigning earlier left a stuck non-null handle on failed opens, making
   // every later call skip recovery and fail with "no such table" forever.
   const handle = await sqlite3.open_v2(
-    DB_NAME,
+    dbFileName(),
     SQLite.SQLITE_OPEN_CREATE | SQLite.SQLITE_OPEN_READWRITE,
     'opfs'
   )
@@ -140,20 +166,21 @@ async function tryOpen(): Promise<void> {
  */
 async function quarantineDbFile(): Promise<void> {
   const root = await navigator.storage.getDirectory()
-  const name = `${DB_NAME}.corrupt-${Date.now()}`
+  const live = dbFileName()
+  const name = `${live}.corrupt-${Date.now()}`
   try {
-    const handle = await root.getFileHandle(DB_NAME)
+    const handle = await root.getFileHandle(live)
     const file = await handle.getFile()
     const bytes = new Uint8Array(await file.arrayBuffer())
     if (bytes.length === 0) {
-      await root.removeEntry(DB_NAME)
+      await root.removeEntry(live)
       return
     }
     const dest = await root.getFileHandle(name, { create: true })
     const writable = await dest.createWritable()
     await writable.write(toArrayBufferView(bytes))
     await writable.close()
-    await root.removeEntry(DB_NAME)
+    await root.removeEntry(live)
     console.warn(`[db.worker] quarantined suspect database as ${name} (${bytes.length} bytes)`)
   } catch (err) {
     console.warn('[db.worker] quarantine failed:', err)
@@ -185,7 +212,7 @@ function toArrayBufferView(u8: Uint8Array): Uint8Array<ArrayBuffer> {
 
 export interface DbWorkerRequest {
   id: number
-  op: 'boot' | 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'stats' | 'seal' | 'unseal' | 'sealedExists'
+  op: 'boot' | 'setUser' | 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'stats' | 'seal' | 'unseal' | 'sealedExists'
   payload?: unknown
 }
 
@@ -216,6 +243,14 @@ interface UpsertPayload {
       // Emscripten instantiates from memory — no fetch, no URL resolution.
       modulePromise = SQLiteAsyncESMFactory({ wasmBinary: new Uint8Array(wasm) })
       await modulePromise
+      return { ok: true }
+    }
+    case 'setUser': {
+      const { userId } = req.payload as { userId: string | null }
+      if (userId !== currentUser) {
+        await closeDb()
+        currentUser = userId ?? null
+      }
       return { ok: true }
     }
     case 'init': {
@@ -382,46 +417,49 @@ interface UpsertPayload {
       const { dek } = req.payload as { dek: Uint8Array }
       await closeDb()
       const root = await navigator.storage.getDirectory()
-      const handle = await opfsFile(DB_NAME, false).catch(() => null)
+      const live = dbFileName()
+      const sealed = sealedFileName()
+      const handle = await opfsFile(live, false).catch(() => null)
       if (!handle) return { ok: true }
       const file = await handle.getFile()
       const plain = new Uint8Array(await file.arrayBuffer())
       const env = sealBytes(plain, dek)
       dek.fill(0)
-      const sealedHandle = await opfsFile(SEALED_NAME, true)
+      const sealedHandle = await opfsFile(sealed, true)
       const writable = await sealedHandle.createWritable()
       await writable.write(JSON.stringify({ v: 1, nonce: env.nonceB64, cipher: env.cipherB64 }))
       await writable.close()
-      await root.removeEntry(DB_NAME)
+      await root.removeEntry(live)
       return { ok: true }
     }
     case 'unseal': {
       const { dek } = req.payload as { dek: Uint8Array }
-      const sealedHandle = await opfsFile(SEALED_NAME, false).catch(() => null)
+      const live = dbFileName()
+      const sealed = sealedFileName()
+      const sealedHandle = await opfsFile(sealed, false).catch(() => null)
       if (!sealedHandle) return { ok: true }
       const file = await sealedHandle.getFile()
       const env = JSON.parse(await file.text()) as { nonce: string; cipher: string }
       const plain = unsealBytes(env.cipher, env.nonce, dek)
       dek.fill(0)
-      const dbHandle = await opfsFile(DB_NAME, true)
+      const dbHandle = await opfsFile(live, true)
       const writable = await dbHandle.createWritable()
       await writable.write(toArrayBufferView(plain))
       await writable.close()
       const root = await navigator.storage.getDirectory()
-      await root.removeEntry(SEALED_NAME)
+      await root.removeEntry(sealed)
       await openDb()
       return { ok: true }
     }
     case 'sealedExists': {
-      const sealedHandle = await opfsFile(SEALED_NAME, false).catch(() => null)
+      const sealedHandle = await opfsFile(sealedFileName(), false).catch(() => null)
       return { ok: true, sealed: !!sealedHandle }
     }
     case 'stats': {
       // No openDb() here on purpose: when sealed we must report sealed:true
       // instead of creating an empty database (see openDb guard).
-      const root = await navigator.storage.getDirectory()
-      const liveHandle = await opfsFile(DB_NAME, false).catch(() => null)
-      const sealedHandle = await opfsFile(SEALED_NAME, false).catch(() => null)
+      const liveHandle = await opfsFile(dbFileName(), false).catch(() => null)
+      const sealedHandle = await opfsFile(sealedFileName(), false).catch(() => null)
       if (!liveHandle) {
         return { ok: true, sealed: !!sealedHandle, rows: [] }
       }
@@ -435,7 +473,6 @@ interface UpsertPayload {
           counts[table] = -1
         }
       }
-      void root
       return { ok: true, sealed: !!sealedHandle, rows: [counts as unknown as Record<string, unknown>] }
     }
     default:

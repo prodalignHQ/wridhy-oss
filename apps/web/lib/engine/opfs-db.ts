@@ -101,6 +101,7 @@ function getWorker(): Worker | null {
         for (const [, entry] of pending) entry.reject(new Error('DB worker error'))
         pending.clear()
         bootPromise = null
+        scopedUser = undefined
         try {
           worker?.terminate()
         } catch {
@@ -123,6 +124,7 @@ async function call(op: DbWorkerRequest['op'], payload?: unknown, timeoutMs = 30
   }
   try {
     await bootWorker(w)
+    await ensureUserScope()
   } catch (err) {
     noteError(`boot failed: ${err instanceof Error ? err.message : String(err)}`)
     return null
@@ -146,9 +148,56 @@ async function call(op: DbWorkerRequest['op'], payload?: unknown, timeoutMs = 30
     lastWorkerError = null
     return res
   } catch (err) {
-    noteError(`${op} failed: ${err instanceof Error ? err.message : String(err)}`)
+    const message = err instanceof Error ? err.message : String(err)
+    // SEALED is routine locked-state operation, not a malfunction: debug
+    // level, and never promoted to the diagnostics error line.
+    if (message.includes('SEALED:')) {
+      console.debug(`[opfs-db] ${op} skipped: ${message}`)
+      return null
+    }
+    noteError(`${op} failed: ${message}`)
     return null
   }
+}
+
+// ─── Per-user database scoping ───────────────────────────────────────────────
+// OPFS is origin-scoped, NOT account-scoped: two accounts in one browser
+// profile would otherwise read and write each other's rows (local tables
+// carry no userId). Every worker call re-scopes to the signed-in user first;
+// the worker keeps one open handle and switches files on change.
+let scopedUser: string | null | undefined = undefined
+
+async function currentAuthUserId(): Promise<string | null> {
+  try {
+    if (typeof window === 'undefined') return null
+    // Dynamic import: auth.store never imports this module back, so no cycle;
+    // module is cached after first load, so this is just a promise hop.
+    const { useAuthStore } = await import('@/lib/store/auth.store')
+    const user = useAuthStore.getState().user as { id?: string } | null
+    return user?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+async function ensureUserScope(): Promise<void> {
+  const userId = await currentAuthUserId()
+  if (userId === scopedUser) return
+  const w = worker
+  if (!w) return
+  const id = ++seq
+  const res = await new Promise<DbWorkerResponse>((resolve, reject) => {
+    pending.set(id, { resolve, reject })
+    setTimeout(() => {
+      if (pending.has(id)) {
+        pending.delete(id)
+        reject(new Error('DB setUser timeout'))
+      }
+    }, 15_000)
+    w.postMessage({ id, op: 'setUser', payload: { userId } } satisfies DbWorkerRequest)
+  }).catch(() => null)
+  if (!res?.ok) throw new Error(res?.error ?? 'DB setUser failed')
+  scopedUser = userId
 }
 
 export interface LocalCache {
