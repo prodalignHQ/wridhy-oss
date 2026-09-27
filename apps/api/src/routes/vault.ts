@@ -1,6 +1,21 @@
 import { Hono } from 'hono'
 import { db } from '@momoney/db'
-import { vaultBlobs, vaultWraps } from '@momoney/db'
+import {
+  assets,
+  categories,
+  categorizationRules,
+  financialAccounts,
+  invoices,
+  liabilities,
+  merchants,
+  netWorthDrafts,
+  netWorthSnapshots,
+  owners,
+  statements,
+  transactions,
+  vaultBlobs,
+  vaultWraps,
+} from '@momoney/db'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
@@ -230,4 +245,94 @@ vaultRoute.delete('/', async (c) => {
   await db.delete(vaultBlobs).where(eq(vaultBlobs.userId, userId))
 
   return c.json({ success: true, data: null })
+})
+
+// ─── DELETE /v1/user-data ───────────────────────────────────────────────────
+// Plaintext retirement: deletes ALL content-bearing server rows for the user
+// after they verify a backfill. Requires an existing vault (the encrypted
+// copy must have somewhere to live) plus explicit typed confirmation.
+// Order matters: children before parents where FKs lack cascades
+// (rules/merchants → categories); everything else cascades.
+// NEVER touches: users, auth tables, system rows (userId NULL), vault tables.
+
+const retireSchema = z.object({
+  confirm: z.literal('DELETE'),
+})
+
+vaultRoute.delete('/user-data', zValidator('json', retireSchema), async (c) => {
+  const userId = c.get('userId')
+  c.req.valid('json')
+
+  const vault = await db.query.vaultBlobs.findFirst({
+    where: eq(vaultBlobs.userId, userId),
+    columns: { userId: true },
+  })
+  if (!vault) {
+    return c.json(
+      { success: false, error: { code: 'NO_VAULT', message: 'Set up and back up the vault before retiring server data' } },
+      400
+    )
+  }
+
+  const counts: Record<string, number> = {}
+  const count = async (label: string, fn: () => Promise<Array<{ id: string }>>) => {
+    counts[label] = (await fn()).length
+  }
+
+  await db.transaction(async (tx) => {
+    // Invoices first (cascades items + statement links).
+    await count(
+      'invoices',
+      () => tx.delete(invoices).where(eq(invoices.userId, userId)).returning({ id: invoices.id })
+    )
+    // Transactions (cascades owner splits).
+    await count(
+      'transactions',
+      () => tx.delete(transactions).where(eq(transactions.userId, userId)).returning({ id: transactions.id })
+    )
+    await count(
+      'statements',
+      () => tx.delete(statements).where(eq(statements.userId, userId)).returning({ id: statements.id })
+    )
+    // Rules + merchants before categories (their category FKs lack cascades).
+    await count(
+      'categorizationRules',
+      () => tx.delete(categorizationRules).where(eq(categorizationRules.userId, userId)).returning({ id: categorizationRules.id })
+    )
+    await count(
+      'merchants',
+      () => tx.delete(merchants).where(eq(merchants.userId, userId)).returning({ id: merchants.id })
+    )
+    // User categories only — system rows (userId NULL) never match eq() and stay.
+    await count(
+      'categories',
+      () => tx.delete(categories).where(eq(categories.userId, userId)).returning({ id: categories.id })
+    )
+    await count(
+      'assets',
+      () => tx.delete(assets).where(eq(assets.userId, userId)).returning({ id: assets.id })
+    )
+    await count(
+      'liabilities',
+      () => tx.delete(liabilities).where(eq(liabilities.userId, userId)).returning({ id: liabilities.id })
+    )
+    await count(
+      'netWorthSnapshots',
+      () => tx.delete(netWorthSnapshots).where(eq(netWorthSnapshots.userId, userId)).returning({ id: netWorthSnapshots.id })
+    )
+    await count(
+      'netWorthDrafts',
+      () => tx.delete(netWorthDrafts).where(eq(netWorthDrafts.userId, userId)).returning({ id: netWorthDrafts.id })
+    )
+    await count(
+      'owners',
+      () => tx.delete(owners).where(eq(owners.userId, userId)).returning({ id: owners.id })
+    )
+    await count(
+      'financialAccounts',
+      () => tx.delete(financialAccounts).where(eq(financialAccounts.userId, userId)).returning({ id: financialAccounts.id })
+    )
+  })
+
+  return c.json({ success: true, data: { deleted: counts } })
 })

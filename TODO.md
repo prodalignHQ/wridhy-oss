@@ -7,15 +7,11 @@
 
 ---
 
-## Milestone A — Close the plaintext gaps (P0)
+## Milestone A — Close the plaintext gaps (P0) — largely built, see DONE 006
 
-- [ ] **A1. Explicit backfill flow.** "Pull my server history into the vault": page through all server rows → converge into OPFS → encrypt → push → show a verification receipt (`N` server txns → `N` in snapshot, decrypt round-trip verified). Onboarding offers it when server rows exist; Settings offers it anytime.
-- [ ] **A2. Migrate server-driven reads to OPFS before any deletion.**
-  - [ ] Dashboard insights → `localAnalytics` (shapes already match) with server fallback.
-  - [ ] Transactions list → local query ops in the worker (filters/sort/pagination over OPFS) with server fallback.
-  - [ ] Invoice lifecycle (create/generate/draft/delete, currently server-only) → local-first or explicit online-only gating for vault users.
-  - [ ] Rules / merchants / owners / accounts / net-worth CRUD (all still server PATCH/POST) → vault-gated local mutations like transactions got in `mutations.ts`.
-- [ ] **A3. Plaintext retirement.** After verified backfill: "Delete server-side plaintext" (new endpoint, typed confirmation, requires unlocked vault + confirmed recovery code). Managed-mode Postgres end state: `users` + `vault_blobs` + `vault_wraps` only. Decide retention grace period and communicate it.
+- [x] **A1. Explicit backfill flow.** `MigrationWizard`: inventory → unbounded pull → encrypt → decrypt + count-match receipt. Offered in onboarding (server rows exist) and Settings → Vault.
+- [ ] **A2. Migrate server-driven reads to OPFS before any deletion.** DONE for transactions/dashboard/insights/invoices. Remaining server-direct: reference pickers (rules/merchants/owners/accounts/categories — metadata, cached, acceptable) and net-worth CRUD (assets/liabilities/drafts still fully server-side — next).
+- [x] **A3. Plaintext retirement.** `DELETE /v1/vault/user-data` (vault-required, typed `DELETE`, ordered deletes, per-table receipt) + permanent UI receipt + retired marker. E2E covers rejection paths.
 
 ## Milestone B — True multi-device + conflicts (P0/P1)
 

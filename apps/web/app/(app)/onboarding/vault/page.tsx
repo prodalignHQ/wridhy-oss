@@ -9,10 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { useVaultStore } from '@/lib/store/vault.store'
 import { useAuthStore } from '@/lib/store/auth.store'
+import { MigrationWizard } from '@/components/vault/MigrationWizard'
 import { isWebAuthnAvailable } from '@/lib/engine/webauthn-prf'
 import { normalizeRecoveryCode, createVaultParams, deriveKek } from '@momoney/local-engine'
 
-type Step = 'intro' | 'method' | 'recovery' | 'done'
+type Step = 'intro' | 'method' | 'recovery' | 'migrate' | 'done'
 
 export const VAULT_ONBOARDING_SKIP_KEY = 'momoney_vault_onboarding_skip'
 
@@ -28,6 +29,7 @@ export default function VaultOnboardingPage() {
   const [confirmCode, setConfirmCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [warn, setWarn] = useState<string | null>(null)
+  const [serverTotal, setServerTotal] = useState<number | null>(null)
   // Passkey-first flow state: taps done (credential + PRF proven), awaiting
   // the mandatory vault password before creation.
   const [pendingPk, setPendingPk] = useState<{
@@ -65,19 +67,27 @@ export default function VaultOnboardingPage() {
     router.replace('/dashboard')
   }
 
+  // Once the vault exists, check whether readable server history remains —
+  // if so, the recovery gate leads into migration instead of the dashboard.
+  useEffect(() => {
+    if (step !== 'recovery') return
+    let cancelled = false
+    import('@/lib/engine/analytics-client').then(async ({ fetchServerCounts }) => {
+      const rows = await fetchServerCounts().catch(() => [])
+      if (!cancelled) setServerTotal(rows.reduce((a, r) => a + r.count, 0))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [step])
+
   const currentSnapshot = async () => {
-    const [{ readLocalCache }, { buildVaultSnapshot }] = await Promise.all([
+    const [{ readLocalCache, emptyCache }, { buildVaultSnapshot }] = await Promise.all([
       import('@/lib/engine/opfs-db'),
       import('@/lib/engine/vault-sync'),
     ])
     const cache = await readLocalCache().catch(() => null)
-    return buildVaultSnapshot(
-      cache ?? {
-        transactions: [], categories: [], statements: [], accounts: [], owners: [],
-        transactionOwners: [], rules: [], merchants: [], invoices: [],
-        invoiceStatements: [], invoiceItems: [],
-      }
-    )
+    return buildVaultSnapshot(cache ?? emptyCache())
   }
 
   const handlePasswordSetup = async () => {
@@ -287,15 +297,31 @@ export default function VaultOnboardingPage() {
               className="font-mono"
             />
             <Button
-              onClick={() => router.replace('/dashboard')}
+              onClick={() => {
+                if ((serverTotal ?? 0) > 0) {
+                  setStep('migrate')
+                } else {
+                  router.replace('/dashboard')
+                }
+              }}
               disabled={normalizeRecoveryCode(confirmCode) !== normalizeRecoveryCode(vault.recoveryCode)}
               className="w-full"
             >
-              I saved it — open my dashboard <ArrowRight size={14} className="ml-2" />
+              I saved it — {(serverTotal ?? 0) > 0 ? 'secure my existing data' : 'open my dashboard'} <ArrowRight size={14} className="ml-2" />
             </Button>
+            {serverTotal !== null && serverTotal > 0 && (
+              <p className="text-xs text-muted-foreground">
+                You have {serverTotal.toLocaleString()} readable records on the server — next we&apos;ll move them
+                into your vault, verify, and shred the originals.
+              </p>
+            )}
             {warn && <p className="text-xs text-amber-500">{warn}</p>}
           </CardContent>
         </Card>
+      )}
+
+      {step === 'migrate' && (
+        <MigrationWizard onDone={() => router.replace('/dashboard')} />
       )}
     </div>
   )

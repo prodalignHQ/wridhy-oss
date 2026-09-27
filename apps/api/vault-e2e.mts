@@ -179,6 +179,16 @@ async function main() {
     const gone = (await res.json()) as { success: boolean; error?: { code?: string } }
     console.log('GET after delete:', res.status, gone.error?.code)
     if (res.status !== 404 || gone.error?.code !== 'NO_VAULT') throw new Error('Delete did not clear vault')
+
+    // Retirement validation: unconfirmed and vault-less deletes must fail;
+    // an empty delete succeeds with zero counts (endpoint mechanics).
+    res = await req('/v1/vault/user-data', { method: 'DELETE', body: JSON.stringify({}) })
+    console.log('retire unconfirmed:', res.status)
+    if (res.status !== 400) throw new Error('Unconfirmed retirement accepted')
+    res = await req('/v1/vault/user-data', { method: 'DELETE', body: JSON.stringify({ confirm: 'DELETE' }) })
+    const noVault = (await res.json()) as { success: boolean; error?: { code?: string } }
+    console.log('retire without vault:', res.status, noVault.error?.code)
+    if (res.status !== 400 || noVault.error?.code !== 'NO_VAULT') throw new Error('Vault-less retirement accepted')
     console.log('E2E PASS')
   } finally {
     await db.delete(vaultBlobs).where(eq(vaultBlobs.userId, userId))

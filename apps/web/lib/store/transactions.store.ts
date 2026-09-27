@@ -133,20 +133,7 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
           import('../engine/local-query'),
         ])
         const merged = await loadMergedInput()
-        const cache = {
-          transactions: merged.transactions,
-          categories: merged.categories,
-          statements: merged.statements,
-          accounts: merged.accounts,
-          owners: merged.owners,
-          transactionOwners: merged.transactionOwners,
-          rules: merged.rules,
-          merchants: merged.merchants,
-          invoices: merged.invoices,
-          invoiceStatements: merged.invoiceStatements,
-          invoiceItems: merged.invoiceItems,
-        }
-        const { rows, total, totalPages } = queryLocalTransactions(cache, {
+        const { rows, total, totalPages } = queryLocalTransactions(merged, {
             accountId: filters.accountId,
             startDate: filters.startDate,
             endDate: filters.endDate,

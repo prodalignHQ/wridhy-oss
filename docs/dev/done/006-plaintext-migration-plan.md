@@ -1,16 +1,16 @@
-# 006 — Plaintext Migration Plan: no-vault → vault (NOT BUILT)
+# 006 — Plaintext Migration (BUILT)
 
-**Date:** 2026-09-27
-**Status:** ⚠️ PLAN — none of this exists yet. Do not mistake for shipped work.
+**Date:** 2026-09-27 (planned) → **shipped same day**
+**Status:** ✅ BUILT — guided backfill, verification receipt, retirement endpoint, backup export/restore, onboarding + settings integration.
 **Category:** Privacy / Migration / Local-first
-**Tags:** `#backfill` `#retirement` `#migration` `#plan`
-**Follows:** TODO.md Milestone A (this is its detailed breakdown)
+**Tags:** `#backfill` `#retirement` `#migration`
+**Follows:** TODO.md Milestone A (this was its detailed breakdown)
 
 ---
 
-## 1. Verdict: no, there is no stitched migration path today
+## 1. Verdict: no stitched path existed — so we built it (see §5)
 
-What exists are **four unconnected primitives**, not a path:
+~~What exists are~~ What existed were **four unconnected primitives**, not a path:
 
 | Primitive | What it does | What it does NOT do |
 |---|---|---|
@@ -26,6 +26,8 @@ And two structural gaps: the vault snapshot has **no net-worth tables** (`assets
 ---
 
 ## 2. Build plan (in dependency order)
+
+> Executed as written. Deviations: no maintenance-freeze flag (concurrent-device drift during migration surfaces as a count mismatch → retry, per §6); no server-side retired marker (localStorage per browser); bulk pull capped at 500k rows with progress UI.
 
 ### Phase 0 — widen the snapshot (prerequisite)
 Add `assets`, `liabilities`, `netWorthSnapshots`, `netWorthDrafts` to `VaultSnapshot`, OPFS tables + builders, and cache them in `fetchCloudInput`. Without this, "migrate everything" silently skips net worth — the worst kind of partial migration. (Also pull rules/merchants/owners/accounts pickers off direct server fetches, or document them as metadata-exempt with justification.)
@@ -70,7 +72,17 @@ flowchart TD
 
 ---
 
-## 4. Risks called out explicitly
+## 5. What shipped (same day)
+
+- **Phase 0**: `assets/liabilities/netWorthSnapshots/netWorthDrafts` in `VaultSnapshot`, OPFS tables + shared builders (node:sqlite-verified), `fetchCloudInput` caching, `emptyCache()` canonicalizer.
+- **Phase 1**: `MigrationWizard` (inventory → pull with progress → encrypt/push → decrypt + count-match receipt), wired into onboarding (recovery gate → migrate when server rows exist) with plain-terms copy.
+- **Phase 2**: encrypted backup download + restore-from-file in Settings → Vault.
+- **Phase 3**: `DELETE /v1/vault/user-data` (vault-required, typed `DELETE` confirmation, ordered deletes honoring non-cascading FKs, per-table counts; system rows untouched) + typed-confirm UI + permanent deletion receipt + retired marker. E2E covers unconfirmed/vault-less rejection.
+- Residual notes: pickers (rules/owners/accounts/categories) still fetch server directly (cached copies exist; acceptable — metadata, converged); `serverEmptiedAt` marker lives in localStorage per browser (a server-side marker is future work if multi-device retired-state sync matters).
+
+---
+
+## 6. Risks (kept from the plan — still apply to future migrations)
 
 - **Verification before deletion is non-negotiable.** Count-match + decrypt round-trip, or no delete button. A migration that can't prove itself is a data-loss machine.
 - **Net worth must ride along** (Phase 0) or the receipt lies by omission.

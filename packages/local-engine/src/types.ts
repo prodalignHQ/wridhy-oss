@@ -90,6 +90,53 @@ export interface LocalOwnerShare {
   percentage: string
 }
 
+export interface LocalAsset {
+  id: string
+  ownerId: string | null
+  name: string
+  type: string
+  value: string
+  currency: string
+  equityDebtTag: string | null
+  metadata: Record<string, unknown>
+  valuationDate: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface LocalLiability {
+  id: string
+  ownerId: string | null
+  name: string
+  type: string
+  outstandingAmount: string
+  interestRate: string | null
+  monthlyPayment: string | null
+  lastUpdated: string
+  createdAt: string
+}
+
+export interface LocalNetWorthSnapshot {
+  id: string
+  ownerId: string | null
+  snapshotDate: string
+  totalAssets: string
+  totalLiabilities: string
+  netWorth: string
+  assetBreakdown: Array<{ name: string; type: string; value: number; equityDebtTag?: string }> | null
+  liabilityBreakdown: Array<{ name: string; type: string; amount: number }> | null
+  notes: string | null
+  createdAt: string
+}
+
+export interface LocalNetWorthDraft {
+  id: string
+  ownerId: string | null
+  assetBreakdown: Array<Record<string, unknown>> | null
+  liabilityBreakdown: Array<Record<string, unknown>> | null
+  savedAt: string
+}
+
 export interface LocalInvoice {
   id: string
   name: string
@@ -149,5 +196,9 @@ export interface VaultSnapshot {
   invoices?: LocalInvoice[]
   invoiceStatements?: LocalInvoiceStatement[]
   invoiceItems?: LocalInvoiceItem[]
+  assets?: LocalAsset[]
+  liabilities?: LocalLiability[]
+  netWorthSnapshots?: LocalNetWorthSnapshot[]
+  netWorthDrafts?: LocalNetWorthDraft[]
   updatedAt: string
 }

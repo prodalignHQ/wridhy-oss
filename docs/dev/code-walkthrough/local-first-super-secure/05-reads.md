@@ -5,7 +5,7 @@ Rule: **neither source alone is complete** (OPFS holds vault-only imports; serve
 ## `lib/engine/analytics-client.ts` (423)
 
 - `loadLocalInput()`: read OPFS → fetch cloud (all tables incl. invoice summaries for `invoiceLinks`, txn shares for owner filters) → converge (drop superseded local ids by dedupHash) → upsert cloud → **union** (server canonical + OPFS-exclusive, server wins collisions). Offline/empty → whichever exists.
-- Exported `loadMergedInput()` (transactions list too), `refreshLocalCache()`, `fetchReferenceData()` (rules/categories/user-merchants for import).
+- Exported `loadMergedInput()` (transactions list too), `refreshLocalCache()`, `fetchReferenceData()` (rules/categories/user-merchants for import), **`fetchServerCounts()` (light migration inventory), `pullAllCloudData(onProgress)` (unbounded migration pull)**. Net-worth tables ride along in fetch/cache/union.
 - `localAnalytics` wraps the engine calls; `monthly()` also feeds the legacy IndexedDB snapshot.
 
 ## `lib/engine/local-query.ts` (141)

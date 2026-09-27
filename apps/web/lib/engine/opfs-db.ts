@@ -6,12 +6,16 @@
 
 import type { DbWorkerRequest, DbWorkerResponse } from '@/workers/db.worker'
 import type {
+  LocalAsset,
   LocalCategory,
   LocalFinancialAccount,
   LocalInvoice,
   LocalInvoiceItem,
   LocalInvoiceStatement,
+  LocalLiability,
   LocalMerchant,
+  LocalNetWorthDraft,
+  LocalNetWorthSnapshot,
   LocalOwner,
   LocalRule,
   LocalStatement,
@@ -159,9 +163,34 @@ export interface LocalCache {
   invoices: LocalInvoice[]
   invoiceStatements: LocalInvoiceStatement[]
   invoiceItems: LocalInvoiceItem[]
+  assets: LocalAsset[]
+  liabilities: LocalLiability[]
+  netWorthSnapshots: LocalNetWorthSnapshot[]
+  netWorthDrafts: LocalNetWorthDraft[]
 }
 
 export type LocalCachePatch = Partial<LocalCache>
+
+/** Canonical empty cache (keeps every consumer complete by construction). */
+export function emptyCache(): LocalCache {
+  return {
+    transactions: [],
+    categories: [],
+    statements: [],
+    accounts: [],
+    owners: [],
+    transactionOwners: [],
+    rules: [],
+    merchants: [],
+    invoices: [],
+    invoiceStatements: [],
+    invoiceItems: [],
+    assets: [],
+    liabilities: [],
+    netWorthSnapshots: [],
+    netWorthDrafts: [],
+  }
+}
 
 interface RawBundle {
   transactions: Record<string, unknown>[]
@@ -175,6 +204,10 @@ interface RawBundle {
   invoices?: Record<string, unknown>[]
   invoiceStatements?: Record<string, unknown>[]
   invoiceItems?: Record<string, unknown>[]
+  assets?: Record<string, unknown>[]
+  liabilities?: Record<string, unknown>[]
+  netWorthSnapshots?: Record<string, unknown>[]
+  netWorthDrafts?: Record<string, unknown>[]
 }
 
 function rowToTransaction(r: Record<string, unknown>): LocalTransaction {
@@ -340,7 +373,81 @@ export async function readLocalCache(): Promise<LocalCache | null> {
             }
           })(),
     })),
+    assets: (bundle.assets ?? []).map((v) => ({
+      id: String(v['id']),
+      ownerId: (v['owner_id'] as string | null) ?? null,
+      name: String(v['name'] ?? ''),
+      type: String(v['type'] ?? 'other'),
+      value: String(v['value'] ?? '0'),
+      currency: String(v['currency'] ?? 'INR'),
+      equityDebtTag: (v['equity_debt_tag'] as string | null) ?? null,
+      metadata: parseJsonObject(v['metadata']),
+      valuationDate: String(v['valuation_date'] ?? '').slice(0, 10),
+      createdAt: String(v['created_at'] ?? ''),
+      updatedAt: String(v['updated_at'] ?? ''),
+    })),
+    liabilities: (bundle.liabilities ?? []).map((v) => ({
+      id: String(v['id']),
+      ownerId: (v['owner_id'] as string | null) ?? null,
+      name: String(v['name'] ?? ''),
+      type: String(v['type'] ?? 'other'),
+      outstandingAmount: String(v['outstanding_amount'] ?? '0'),
+      interestRate: (v['interest_rate'] as string | null) ?? null,
+      monthlyPayment: (v['monthly_payment'] as string | null) ?? null,
+      lastUpdated: String(v['last_updated'] ?? '').slice(0, 10),
+      createdAt: String(v['created_at'] ?? ''),
+    })),
+    netWorthSnapshots: (bundle.netWorthSnapshots ?? []).map((v) => ({
+      id: String(v['id']),
+      ownerId: (v['owner_id'] as string | null) ?? null,
+      snapshotDate: String(v['snapshot_date'] ?? '').slice(0, 10),
+      totalAssets: String(v['total_assets'] ?? '0'),
+      totalLiabilities: String(v['total_liabilities'] ?? '0'),
+      netWorth: String(v['net_worth'] ?? '0'),
+      assetBreakdown: parseJsonNullableArray(v['asset_breakdown']) as LocalNetWorthSnapshot['assetBreakdown'],
+      liabilityBreakdown: parseJsonNullableArray(v['liability_breakdown']) as LocalNetWorthSnapshot['liabilityBreakdown'],
+      notes: (v['notes'] as string | null) ?? null,
+      createdAt: String(v['created_at'] ?? ''),
+    })),
+    netWorthDrafts: (bundle.netWorthDrafts ?? []).map((v) => ({
+      id: String(v['id']),
+      ownerId: (v['owner_id'] as string | null) ?? null,
+      assetBreakdown: parseJsonNullableArray(v['asset_breakdown']) as Array<Record<string, unknown>> | null,
+      liabilityBreakdown: parseJsonNullableArray(v['liability_breakdown']) as Array<Record<string, unknown>> | null,
+      savedAt: String(v['saved_at'] ?? ''),
+    })),
   }
+}
+
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // fall through
+    }
+  }
+  return {}
+}
+
+function parseJsonNullableArray(value: unknown): Array<Record<string, unknown>> | Array<{ name: string; type: string; value: number; equityDebtTag?: string }> | Array<{ name: string; type: string; amount: number }> | null {
+  if (value === null || value === undefined) return null
+  if (Array.isArray(value)) return value as Array<Record<string, unknown>>
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value)
+      return Array.isArray(parsed) ? (parsed as Array<Record<string, unknown>>) : null
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
 /** Remove a statement and its transactions from the cache (after server delete). */

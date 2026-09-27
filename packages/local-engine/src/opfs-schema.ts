@@ -109,6 +109,49 @@ CREATE INDEX IF NOT EXISTS idx_local_txn_date ON local_transactions(date);
 CREATE INDEX IF NOT EXISTS idx_local_txn_account ON local_transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_local_txn_owners_txn ON local_transaction_owners(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_local_invoice_items_inv ON local_invoice_items(invoice_id);
+CREATE TABLE IF NOT EXISTS local_assets(
+  id TEXT PRIMARY KEY,
+  owner_id TEXT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  value TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  equity_debt_tag TEXT,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  valuation_date TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS local_liabilities(
+  id TEXT PRIMARY KEY,
+  owner_id TEXT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  outstanding_amount TEXT NOT NULL,
+  interest_rate TEXT,
+  monthly_payment TEXT,
+  last_updated TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS local_networth_snapshots(
+  id TEXT PRIMARY KEY,
+  owner_id TEXT,
+  snapshot_date TEXT NOT NULL,
+  total_assets TEXT NOT NULL,
+  total_liabilities TEXT NOT NULL,
+  net_worth TEXT NOT NULL,
+  asset_breakdown TEXT,
+  liability_breakdown TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS local_networth_drafts(
+  id TEXT PRIMARY KEY,
+  owner_id TEXT,
+  asset_breakdown TEXT,
+  liability_breakdown TEXT,
+  saved_at TEXT NOT NULL
+);
 -- Operation log for incremental sync (Phase 5): every local mutation appends
 -- here; the sync engine uploads only logged rows, then clears up to its mark.
 CREATE TABLE IF NOT EXISTS local_changelog(
@@ -133,6 +176,10 @@ export interface OpfsUpsertPatch {
   invoices?: Array<Record<string, unknown>>
   invoiceStatements?: Array<Record<string, unknown>>
   invoiceItems?: Array<Record<string, unknown>>
+  assets?: Array<Record<string, unknown>>
+  liabilities?: Array<Record<string, unknown>>
+  netWorthSnapshots?: Array<Record<string, unknown>>
+  netWorthDrafts?: Array<Record<string, unknown>>
 }
 
 export interface OpfsBatch {
@@ -230,6 +277,41 @@ export function buildUpsertBatch(p: OpfsUpsertPatch): OpfsBatch {
     queries.push(invItemSql)
     params.push([v['id'], v['invoiceId'], v['transactionId'] ?? null, v['statementId'] ?? null, v['date'], v['description'], v['amount'], v['type'], v['isOneTime'] ? 1 : 0, v['categoryId'] ?? null, v['categoryName'] ?? 'Uncategorized', v['categoryColor'] ?? null, v['categoryType'] ?? 'expense', JSON.stringify(v['owners'] ?? [])])
   }
+  const assetSql = `INSERT INTO local_assets(id,owner_id,name,type,value,currency,equity_debt_tag,metadata,valuation_date,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id,name=excluded.name,type=excluded.type,value=excluded.value,
+      currency=excluded.currency,equity_debt_tag=excluded.equity_debt_tag,metadata=excluded.metadata,
+      valuation_date=excluded.valuation_date,created_at=excluded.created_at,updated_at=excluded.updated_at`
+  for (const v of p.assets ?? []) {
+    queries.push(assetSql)
+    params.push([v['id'], v['ownerId'] ?? null, v['name'], v['type'], v['value'], v['currency'] ?? 'INR', v['equityDebtTag'] ?? null, JSON.stringify(v['metadata'] ?? {}), v['valuationDate'], v['createdAt'], v['updatedAt']])
+  }
+  const liabSql = `INSERT INTO local_liabilities(id,owner_id,name,type,outstanding_amount,interest_rate,monthly_payment,last_updated,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id,name=excluded.name,type=excluded.type,
+      outstanding_amount=excluded.outstanding_amount,interest_rate=excluded.interest_rate,
+      monthly_payment=excluded.monthly_payment,last_updated=excluded.last_updated,created_at=excluded.created_at`
+  for (const v of p.liabilities ?? []) {
+    queries.push(liabSql)
+    params.push([v['id'], v['ownerId'] ?? null, v['name'], v['type'], v['outstandingAmount'], v['interestRate'] ?? null, v['monthlyPayment'] ?? null, v['lastUpdated'], v['createdAt']])
+  }
+  const snapsSql = `INSERT INTO local_networth_snapshots(id,owner_id,snapshot_date,total_assets,total_liabilities,net_worth,asset_breakdown,liability_breakdown,notes,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id,snapshot_date=excluded.snapshot_date,total_assets=excluded.total_assets,
+      total_liabilities=excluded.total_liabilities,net_worth=excluded.net_worth,asset_breakdown=excluded.asset_breakdown,
+      liability_breakdown=excluded.liability_breakdown,notes=excluded.notes,created_at=excluded.created_at`
+  for (const v of p.netWorthSnapshots ?? []) {
+    queries.push(snapsSql)
+    params.push([v['id'], v['ownerId'] ?? null, v['snapshotDate'], v['totalAssets'], v['totalLiabilities'], v['netWorth'], JSON.stringify(v['assetBreakdown'] ?? null), JSON.stringify(v['liabilityBreakdown'] ?? null), v['notes'] ?? null, v['createdAt']])
+  }
+  const draftsSql = `INSERT INTO local_networth_drafts(id,owner_id,asset_breakdown,liability_breakdown,saved_at)
+    VALUES(?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id,asset_breakdown=excluded.asset_breakdown,
+      liability_breakdown=excluded.liability_breakdown,saved_at=excluded.saved_at`
+  for (const v of p.netWorthDrafts ?? []) {
+    queries.push(draftsSql)
+    params.push([v['id'], v['ownerId'] ?? null, JSON.stringify(v['assetBreakdown'] ?? null), JSON.stringify(v['liabilityBreakdown'] ?? null), v['savedAt']])
+  }
 
   return { queries, params }
 }
@@ -262,6 +344,8 @@ export const OPFS_CLEAR_SQL =
   'DELETE FROM local_accounts; DELETE FROM local_owners; DELETE FROM local_transaction_owners;' +
   'DELETE FROM local_rules; DELETE FROM local_merchants; DELETE FROM local_invoices;' +
   'DELETE FROM local_invoice_statements; DELETE FROM local_invoice_items;' +
+  'DELETE FROM local_assets; DELETE FROM local_liabilities;' +
+  'DELETE FROM local_networth_snapshots; DELETE FROM local_networth_drafts;' +
   'DELETE FROM local_changelog;'
 
 /** Allowed local field patches (camelCase) → columns. */
@@ -389,4 +473,8 @@ export const OPFS_READ_TABLES = [
   'local_invoices',
   'local_invoice_statements',
   'local_invoice_items',
+  'local_assets',
+  'local_liabilities',
+  'local_networth_snapshots',
+  'local_networth_drafts',
 ] as const

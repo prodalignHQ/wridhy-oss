@@ -20,6 +20,7 @@ import { apiClient } from '@/lib/api'
 import {
   cacheServerRows,
   deleteTransactionsFromCache,
+  emptyCache,
   readLocalCache,
   type LocalCache,
 } from './opfs-db'
@@ -92,6 +93,53 @@ interface ServerMerchant {
   isSystem: boolean
 }
 
+interface ServerAsset {
+  id: string
+  ownerId?: string | null
+  name: string
+  type: string
+  value: string
+  currency?: string
+  equityDebtTag?: string | null
+  metadata?: Record<string, unknown>
+  valuationDate: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface ServerLiability {
+  id: string
+  ownerId?: string | null
+  name: string
+  type: string
+  outstandingAmount: string
+  interestRate?: string | null
+  monthlyPayment?: string | null
+  lastUpdated: string
+  createdAt: string
+}
+
+interface ServerNetWorthSnapshot {
+  id: string
+  ownerId?: string | null
+  snapshotDate: string
+  totalAssets: string
+  totalLiabilities: string
+  netWorth: string
+  assetBreakdown: LocalCache['netWorthSnapshots'][number]['assetBreakdown']
+  liabilityBreakdown: LocalCache['netWorthSnapshots'][number]['liabilityBreakdown']
+  notes?: string | null
+  createdAt: string
+}
+
+interface ServerNetWorthDraft {
+  id: string
+  ownerId?: string | null
+  assetBreakdown: Array<Record<string, unknown>> | null
+  liabilityBreakdown: Array<Record<string, unknown>> | null
+  savedAt?: string
+}
+
 type LocalInput = LocalCache
 
 /** Shape the full cache into what the analytics engine consumes. */
@@ -128,21 +176,7 @@ async function loadLocalInput(): Promise<LocalInput> {
     cloud = null
   }
   if (!cloud) {
-    return (
-      cached ?? {
-        transactions: [],
-        categories: [],
-        statements: [],
-        accounts: [],
-        owners: [],
-        transactionOwners: [],
-        rules: [],
-        merchants: [],
-        invoices: [],
-        invoiceStatements: [],
-        invoiceItems: [],
-      }
-    )
+    return cached ?? emptyCache()
   }
 
   // 3. Converge: drop local rows superseded by server rows (same dedupHash,
@@ -184,8 +218,10 @@ export async function loadMergedInput(): Promise<LocalInput> {
   return loadLocalInput()
 }
 
-async function fetchCloudInput(): Promise<LocalInput> {
-  const [catsRaw, stmtsRaw, acctsRaw, ownersRaw, rulesRaw, merchantsRaw, invoicesRaw] = await Promise.all([
+async function fetchCloudInput(options?: { maxRows?: number; onProgress?: (page: number, totalPages: number) => void }): Promise<LocalInput> {
+  const maxRows = options?.maxRows ?? 10000
+  const onProgress = options?.onProgress
+  const [catsRaw, stmtsRaw, acctsRaw, ownersRaw, rulesRaw, merchantsRaw, invoicesRaw, assetsRaw, liabilitiesRaw, historyRaw, draftRaw] = await Promise.all([
     apiClient.fetch<ServerCategory[]>('/v1/categories'),
     apiClient.fetch<
       Array<{
@@ -220,10 +256,13 @@ async function fetchCloudInput(): Promise<LocalInput> {
         }>
       >('/v1/invoices')
       .catch(() => []),
+    apiClient.fetch<ServerAsset[]>('/v1/networth/assets').catch(() => [] as ServerAsset[]),
+    apiClient.fetch<ServerLiability[]>('/v1/networth/liabilities').catch(() => [] as ServerLiability[]),
+    apiClient.fetch<ServerNetWorthSnapshot[]>('/v1/networth/history').catch(() => [] as ServerNetWorthSnapshot[]),
+    apiClient.fetch<ServerNetWorthDraft | null>('/v1/networth/draft').catch(() => null),
   ])
 
-  // Paginate through all transactions (server caps limit at 200). Bounded at
-  // 10k rows to avoid runaway fetches; vault sync will replace this.
+  // Paginate through all transactions (server caps limit at 200).
   const all: ServerTransaction[] = []
   let page = 1
   for (;;) {
@@ -234,7 +273,8 @@ async function fetchCloudInput(): Promise<LocalInput> {
       .catch(() => null)
     if (!chunk || chunk.transactions.length === 0) break
     all.push(...chunk.transactions)
-    if (page >= (chunk.totalPages || 1) || all.length >= 10000) break
+    onProgress?.(page, chunk.totalPages || 1)
+    if (page >= (chunk.totalPages || 1) || all.length >= maxRows) break
     page++
   }
   const transactions: ServerTransaction[] = all
@@ -329,6 +369,53 @@ async function fetchCloudInput(): Promise<LocalInput> {
       }))
     ),
     invoiceItems: [],
+    assets: assetsRaw.map((a) => ({
+      id: a.id,
+      ownerId: a.ownerId ?? null,
+      name: a.name,
+      type: a.type,
+      value: String(a.value),
+      currency: a.currency ?? 'INR',
+      equityDebtTag: a.equityDebtTag ?? null,
+      metadata: a.metadata ?? {},
+      valuationDate: typeof a.valuationDate === 'string' ? a.valuationDate.slice(0, 10) : new Date(a.valuationDate).toISOString().slice(0, 10),
+      createdAt: String(a.createdAt),
+      updatedAt: String(a.updatedAt),
+    })),
+    liabilities: liabilitiesRaw.map((l) => ({
+      id: l.id,
+      ownerId: l.ownerId ?? null,
+      name: l.name,
+      type: l.type,
+      outstandingAmount: String(l.outstandingAmount),
+      interestRate: l.interestRate ?? null,
+      monthlyPayment: l.monthlyPayment ?? null,
+      lastUpdated: typeof l.lastUpdated === 'string' ? l.lastUpdated.slice(0, 10) : new Date(l.lastUpdated).toISOString().slice(0, 10),
+      createdAt: String(l.createdAt),
+    })),
+    netWorthSnapshots: historyRaw.map((s) => ({
+      id: s.id,
+      ownerId: s.ownerId ?? null,
+      snapshotDate: typeof s.snapshotDate === 'string' ? s.snapshotDate.slice(0, 10) : new Date(s.snapshotDate).toISOString().slice(0, 10),
+      totalAssets: String(s.totalAssets),
+      totalLiabilities: String(s.totalLiabilities),
+      netWorth: String(s.netWorth),
+      assetBreakdown: s.assetBreakdown ?? null,
+      liabilityBreakdown: s.liabilityBreakdown ?? null,
+      notes: s.notes ?? null,
+      createdAt: String(s.createdAt),
+    })),
+    netWorthDrafts: draftRaw
+      ? [
+          {
+            id: draftRaw.id,
+            ownerId: draftRaw.ownerId ?? null,
+            assetBreakdown: draftRaw.assetBreakdown ?? null,
+            liabilityBreakdown: draftRaw.liabilityBreakdown ?? null,
+            savedAt: String(draftRaw.savedAt ?? new Date().toISOString()),
+          },
+        ]
+      : [],
   }
 
   return input
@@ -341,6 +428,58 @@ export async function refreshLocalCache(): Promise<void> {
   } catch {
     // offline or worker unavailable — cache converges on next analytics load
   }
+}
+
+/** Light per-table server counts for migration inventory (no bulk fetch). */
+export async function fetchServerCounts(): Promise<Array<{ key: string; label: string; count: number }>> {
+  const [txns, stmts, cats, rules, merchants, accts, owners, assets, liabs, history, invoices] = await Promise.all([
+    apiClient.fetch<{ total: number }>('/v1/transactions?limit=1&page=1').catch(() => ({ total: 0 })),
+    apiClient.fetch<unknown[]>('/v1/statements').catch(() => []),
+    apiClient.fetch<unknown[]>('/v1/categories').catch(() => []),
+    apiClient.fetch<unknown[]>('/v1/rules').catch(() => []),
+    apiClient.fetch<unknown[]>('/v1/merchants').catch(() => []),
+    apiClient.fetch<unknown[]>('/v1/accounts').catch(() => []),
+    apiClient.fetch<unknown[]>('/v1/owners').catch(() => []),
+    apiClient.fetch<unknown[]>('/v1/networth/assets').catch(() => []),
+    apiClient.fetch<unknown[]>('/v1/networth/liabilities').catch(() => []),
+    apiClient.fetch<unknown[]>('/v1/networth/history').catch(() => []),
+    apiClient.fetch<unknown[]>('/v1/invoices').catch(() => []),
+  ])
+  return [
+    { key: 'transactions', label: 'Transactions', count: txns.total },
+    { key: 'statements', label: 'Statements', count: stmts.length },
+    { key: 'categories', label: 'Categories', count: cats.length },
+    { key: 'rules', label: 'Categorization rules', count: rules.length },
+    { key: 'merchants', label: 'Merchants', count: merchants.length },
+    { key: 'accounts', label: 'Accounts', count: accts.length },
+    { key: 'owners', label: 'Household members', count: owners.length },
+    { key: 'assets', label: 'Assets', count: assets.length },
+    { key: 'liabilities', label: 'Liabilities', count: liabs.length },
+    { key: 'snapshots', label: 'Net-worth snapshots', count: history.length },
+    { key: 'invoices', label: 'Invoices', count: invoices.length },
+  ]
+}
+
+/**
+ * Unbounded full pull for migration (progress per transaction page).
+ * Converges + caches exactly like loadLocalInput, then returns the input.
+ */
+export async function pullAllCloudData(
+  onProgress?: (page: number, totalPages: number) => void
+): Promise<LocalInput> {
+  const { readLocalCache } = await import('./opfs-db')
+  const cached = await readLocalCache().catch(() => null)
+  const cloud = await fetchCloudInput({ maxRows: 500000, onProgress })
+  if (cached) {
+    const serverIds = new Set(cloud.transactions.map((t) => t.id))
+    const serverHashes = new Set(cloud.transactions.map((t) => t.dedupHash))
+    const staleIds = cached.transactions
+      .filter((t) => t.dedupHash && serverHashes.has(t.dedupHash) && !serverIds.has(t.id))
+      .map((t) => t.id)
+    if (staleIds.length > 0) await deleteTransactionsFromCache(staleIds).catch(() => {})
+  }
+  await cacheServerRows(cloud).catch(() => {})
+  return cloud
 }
 
 /** Small reference tables for the local import pipeline (rules/categories/merchants). */

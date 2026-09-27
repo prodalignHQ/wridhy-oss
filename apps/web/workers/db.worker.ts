@@ -249,6 +249,10 @@ interface UpsertPayload {
           invoices: out['local_invoices'],
           invoiceStatements: out['local_invoice_statements'],
           invoiceItems: out['local_invoice_items'],
+          assets: out['local_assets'],
+          liabilities: out['local_liabilities'],
+          netWorthSnapshots: out['local_networth_snapshots'],
+          netWorthDrafts: out['local_networth_drafts'],
         },
       ]
       return { ok: true, rows }

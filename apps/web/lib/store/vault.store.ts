@@ -16,7 +16,7 @@ import {
   unlockWithRecovery,
   type VaultBlob,
 } from '../engine/vault-sync'
-import { sealLocalDb, unsealLocalDb, readChangelog, clearChangelog, markBackupComplete, hasPendingWork, restoreSnapshotToCache } from '../engine/opfs-db'
+import { sealLocalDb, unsealLocalDb, readChangelog, clearChangelog, markBackupComplete, hasPendingWork, restoreSnapshotToCache, emptyCache } from '../engine/opfs-db'
 
 // ─── In-memory vault session ─────────────────────────────────────────────────
 // DEK lives here only. Locking wipes it. Nothing key-related is persisted.
@@ -254,13 +254,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const maxId = log.reduce((m, e) => Math.max(m, e.id), 0)
       const cache = await readLocalCache()
       // Empty cache still syncs (records the version; keeps backup fresh).
-      const snapshot = buildVaultSnapshot(
-        cache ?? {
-          transactions: [], categories: [], statements: [], accounts: [], owners: [],
-          transactionOwners: [], rules: [], merchants: [], invoices: [],
-          invoiceStatements: [], invoiceItems: [],
-        }
-      )
+      const snapshot = buildVaultSnapshot(cache ?? emptyCache())
       const updated = await syncEncryptedSnapshot(blob, dek, snapshot)
       if (maxId > 0) await clearChangelog(maxId).catch(() => {})
       markBackupComplete()

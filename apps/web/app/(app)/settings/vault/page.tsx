@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, Unlock, KeyRound, Fingerprint, RefreshCw, ShieldCheck, TriangleAlert, Trash2, Database, ArrowDownToLine } from 'lucide-react'
+import { Lock, Unlock, KeyRound, Fingerprint, RefreshCw, ShieldCheck, TriangleAlert, Trash2, Database, ArrowDownToLine, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useVaultStore } from '@/lib/store/vault.store'
+import { MigrationWizard, readRetiredAt } from '@/components/vault/MigrationWizard'
 import { isPrfSupported, isWebAuthnAvailable } from '@/lib/engine/webauthn-prf'
 import { useAuthStore } from '@/lib/store/auth.store'
 import type { VaultSnapshot } from '@momoney/local-engine'
@@ -41,6 +42,10 @@ export default function VaultPage() {
   const [lastBackup, setLastBackup] = useState<string | null>(null)
   const [dbStats, setDbStats] = useState<{ sealed: boolean; counts: Record<string, number> | null } | null>(null)
   const [workerError, setWorkerError] = useState<string | null>(null)
+  const [showMigrate, setShowMigrate] = useState(false)
+  const [serverTotal, setServerTotal] = useState<number | null>(null)
+  const [retiredAt, setRetiredAt] = useState<string | null>(null)
+  const restoreFileRef = useRef<HTMLInputElement | null>(null)
   // Post-login unlock gate (?from=login): offer the escape hatch and return
   // to the dashboard after a successful unlock.
   const [fromLogin, setFromLogin] = useState(false)
@@ -179,6 +184,80 @@ export default function VaultPage() {
       toast.success('Encrypted snapshot synced (ciphertext only)')
     } catch {
       toast.error(vault.error ?? 'Sync failed')
+    }
+  }
+
+  const refreshServerStatus = async () => {
+    const [{ fetchServerCounts }, { readRetiredAt }] = await Promise.all([
+      import('@/lib/engine/analytics-client'),
+      import('@/components/vault/MigrationWizard'),
+    ])
+    const rows = await fetchServerCounts().catch(() => [])
+    setServerTotal(rows.reduce((a, r) => a + r.count, 0))
+    setRetiredAt(readRetiredAt())
+  }
+
+  useEffect(() => {
+    if (vault.status === 'unlocked') {
+      void refreshServerStatus()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vault.status])
+
+  useEffect(() => {
+    setRetiredAt(readRetiredAt())
+  }, [])
+
+  const handleExportBackup = async () => {
+    try {
+      const { fetchVaultBlob } = await import('@/lib/engine/vault-sync')
+      const blob = await fetchVaultBlob()
+      if (!blob) {
+        toast.error('No vault to export')
+        return
+      }
+      const file = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), vault: blob }, null, 2)], {
+        type: 'application/json',
+      })
+      const url = URL.createObjectURL(file)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'momoney-vault-backup.json'
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Encrypted backup downloaded — keep it somewhere safe')
+    } catch {
+      toast.error('Export failed')
+    }
+  }
+
+  const handleRestoreFile = async (file: File | undefined) => {
+    if (!file) return
+    try {
+      const parsed: unknown = JSON.parse(await file.text())
+      const vaultData = (parsed as { vault?: Record<string, unknown> }).vault ?? parsed
+      const rec = vaultData as Record<string, unknown>
+      if (typeof rec['cipher'] !== 'string' || typeof rec['nonce'] !== 'string' || typeof rec['salt'] !== 'string') {
+        throw new Error('Not a MoMoney vault backup file')
+      }
+      const { apiClient } = await import('@/lib/api')
+      await apiClient.fetch('/v1/vault', {
+        method: 'PUT',
+        body: JSON.stringify({
+          cipher: rec['cipher'],
+          nonce: rec['nonce'],
+          salt: rec['salt'],
+          opslimit: rec['opslimit'],
+          memlimit: rec['memlimit'],
+          wrappedDekPassword: rec['wrappedDekPassword'] ?? null,
+          wrappedDekRecovery: rec['wrappedDekRecovery'] ?? null,
+          version: rec['version'] ?? 1,
+        }),
+      })
+      await vault.refresh()
+      toast.success('Vault restored from file — unlock to verify')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Restore failed')
     }
   }
 
@@ -462,6 +541,59 @@ export default function VaultPage() {
                   <Fingerprint size={14} className="mr-2" /> Add this device
                 </Button>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {vault.status === 'unlocked' && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database size={16} className="text-primary" /> Readable server data
+            </CardTitle>
+            <CardDescription>
+              {retiredAt
+                ? `Retired ${new Date(retiredAt).toLocaleString()} — the server holds your vault blob only.`
+                : serverTotal === null
+                  ? 'Checking what readable copies remain on the server…'
+                  : serverTotal === 0
+                    ? 'Nothing readable left on the server — vault blob only.'
+                    : `${serverTotal.toLocaleString()} readable records still on the server.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!retiredAt && (serverTotal ?? 0) > 0 && !showMigrate && (
+              <Button variant="outline" size="sm" onClick={() => setShowMigrate(true)}>
+                <ShieldCheck size={14} className="mr-2" /> Secure existing server data
+              </Button>
+            )}
+            {showMigrate && !retiredAt && (
+              <MigrationWizard
+                onDone={() => {
+                  setShowMigrate(false)
+                  void refreshServerStatus()
+                  void vault.refresh()
+                }}
+              />
+            )}
+            <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+              <Button variant="outline" size="sm" onClick={handleExportBackup}>
+                <Download size={14} className="mr-2" /> Download encrypted backup
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => restoreFileRef.current?.click()}>
+                Restore from file
+              </Button>
+              <input
+                ref={restoreFileRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={(e) => {
+                  void handleRestoreFile(e.target.files?.[0])
+                  e.target.value = ''
+                }}
+              />
             </div>
           </CardContent>
         </Card>
