@@ -116,6 +116,16 @@ export default function UnlockGate() {
     setBusy(true)
     setError(null)
     try {
+      // Local pre-check: a complete code normalizes to exactly 32 hex chars.
+      // This catches typos/transcription errors BEFORE any crypto runs, with
+      // a message that says so — instead of the generic mismatch below.
+      const { normalizeRecoveryCode: normalize } = await import('@momoney/local-engine')
+      if (normalize(recoveryCode).length !== 32) {
+        setError(
+          'That code looks incomplete — it should be 32 characters like xxxx-xxxx-xxxx-xxxx. Check for missing chunks.'
+        )
+        return
+      }
       await vault.unlockRecovery(recoveryCode)
       setRecoveryCode('')
       // Recovery is exactly how new devices join: offer this device a key.
@@ -126,7 +136,9 @@ export default function UnlockGate() {
         done()
       }
     } catch {
-      setError('That code did not match. It looks like xxxx-xxxx-xxxx-xxxx — check for typos.')
+      setError(
+        'That complete code does not unlock THIS vault. Codes only work for the vault that issued them — check you are logged in as the right account, and that the vault was not re-created after the code was shown.'
+      )
     } finally {
       setBusy(false)
     }
@@ -190,6 +202,15 @@ export default function UnlockGate() {
           <br />
           Only this device can open it. Not us, not anyone.
         </CardDescription>
+        {blob && (
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            Unlocking the vault for <b>{userEmail}</b>
+            {blob.updatedAt ? ` · issued ${new Date(blob.updatedAt).toLocaleDateString()}` : ''} · vault
+            #{blob.salt.replace(/[^A-Za-z0-9]/g, '').slice(0, 6)}
+            <br />
+            Recovery codes only work for the vault that issued them.
+          </p>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-4">
