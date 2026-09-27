@@ -116,13 +116,16 @@ export default function VaultOnboardingPage() {
     setBusy(true)
     setWarn(null)
     try {
-      const { registerPrfCredential, evalPrf, derivePrfInput } = await import('@/lib/engine/webauthn-prf')
+      const { registerAndProvePrf, PrfCancelledError } = await import('@/lib/engine/webauthn-prf')
       const params = createVaultParams()
       const label = deviceLabel.trim() || 'This device'
-      // Two authenticator taps: register, then prove PRF evaluability.
-      // Creation happens after the mandatory password step below.
-      const { credentialIdB64url } = await registerPrfCredential(user?.email ?? 'momoney-user')
-      const prfOutput = await evalPrf(credentialIdB64url, await derivePrfInput(params.saltB64))
+      // Two authenticator taps: register, then prove PRF evaluability
+      // (with propagation-tolerant retries inside). Creation happens after
+      // the mandatory password step below.
+      const { credentialIdB64url, prfOutput } = await registerAndProvePrf(
+        user?.email ?? 'momoney-user',
+        params.saltB64
+      )
       setPendingPk({
         credentialId: credentialIdB64url,
         label,
@@ -132,6 +135,8 @@ export default function VaultOnboardingPage() {
         memorySize: params.memorySize,
       })
     } catch (err) {
+      const { isPasskeyCancel } = await import('@/lib/engine/webauthn-prf')
+      if (isPasskeyCancel(err)) return
       toast.error(err instanceof Error ? err.message : 'Passkey setup failed')
     } finally {
       setBusy(false)
@@ -226,7 +231,7 @@ export default function VaultOnboardingPage() {
             {isWebAuthnAvailable() ? (
               <div className="space-y-3 rounded-xl border border-border p-4">
                 <p className="text-sm font-semibold flex items-center gap-2"><Fingerprint size={15} /> Passkey (recommended)</p>
-                <p className="text-xs text-muted-foreground">Face ID / fingerprint / PIN. Nothing to remember, nothing to phish.</p>
+                <p className="text-xs text-muted-foreground">Face ID / fingerprint / PIN. Nothing to remember, nothing to phish. Two quick prompts: create, then verify.</p>
                 {!pendingPk ? (
                   <>
                     <Input

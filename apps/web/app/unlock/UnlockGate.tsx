@@ -83,7 +83,9 @@ export default function UnlockGate() {
       await vault.unlockPasskey(chosenCredential || undefined)
       toast.success('Welcome back — your money is unlocked')
       done()
-    } catch {
+    } catch (err) {
+      const { isPasskeyCancel } = await import('@/lib/engine/webauthn-prf')
+      if (isPasskeyCancel(err)) return
       setError('That did not work. Try again, or use your recovery code below — it always works.')
     } finally {
       setBusy(false)
@@ -104,8 +106,13 @@ export default function UnlockGate() {
         toast.success('Welcome back — your money is unlocked')
         done()
       }
-    } catch {
-      setError('Wrong vault password. Hint: this is your vault password, not your login password.')
+    } catch (err) {
+      const stage = (err as { stage?: string }).stage
+      setError(
+        stage === 'derive'
+          ? 'Your device could not run the key check (Argon2 failed) — try a different browser. Your password may be fine.'
+          : 'Wrong vault password. Hint: this is your vault password, not your login password.'
+      )
     } finally {
       setBusy(false)
     }
@@ -135,9 +142,12 @@ export default function UnlockGate() {
         toast.success('Recovered — consider adding a fresh passkey in Settings → Vault')
         done()
       }
-    } catch {
+    } catch (err) {
+      const stage = (err as { stage?: string }).stage
       setError(
-        'That complete code does not unlock THIS vault. Codes only work for the vault that issued them — check you are logged in as the right account, and that the vault was not re-created after the code was shown.'
+        stage === 'derive'
+          ? 'Your device could not run the key check (Argon2 failed) — try a different browser. Your code may be fine.'
+          : 'That complete code does not unlock THIS vault. Codes only work for the vault that issued them — check you are logged in as the right account, and that the vault was not re-created after the code was shown.'
       )
     } finally {
       setBusy(false)
@@ -151,7 +161,12 @@ export default function UnlockGate() {
       await vault.addPasskey(userEmail, suggestDeviceLabel())
       toast.success('This device is set — next time, just use your fingerprint')
       done()
-    } catch {
+    } catch (err) {
+      const { isPasskeyCancel } = await import('@/lib/engine/webauthn-prf')
+      if (isPasskeyCancel(err)) {
+        done()
+        return
+      }
       setError('Could not add this device. You can do it later in Settings → Vault — continuing for now.')
       setTimeout(done, 1200)
     } finally {

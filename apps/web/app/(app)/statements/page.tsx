@@ -662,6 +662,8 @@ export default function StatementsPage() {
       toast.success('Vault unlocked — continuing import encrypted')
       await handleImport()
     } catch (err) {
+      const { isPasskeyCancel } = await import('@/lib/engine/webauthn-prf')
+      if (isPasskeyCancel(err)) return
       setGateError(err instanceof Error ? err.message : 'Passkey unlock failed')
     } finally {
       setGateBusy(false)

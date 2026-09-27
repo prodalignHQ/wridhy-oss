@@ -18,7 +18,7 @@ import {
   type VaultParams,
   type VaultSnapshot,
 } from '@momoney/local-engine'
-import { derivePrfInput, evalPrf, registerPrfCredential } from './webauthn-prf'
+import { derivePrfInput, evalPrf, registerAndProvePrf, PrfCancelledError } from './webauthn-prf'
 import type { LocalCache } from './opfs-db'
 
 /** Shape the OPFS cache into the encrypted-sync snapshot (all tables). */
@@ -63,9 +63,12 @@ export interface VaultBlob {
 
 export class VaultError extends Error {
   code: 'NO_VAULT' | 'NO_WRAP' | 'DECRYPT_FAILED' | 'PRF_UNSUPPORTED' | 'CONFLICT'
-  constructor(code: VaultError['code'], message: string) {
+  /** Which stage failed: key derivation (environment/KDF) vs unwrap (wrong key). */
+  stage?: 'derive' | 'unwrap' | 'decrypt'
+  constructor(code: VaultError['code'], message: string, stage?: VaultError['stage']) {
     super(message)
     this.code = code
+    this.stage = stage
   }
 }
 
@@ -189,11 +192,30 @@ export async function setupVaultWithPasskeys(
 
 export async function unlockWithPassword(blob: VaultBlob, password: string): Promise<Uint8Array> {
   if (!blob.wrappedDekPassword) throw new VaultError('NO_WRAP', 'No password unlock registered on this vault')
-  const kek = await deriveKek(password, paramsFromBlob(blob))
+  let kek: Uint8Array
   try {
-    return await unwrapDek(blob.wrappedDekPassword, kek)
+    kek = await deriveKek(password, paramsFromBlob(blob))
+  } catch (err) {
+    console.debug('[vault] KDF failed during password unlock', {
+      opslimit: blob.opslimit,
+      memlimit: blob.memlimit,
+      saltLen: blob.salt?.length,
+      wrapLen: blob.wrappedDekPassword?.length,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    throw new VaultError(
+      'DECRYPT_FAILED',
+      'Key derivation failed on this device (Argon2 could not run) — try another browser, not another password',
+      'derive'
+    )
+  }
+  try {
+    const dek = await unwrapDek(blob.wrappedDekPassword, kek)
+    return dek
   } catch {
-    throw new VaultError('DECRYPT_FAILED', 'Incorrect password')
+    throw new VaultError('DECRYPT_FAILED', 'Incorrect password', 'unwrap')
+  } finally {
+    kek.fill(0)
   }
 }
 
@@ -220,17 +242,21 @@ export async function registerPasskey(
   userName: string,
   label: string
 ): Promise<VaultBlob> {
-  const { credentialIdB64url } = await registerPrfCredential(userName)
-  // Verify the credential can actually evaluate PRF before storing the wrap.
-  const prfInput = await derivePrfInput(blob.salt)
-  let prfOut: Uint8Array
+  // Cancellations propagate untouched (callers return to idle silently);
+  // only genuine failures become PRF_UNSUPPORTED.
+  let proven: { credentialIdB64url: string; prfOutput: Uint8Array }
   try {
-    prfOut = await evalPrf(credentialIdB64url, prfInput)
-  } catch {
-    throw new VaultError('PRF_UNSUPPORTED', 'This passkey does not support the PRF extension')
+    proven = await registerAndProvePrf(userName, blob.salt)
+  } catch (err) {
+    if (err instanceof PrfCancelledError) throw err
+    if (err instanceof Error && err.message === 'This passkey does not support the PRF extension') {
+      throw new VaultError('PRF_UNSUPPORTED', err.message)
+    }
+    throw err
   }
-  const wrappedDek = wrapDek(dek, prfOut)
-  prfOut.fill(0)
+  const { credentialIdB64url, prfOutput } = proven
+  const wrappedDek = wrapDek(dek, prfOutput)
+  prfOutput.fill(0)
   const saved = await apiClient.fetch<{ credentialId: string; label: string; createdAt: string }>(
     '/v1/vault/wraps',
     {
@@ -257,7 +283,8 @@ export async function unlockWithPasskey(blob: VaultBlob, credentialId?: string):
   let prfOut: Uint8Array
   try {
     prfOut = await evalPrf(target.credentialId, prfInput)
-  } catch {
+  } catch (err) {
+    if (err instanceof PrfCancelledError) throw err
     throw new VaultError('PRF_UNSUPPORTED', 'PRF evaluation failed on this device')
   }
   try {
@@ -278,11 +305,30 @@ export async function revokePasskey(blob: VaultBlob, credentialId: string): Prom
 
 export async function unlockWithRecovery(blob: VaultBlob, code: string): Promise<Uint8Array> {
   if (!blob.wrappedDekRecovery) throw new VaultError('NO_WRAP', 'No recovery code registered on this vault')
-  const kek = await deriveKek(normalizeRecoveryCode(code), paramsFromBlob(blob))
+  let kek: Uint8Array
   try {
-    return await unwrapDek(blob.wrappedDekRecovery, kek)
+    kek = await deriveKek(normalizeRecoveryCode(code), paramsFromBlob(blob))
+  } catch (err) {
+    console.debug('[vault] KDF failed during recovery unlock', {
+      opslimit: blob.opslimit,
+      memlimit: blob.memlimit,
+      saltLen: blob.salt?.length,
+      wrapLen: blob.wrappedDekRecovery?.length,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    throw new VaultError(
+      'DECRYPT_FAILED',
+      'Key derivation failed on this device (Argon2 could not run) — try another browser, not another code',
+      'derive'
+    )
+  }
+  try {
+    const dek = await unwrapDek(blob.wrappedDekRecovery, kek)
+    return dek
   } catch {
-    throw new VaultError('DECRYPT_FAILED', 'Incorrect recovery code')
+    throw new VaultError('DECRYPT_FAILED', 'Incorrect recovery code', 'unwrap')
+  } finally {
+    kek.fill(0)
   }
 }
 

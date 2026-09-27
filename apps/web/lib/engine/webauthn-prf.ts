@@ -74,58 +74,137 @@ export interface PrfRegistration {
   credentialIdB64url: string
 }
 
+/** Thrown when the user dismisses an authenticator prompt (or the browser
+ * rejects it for gesture/timing reasons). Callers should treat this as
+ * "try again", NOT as missing PRF support — silently returning to idle. */
+export class PrfCancelledError extends Error {
+  constructor(message = 'Passkey prompt was dismissed') {
+    super(message)
+    this.name = 'PrfCancelledError'
+  }
+}
+
+/** True for user-dismissed ceremonies (never surface these as errors). */
+export function isPasskeyCancel(err: unknown): boolean {
+  return err instanceof PrfCancelledError || (err as { name?: string } | null)?.name === 'PrfCancelledError'
+}
+
+function isCancelError(err: unknown): boolean {
+  if (err === null || err === undefined) return true
+  if (typeof DOMException !== 'undefined' && err instanceof DOMException) {
+    return err.name === 'NotAllowedError' || err.name === 'AbortError'
+  }
+  const name = (err as { name?: string }).name ?? ''
+  return name === 'NotAllowedError' || name === 'AbortError'
+}
+
 /** Register a new passkey. PRF evaluability is exercised at unlock, not here. */
 export async function registerPrfCredential(userName: string): Promise<PrfRegistration> {
   const challenge = crypto.getRandomValues(new Uint8Array(32))
   const userId = crypto.getRandomValues(new Uint8Array(32))
   const rpId = window.location.hostname
 
-  const cred = (await navigator.credentials.create({
-    publicKey: {
-      challenge: challenge.buffer as ArrayBuffer,
-      rp: { name: 'MoMoney', id: rpId },
-      user: {
-        id: userId.buffer as ArrayBuffer,
-        name: userName,
-        displayName: userName,
+  let cred: { rawId: ArrayBuffer } | null
+  try {
+    cred = (await navigator.credentials.create({
+      publicKey: {
+        challenge: challenge.buffer as ArrayBuffer,
+        rp: { name: 'MoMoney', id: rpId },
+        user: {
+          id: userId.buffer as ArrayBuffer,
+          name: userName,
+          displayName: userName,
+        },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+        authenticatorSelection: {
+          residentKey: 'preferred',
+          userVerification: 'preferred',
+        },
+        timeout: 120_000,
+        attestation: 'none',
+        extensions: { prf: {} },
       },
-      pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
-      authenticatorSelection: {
-        residentKey: 'preferred',
-        userVerification: 'preferred',
-      },
-      timeout: 120_000,
-      attestation: 'none',
-      extensions: { prf: {} },
-    },
-  })) as unknown as { rawId: ArrayBuffer } | null
+    })) as unknown as { rawId: ArrayBuffer } | null
+  } catch (err) {
+    if (isCancelError(err)) throw new PrfCancelledError()
+    throw err
+  }
 
-  if (!cred) throw new Error('Passkey registration was cancelled or failed')
+  if (!cred) throw new PrfCancelledError()
   return { credentialIdB64url: bytesToB64url(new Uint8Array(cred.rawId)) }
 }
 
-/** Evaluate PRF against a registered credential → 32-byte KEK. */
-export async function evalPrf(credentialIdB64url: string, prfInput: Uint8Array): Promise<Uint8Array> {
+/** Single PRF evaluation attempt. Classifies failures; never retries. */
+async function evalPrfOnce(credentialIdB64url: string, prfInput: Uint8Array): Promise<Uint8Array> {
   const challenge = crypto.getRandomValues(new Uint8Array(32))
 
-  const assertion = (await navigator.credentials.get({
-    publicKey: {
-      challenge: challenge.buffer as ArrayBuffer,
-      allowCredentials: [{ id: b64urlToBytes(credentialIdB64url).buffer as ArrayBuffer, type: 'public-key' }],
-      userVerification: 'preferred',
-      timeout: 120_000,
-      extensions: { prf: { eval: { first: prfInput.buffer as ArrayBuffer } } },
-    },
-  })) as unknown as {
+  let assertion: {
     getClientExtensionResults?: () => { prf?: { results?: { first?: ArrayBuffer } } }
   } | null
+  try {
+    assertion = (await navigator.credentials.get({
+      publicKey: {
+        challenge: challenge.buffer as ArrayBuffer,
+        allowCredentials: [{ id: b64urlToBytes(credentialIdB64url).buffer as ArrayBuffer, type: 'public-key' }],
+        userVerification: 'preferred',
+        timeout: 120_000,
+        extensions: { prf: { eval: { first: prfInput.buffer as ArrayBuffer } } },
+      },
+    })) as unknown as typeof assertion
+  } catch (err) {
+    if (isCancelError(err)) throw new PrfCancelledError()
+    throw err
+  }
 
-  if (!assertion) throw new Error('Passkey authentication was cancelled or failed')
+  if (!assertion) throw new PrfCancelledError()
   const first = assertion.getClientExtensionResults?.()?.prf?.results?.first
   if (!first || first.byteLength !== 32) {
-    throw new Error('This passkey does not support the PRF extension')
+    // Ceremony SUCCEEDED but no PRF output: the authenticator genuinely
+    // lacks PRF. This — and only this — means "unsupported".
+    throw new Error('UNSUPPORTED_PRF')
   }
   return new Uint8Array(first)
+}
+
+/**
+ * Evaluate PRF with retries. A just-registered credential (Chrome profile
+ * keys especially) may not resolve in an immediately-following get() —
+ * credential propagation/timing flakes that vanish on retry. Only a
+ * ceremony that SUCCEEDS without PRF output counts as unsupported;
+ * cancellations propagate immediately (never re-prompt after a dismiss).
+ */
+export async function evalPrf(credentialIdB64url: string, prfInput: Uint8Array): Promise<Uint8Array> {
+  const delays = [0, 800, 1600]
+  let lastError: unknown = null
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, delays[attempt]))
+    }
+    try {
+      return await evalPrfOnce(credentialIdB64url, prfInput)
+    } catch (err) {
+      if (err instanceof PrfCancelledError) throw err
+      if (err instanceof Error && err.message === 'UNSUPPORTED_PRF') {
+        throw new Error('This passkey does not support the PRF extension')
+      }
+      lastError = err
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('PRF evaluation failed — please retry')
+}
+
+/**
+ * Register + prove PRF in one call (two authenticator taps: create, then
+ * verify). Used by onboarding and add-device flows so neither duplicates
+ * the retry/classify logic.
+ */
+export async function registerAndProvePrf(
+  userName: string,
+  saltB64: string
+): Promise<{ credentialIdB64url: string; prfOutput: Uint8Array }> {
+  const { credentialIdB64url } = await registerPrfCredential(userName)
+  const prfOutput = await evalPrf(credentialIdB64url, await derivePrfInput(saltB64))
+  return { credentialIdB64url, prfOutput }
 }
 
 // ─── Portable base64url ──────────────────────────────────────────────────────

@@ -123,7 +123,9 @@ export default function VaultPage() {
       await vault.unlockPasskey(credentialId ?? chosenCredential ?? undefined)
       toast.success('Vault unlocked with passkey')
       returnAfterUnlock()
-    } catch {
+    } catch (err) {
+      const { isPasskeyCancel } = await import('@/lib/engine/webauthn-prf')
+      if (isPasskeyCancel(err)) return
       toast.error(vault.error ?? 'Passkey unlock failed')
     }
   }
@@ -145,7 +147,9 @@ export default function VaultPage() {
       await vault.addPasskey(user?.email ?? 'momoney-user', label)
       setDeviceLabel('')
       toast.success(`Passkey registered (${label})`)
-    } catch {
+    } catch (err) {
+      const { isPasskeyCancel } = await import('@/lib/engine/webauthn-prf')
+      if (isPasskeyCancel(err)) return
       toast.error(vault.error ?? 'Passkey registration failed')
     }
   }

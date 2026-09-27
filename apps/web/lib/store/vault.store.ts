@@ -148,7 +148,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       dek = newDek
       set({ status: 'unlocked', snapshot })
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Passkey unlock failed' })
+      // Dismissed prompts are not errors — leave state clean, rethrow for
+      // callers that distinguish, and let UIs return to idle silently.
+      const { isPasskeyCancel } = await import('../engine/webauthn-prf')
+      if (!isPasskeyCancel(err)) {
+        set({ error: err instanceof Error ? err.message : 'Passkey unlock failed' })
+      }
       throw err
     } finally {
       set({ busy: false })
@@ -185,7 +190,10 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const updated = await registerPasskey(blob, dek, userName, label)
       set({ blob: updated })
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Passkey registration failed' })
+      const { isPasskeyCancel } = await import('../engine/webauthn-prf')
+      if (!isPasskeyCancel(err)) {
+        set({ error: err instanceof Error ? err.message : 'Passkey registration failed' })
+      }
       throw err
     } finally {
       set({ busy: false })
