@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, Unlock, KeyRound, Fingerprint, RefreshCw, ShieldCheck, TriangleAlert, Trash2, Database } from 'lucide-react'
+import { Lock, Unlock, KeyRound, Fingerprint, RefreshCw, ShieldCheck, TriangleAlert, Trash2, Database, ArrowDownToLine } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -179,6 +179,15 @@ export default function VaultPage() {
       toast.success('Encrypted snapshot synced (ciphertext only)')
     } catch {
       toast.error(vault.error ?? 'Sync failed')
+    }
+  }
+
+  const handleCheckUpdates = async () => {
+    try {
+      const changed = await vault.pullUpdates()
+      toast.success(changed ? 'Pulled changes from your other devices' : 'Already up to date')
+    } catch {
+      toast.error('Could not check for updates')
     }
   }
 
@@ -375,6 +384,9 @@ export default function VaultPage() {
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={handleSync} disabled={vault.busy}>
                 <RefreshCw size={14} className="mr-2" /> Sync now
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleCheckUpdates} disabled={vault.busy}>
+                <ArrowDownToLine size={14} className="mr-2" /> Check for updates
               </Button>
               <Button variant="ghost" size="sm" onClick={() => { void vault.lock() }}>
                 <Lock size={14} className="mr-2" /> Lock

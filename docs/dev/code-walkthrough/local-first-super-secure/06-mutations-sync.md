@@ -14,7 +14,7 @@ Written by `patchTransaction`/`setOwners` (shared builders), read/cleared via `g
 
 ## `lib/engine/backup-triggers.ts` + store `lock()`
 
-Registered once in `LayoutWrapper`: `online` → flush, `visibilitychange(hidden)` → flush, `beforeunload` → best-effort floating attempt (documented unreliable; OPFS durability is the real guarantee). `lock()` = flush → seal → wipe, in that order (flush needs the DEK).
+Registered once in `LayoutWrapper`: `online` → flush then pull, tab-visible → pull, tab-hidden → flush, `beforeunload` → best-effort floating attempt (documented unreliable; OPFS durability is the real guarantee). `lock()` = flush → seal → wipe, in that order (flush needs the DEK).
 
 ## Pending observability
 

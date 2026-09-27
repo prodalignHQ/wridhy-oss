@@ -128,6 +128,17 @@ export default function TransactionsPage() {
     setSelectedTransactionIds(new Set())
   }, [fetchTransactions, filters])
 
+  // Another device synced: vault pull restored OPFS → refetch this view.
+  useEffect(() => {
+    const onVaultUpdate = () => {
+      fetchTransactions()
+    }
+    window.addEventListener('momoney:vault-updated', onVaultUpdate)
+    return () => {
+      window.removeEventListener('momoney:vault-updated', onVaultUpdate)
+    }
+  }, [fetchTransactions])
+
   // Sync ownerFilter array from filters.ownerId
   useEffect(() => {
     if (!filters.ownerId || filters.ownerId === 'all') {

@@ -24,7 +24,7 @@ flowchart TB
         S3[DEK + wraps + recovery → PUT /v1/vault]
         S4[Unlock → unseal OPFS → restore snapshot]
     end
-    subgraph Daily["DAILY — import, read, edit"]
+    subgraph Daily["DAILY — import, read, edit, cross-device"]
         I1[Drop file → Worker parse → categorize → dedup]
         I2[OPFS insert + read-back verify]
         I3{Vault unlocked?}
@@ -32,6 +32,7 @@ flowchart TB
         I5[Legacy /upload + converge]
         R1[Reads: OPFS ∪ server → filter/compute]
         M1[Edits: OPFS first + changelog → debounced backup]
+        P1[Pull: focus/reconnect/manual → newer blob? → decrypt → OPFS → broadcast → refetch]
     end
     subgraph Session["SESSION — lock & leave"]
         L1[Debounce / hide / online / lock flush]
@@ -45,6 +46,7 @@ flowchart TB
     I2 --> R1
     M1 --> I4
     I4 --> R1
+    P1 --> R1
     R1 --> L1 --> L2 --> L3
 ```
 

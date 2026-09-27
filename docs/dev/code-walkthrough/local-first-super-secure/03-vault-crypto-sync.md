@@ -10,7 +10,7 @@
 
 ## Client crypto transport — `lib/engine/vault-sync.ts` (319)
 
-- `setupVaultWithPassword` (password+recovery wraps), `setupVaultWithPasskeys` (passwordless: PRF wraps + mandatory recovery; caller-provided Argon2 params so PRF input derives from the salt pre-setup; per-wrap best-effort with `wrapError` instead of stranding).
+- `setupVaultWithPassword` (password+recovery wraps), `setupVaultWithPasskeys` (**password wrap mandatory since onboarding v2** — passkeys are device-bound, so the password is the portable factor new devices join with; caller derives the KEK, function wipes it; per-wrap best-effort with `wrapError` instead of stranding), `addPasswordWrap` (retrofits early passwordless vaults; PUT is full-replace so all fields are re-sent).
 - `unlockWithPassword/Passkey/Recovery` (PRF output wiped in `finally`), `registerPasskey` (proves PRF evaluability *before* storing the wrap), `revokePasskey`.
 - `syncSnapshot` (legacy PUT) vs `syncEncryptedSnapshot` (versioned `/sync` + one refetch-and-retry on CONFLICT).
 - `buildVaultSnapshot(cache)` shapes OPFS → snapshot (all tables).
@@ -21,7 +21,7 @@ Zero-dependency `create()`/`get()` with `prf` extension, portable base64url help
 
 ## Session — `lib/store/vault.store.ts` (280)
 
-Module-scoped DEK (never in React state → never serialized), `wipeBytes` on every rotation. Actions: `refresh/setup/adoptSession` (passkey-first onboarding path), three unlocks (each: unseal → decrypt → **restore snapshot to OPFS**), `addPasskey/revokePasskey`, `sync/pushEncrypted` (changelog mark captured pre-snapshot, markers cleared on success), `lock` (**flush → seal → wipe**, in that order), `isUnlocked()` gate used by every mutation/read branch.
+Module-scoped DEK (never in React state → never serialized), `wipeBytes` on every rotation. Actions: `refresh/setup/adoptSession` (passkey-first onboarding path), three unlocks (each: unseal → decrypt → **restore snapshot to OPFS**), `addPasskey/revokePasskey/addPassword`, `sync/pushEncrypted` (changelog mark captured pre-snapshot, markers cleared on success), **`pullUpdates`** (newer server version → decrypt with in-memory DEK → restore OPFS → broadcast `momoney:vault-updated`; same-DEK assumption documented), `lock` (**flush → seal → wipe**, in that order), `isUnlocked()` gate used by every mutation/read branch. `suggestDeviceLabel()` shared helper.
 
 ## Onboarding — `app/(app)/onboarding/vault/page.tsx` (+234)
 

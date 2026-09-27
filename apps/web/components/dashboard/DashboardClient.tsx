@@ -190,6 +190,17 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
     loadInsights(currentMonth)
   }, [currentMonth, loadInsights])
 
+  // Another device synced: reload insights from the restored cache.
+  useEffect(() => {
+    const onVaultUpdate = () => {
+      loadInsights(currentMonth)
+    }
+    window.addEventListener('momoney:vault-updated', onVaultUpdate)
+    return () => {
+      window.removeEventListener('momoney:vault-updated', onVaultUpdate)
+    }
+  }, [currentMonth, loadInsights])
+
   const defaultOwner = owners.find((o) => o.isDefault) || owners[0]
   const familyMembers = owners.filter((o) => !o.isDefault)
 

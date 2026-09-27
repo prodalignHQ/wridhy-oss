@@ -49,6 +49,13 @@ interface VaultState {
    * DEK, and POST the ciphertext to /v1/vault/sync (version-guarded).
    */
   pushEncrypted: () => Promise<void>
+  /**
+   * Pull remote changes: if the server blob version is newer than ours,
+   * decrypt with the in-memory DEK, restore into OPFS, and broadcast
+   * `momoney:vault-updated` so listening pages refetch. Returns true when
+   * anything changed. Requires unlocked (DEK must be present to decrypt).
+   */
+  pullUpdates: () => Promise<boolean>
 }
 
 // Module-scoped DEK — outside React state so it never serializes anywhere.
@@ -270,6 +277,26 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     wipeBytes(dek)
     dek = newDek
     set({ status: 'unlocked', blob, snapshot, recoveryCode, error: null, busy: false })
+  },
+
+  pullUpdates: async () => {
+    const { blob } = get()
+    if (!blob || !dek) return false
+    const fresh = await fetchVaultBlob().catch(() => null)
+    if (!fresh || fresh.version <= blob.version) return false
+    // Newer ciphertext exists: decrypt with our in-memory DEK (same DEK —
+    // versions share it until rotation lands) and restore into OPFS.
+    const snapshot = await decryptVaultSnapshot(fresh, dek).catch(() => null)
+    if (!snapshot) return false
+    const { restoreSnapshotToCache } = await import('../engine/opfs-db')
+    await restoreSnapshotToCache(snapshot).catch(() => {})
+    set({ blob: fresh, snapshot })
+    try {
+      window.dispatchEvent(new CustomEvent('momoney:vault-updated'))
+    } catch {
+      // non-DOM runtimes (tests) — ignore
+    }
+    return true
   },
 
   lock: async () => {

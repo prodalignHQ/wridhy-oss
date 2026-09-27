@@ -1,31 +1,42 @@
-// ─── Backup triggers: flush pending work on lifecycle events ────────────────
-// The debounced mutation backup covers active editing, but three cases escape
-// it: locking the vault, hiding/closing the tab, and coming back online.
-// These listeners close those gaps. All flushes are gated on pending work
-// (no pointless full-snapshot uploads) and best-effort (failures stay local
-// with pending markers intact for the next trigger).
-//
-// beforeunload is inherently unreliable for async work (the page may die
-// mid-upload) — it is a best-effort attempt, NOT a guarantee. The durable
-// guarantee is OPFS itself: nothing is ever lost locally, only backup may lag.
+// ─── Sync triggers: push pending work, pull remote changes ─────────────────
+// Push side (backup): the 5s mutation debounce covers active editing, but
+// lock / tab-hide / reconnect escape it — flushEncryptedBackup closes those.
+// Pull side (multi-device): another device's backup only lands here as a
+// newer blob version — focus + reconnect pull it, decrypt, restore OPFS,
+// and broadcast so listening pages refetch.
+// All triggers are gated and best-effort; OPFS durability is the guarantee.
 
 import { flushEncryptedBackup } from './mutations'
+import { useVaultStore } from '@/lib/store/vault.store'
 
 let registered = false
+
+async function pullRemote(): Promise<void> {
+  try {
+    if (!useVaultStore.getState().isUnlocked()) return
+    await useVaultStore.getState().pullUpdates()
+  } catch {
+    // best-effort — next trigger retries
+  }
+}
 
 export function initBackupTriggers(): void {
   if (registered || typeof window === 'undefined') return
   registered = true
 
-  // Back online with pending work → back up now.
+  // Back online: push ours first (last-writer-wins ties), then pull theirs.
   window.addEventListener('online', () => {
-    void flushEncryptedBackup()
+    void flushEncryptedBackup().finally(() => {
+      void pullRemote()
+    })
   })
 
-  // Tab hidden (switch apps, lock screen, close welds through here first) →
-  // flush while the page can still run async work.
+  // Tab visible again: pull first (we may have missed versions), no push
+  // (nothing could have changed locally while hidden — edits need focus).
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
+    if (document.visibilityState === 'visible') {
+      void pullRemote()
+    } else if (document.visibilityState === 'hidden') {
       void flushEncryptedBackup()
     }
   })
