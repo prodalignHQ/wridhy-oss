@@ -5,6 +5,7 @@
 // unavailable, and callers fall back to the cloud API.
 
 import type { DbWorkerRequest, DbWorkerResponse } from '@/workers/db.worker'
+import { OPFS_SCHEMA_VERSION } from '@momoney/local-engine'
 import type {
   LocalAsset,
   LocalCategory,
@@ -64,6 +65,32 @@ function bootWorker(w: Worker): Promise<void> {
       }).then((res) => {
         if (!res.ok) throw new Error(res.error ?? 'DB worker boot failed')
       })
+      // Schema handshake: a stale worker chunk (aggressive Turbopack dev
+      // caching) would otherwise ignore new tables silently — every
+      // upsert "succeeds" while new tables stay empty. Fail loudly instead.
+      const pingId = ++seq
+      const version = await new Promise<number>((resolve, reject) => {
+        pending.set(pingId, {
+          resolve: (res) => {
+            const v = (res.rows?.[0] as { version?: unknown } | undefined)?.version
+            if (typeof v === 'number') resolve(v)
+            else reject(new Error('DB worker did not report a schema version'))
+          },
+          reject,
+        })
+        setTimeout(() => {
+          if (pending.has(pingId)) {
+            pending.delete(pingId)
+            reject(new Error('DB worker version check timeout'))
+          }
+        }, 15_000)
+        w.postMessage({ id: pingId, op: 'ping', payload: {} } satisfies DbWorkerRequest)
+      })
+      if (version !== OPFS_SCHEMA_VERSION) {
+        throw new Error(
+          `On-device engine outdated (worker schema v${version}, expected v${OPFS_SCHEMA_VERSION}) — hard-refresh (Cmd+Shift+R) to update it`
+        )
+      }
     })()
     bootPromise.catch(() => {
       bootPromise = null

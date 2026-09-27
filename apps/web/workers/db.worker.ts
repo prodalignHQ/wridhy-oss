@@ -13,6 +13,7 @@ import {
   OPFS_CLEAR_SQL,
   OPFS_READ_TABLES,
   OPFS_SCHEMA,
+  OPFS_SCHEMA_VERSION,
   buildClearChangelog,
   buildDeleteByIds,
   buildDeleteByStatement,
@@ -242,7 +243,7 @@ function toArrayBufferView(u8: Uint8Array): Uint8Array<ArrayBuffer> {
 
 export interface DbWorkerRequest {
   id: number
-  op: 'boot' | 'setUser' | 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'stats' | 'seal' | 'unseal' | 'sealedExists'
+  op: 'boot' | 'ping' | 'setUser' | 'init' | 'upsert' | 'readAll' | 'clear' | 'deleteByStatement' | 'deleteByIds' | 'patchTransaction' | 'setOwners' | 'getByIds' | 'getChangelog' | 'clearChangelog' | 'rewriteInvoiceLinks' | 'deleteInvoice' | 'deleteInvoiceItems' | 'setInvoiceStatus' | 'stats' | 'seal' | 'unseal' | 'sealedExists'
   payload?: unknown
 }
 
@@ -274,6 +275,9 @@ interface UpsertPayload {
       modulePromise = SQLiteAsyncESMFactory({ wasmBinary: new Uint8Array(wasm) })
       await modulePromise
       return { ok: true }
+    }
+    case 'ping': {
+      return { ok: true, rows: [{ version: OPFS_SCHEMA_VERSION }] }
     }
     case 'setUser': {
       const { userId } = req.payload as { userId: string | null }

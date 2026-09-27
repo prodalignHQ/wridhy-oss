@@ -2,6 +2,16 @@
 // Single source of truth for the on-device relational cache, shared by the
 // browser Worker (wa-sqlite) and Node verification tests (node:sqlite).
 // Plain SQLite only: no OPFS/WASM specifics here.
+//
+// Bump OPFS_SCHEMA_VERSION on every schema change. The client handshakes it
+// on boot and refuses to run against a stale worker (Turbopack dev serves
+// worker chunks with aggressive caching — without the handshake, new tables
+// silently vanish, exactly like the net-worth 0-count incident).
+
+export const OPFS_SCHEMA_VERSION = 2
+// v1: initial 12 tables + changelog.
+// v2: + local_assets, local_liabilities, local_networth_snapshots,
+//     local_networth_drafts.
 
 export const OPFS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS local_transactions(
