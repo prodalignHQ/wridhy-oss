@@ -640,6 +640,10 @@ export default function StatementsPage() {
     setGateError(null)
     try {
       const { useVaultStore } = await import('@/lib/store/vault.store')
+      // Seed the store first: unlock actions read get().blob, which may be
+      // empty if the user never visited Settings (same fresh-state bug as
+      // the /unlock gate had).
+      await useVaultStore.getState().refresh().catch(() => {})
       await useVaultStore.getState().unlockPassword(gatePassword)
       setGatePassword('')
       setVaultGate(null)
@@ -657,6 +661,8 @@ export default function StatementsPage() {
     setGateError(null)
     try {
       const { useVaultStore } = await import('@/lib/store/vault.store')
+      // Same store-seeding as the password path above.
+      await useVaultStore.getState().refresh().catch(() => {})
       await useVaultStore.getState().unlockPasskey(gateCredential || undefined)
       setVaultGate(null)
       toast.success('Vault unlocked — continuing import encrypted')

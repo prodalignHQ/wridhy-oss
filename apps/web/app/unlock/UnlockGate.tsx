@@ -39,19 +39,29 @@ export default function UnlockGate() {
     let cancelled = false
     ;(async () => {
       // Already unlocked (e.g. back-navigation)? Straight through.
-      const { useVaultStore: store } = await import('@/lib/store/vault.store')
-      if (store.getState().status === 'unlocked') {
+      if (useVaultStore.getState().status === 'unlocked') {
         router.replace('/dashboard')
         return
       }
       const { fetchVaultBlob } = await import('@/lib/engine/vault-sync')
-      const found = await fetchVaultBlob().catch(() => null)
+      const found = await fetchVaultBlob().catch(() => 'error' as const)
       if (cancelled) return
+      if (found === 'error') {
+        setLoadError('Could not reach the server. Check your connection and retry.')
+        setLoading(false)
+        return
+      }
       if (!found) {
         // No vault — onboarding owns this case.
         router.replace('/dashboard')
         return
       }
+      // Seed the STORE, not just local state: unlock actions read get().blob,
+      // and on a fresh login the store is empty — without this, every unlock
+      // throws 'No vault loaded', which the UI misreports as a wrong
+      // password/code. (This was the fresh-login failure.)
+      await vault.refresh().catch(() => {})
+      if (cancelled) return
       setBlob(found)
       const wraps = found.wraps ?? []
       if (wraps.length > 0 && isWebAuthnAvailable()) {
@@ -72,6 +82,7 @@ export default function UnlockGate() {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
 
   const done = () => router.replace('/dashboard')

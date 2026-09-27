@@ -112,7 +112,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   unlockPassword: async (password) => {
-    const { blob } = get()
+    let { blob } = get()
+    if (!blob) {
+      // Self-heal: actions must work even if no screen refreshed the store
+      // yet (fresh login lands here directly). Without this, unlock throws
+      // 'No vault loaded', which UIs misreport as wrong password/code.
+      await get().refresh().catch(() => {})
+      blob = get().blob
+    }
     if (!blob) throw new Error('No vault loaded')
     set({ busy: true, error: null })
     try {
@@ -134,7 +141,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   unlockPasskey: async (credentialId) => {
-    const { blob } = get()
+    let { blob } = get()
+    if (!blob) {
+      // Self-heal: actions must work even if no screen refreshed the store
+      // yet (fresh login lands here directly). Without this, unlock throws
+      // 'No vault loaded', which UIs misreport as wrong password/code.
+      await get().refresh().catch(() => {})
+      blob = get().blob
+    }
     if (!blob) throw new Error('No vault loaded')
     set({ busy: true, error: null })
     try {
@@ -161,7 +175,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   unlockRecovery: async (code) => {
-    const { blob } = get()
+    let { blob } = get()
+    if (!blob) {
+      // Self-heal: actions must work even if no screen refreshed the store
+      // yet (fresh login lands here directly). Without this, unlock throws
+      // 'No vault loaded', which UIs misreport as wrong password/code.
+      await get().refresh().catch(() => {})
+      blob = get().blob
+    }
     if (!blob) throw new Error('No vault loaded')
     set({ busy: true, error: null })
     try {
@@ -201,7 +222,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   revokePasskey: async (credentialId) => {
-    const { blob } = get()
+    let { blob } = get()
+    if (!blob) {
+      // Self-heal: actions must work even if no screen refreshed the store
+      // yet (fresh login lands here directly). Without this, unlock throws
+      // 'No vault loaded', which UIs misreport as wrong password/code.
+      await get().refresh().catch(() => {})
+      blob = get().blob
+    }
     if (!blob) throw new Error('No vault loaded')
     set({ busy: true, error: null })
     try {
