@@ -83,6 +83,20 @@ async function doOpen(): Promise<void> {
     const vfs = new OriginPrivateFileSystemVFS()
     await sqlite3.vfs_register(vfs, false)
   }
+  try {
+    await tryOpen()
+  } catch (err) {
+    // A failed open must never leave a stuck handle (that produced the
+    // permanent "no such table" state). Quarantine the suspect file so a
+    // corrupt leftover from earlier buggy runs can't wedge us again, then
+    // retry exactly once on a fresh file.
+    db = null
+    await quarantineDbFile().catch(() => {})
+    await tryOpen()
+  }
+}
+
+async function tryOpen(): Promise<void> {
   // Never shadow a sealed database with a fresh empty one: if the sealed
   // file exists but the live file is gone, the vault is locked — creating
   // momoney.db here would make reads return empty and let later upserts
@@ -99,12 +113,54 @@ async function doOpen(): Promise<void> {
   if (!names.includes(DB_NAME) && names.includes(SEALED_NAME)) {
     throw new Error('SEALED: database is locked — unlock the vault first')
   }
-  db = await sqlite3.open_v2(
+  // Assign db ONLY after the handle validates (open + schema + probe).
+  // Assigning earlier left a stuck non-null handle on failed opens, making
+  // every later call skip recovery and fail with "no such table" forever.
+  const handle = await sqlite3.open_v2(
     DB_NAME,
     SQLite.SQLITE_OPEN_CREATE | SQLite.SQLITE_OPEN_READWRITE,
     'opfs'
   )
-  await sqlite3.exec(db, OPFS_SCHEMA)
+  try {
+    await sqlite3.exec(handle, OPFS_SCHEMA)
+    await sqlite3.exec(handle, 'SELECT count(*) FROM local_transactions')
+  } catch (err) {
+    try {
+      await sqlite3.close(handle)
+    } catch {
+      // ignore close errors on a broken handle
+    }
+    throw err
+  }
+  db = handle
+}
+
+/**
+ * Rename a suspect database out of the way (never silently delete user
+ * data). Called when open fails — e.g. a corrupt leftover from earlier
+ * buggy runs. The sealed file and vault blob remain the recovery sources.
+ */
+async function quarantineDbFile(): Promise<void> {
+  const root = await navigator.storage.getDirectory()
+  const name = `${DB_NAME}.corrupt-${Date.now()}`
+  try {
+    const handle = await root.getFileHandle(DB_NAME)
+    const file = await handle.getFile()
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    if (bytes.length === 0) {
+      await root.removeEntry(DB_NAME)
+      return
+    }
+    const dest = await root.getFileHandle(name, { create: true })
+    const writable = await dest.createWritable()
+    await writable.write(toArrayBufferView(bytes))
+    await writable.close()
+    await root.removeEntry(DB_NAME)
+    console.warn(`[db.worker] quarantined suspect database as ${name} (${bytes.length} bytes)`)
+  } catch (err) {
+    console.warn('[db.worker] quarantine failed:', err)
+    throw err
+  }
 }
 
 async function closeDb(): Promise<void> {
