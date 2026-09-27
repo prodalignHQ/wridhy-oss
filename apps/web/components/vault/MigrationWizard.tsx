@@ -74,7 +74,13 @@ export function MigrationWizard({ onDone }: { onDone: () => void }) {
       const { pullAllCloudData } = await import('@/lib/engine/analytics-client')
       const { getVaultDek } = await import('@/lib/store/vault.store')
       setPhase('moving')
-      await pullAllCloudData((page, totalPages) => setProgress({ page, totalPages }))
+      const pulled = await pullAllCloudData((page, totalPages) => setProgress({ page, totalPages }))
+      console.info('[migration] pulled from server:', {
+        transactions: pulled.transactions.length,
+        assets: pulled.assets.length,
+        liabilities: pulled.liabilities.length,
+        snapshots: pulled.netWorthSnapshots.length,
+      })
       // Back up the pulled snapshot through the normal guarded path.
       await vault.pushEncrypted()
       // Verify: re-download, decrypt, count-compare per table.
@@ -85,6 +91,13 @@ export function MigrationWizard({ onDone }: { onDone: () => void }) {
       if (!dek) throw new Error('Vault locked unexpectedly')
       const back = await decryptVaultSnapshot(fresh, dek)
       const snap = back as unknown as Record<string, unknown[]>
+      // Re-inventory at verify time: the mount-time counts may be stale (DB
+      // switch, another device, re-login between steps). Comparing against
+      // fresh counts keeps the receipt self-consistent by construction.
+      const { fetchServerCounts: recount } = await import('@/lib/engine/analytics-client')
+      const freshCounts = await recount().catch(() => [] as CountRow[])
+      const freshByKey = new Map(freshCounts.map((c) => [c.key, c.count]))
+      if (freshByKey.size > 0) setCounts(freshCounts)
       const byKey: Record<string, number> = {
         transactions: snap['transactions']?.length ?? 0,
         statements: snap['statements']?.length ?? 0,
@@ -98,11 +111,12 @@ export function MigrationWizard({ onDone }: { onDone: () => void }) {
         snapshots: snap['netWorthSnapshots']?.length ?? 0,
         invoices: snap['invoices']?.length ?? 0,
       }
-      const rows = counts.map((c) => ({
+      console.info('[migration] snapshot counts:', byKey)
+      const rows = (freshByKey.size > 0 ? freshCounts : counts).map((c) => ({
         label: c.label,
-        server: c.count,
+        server: freshByKey.get(c.key) ?? c.count,
         vault: byKey[c.key] ?? 0,
-        ok: (byKey[c.key] ?? 0) >= c.count,
+        ok: (byKey[c.key] ?? 0) >= (freshByKey.get(c.key) ?? c.count),
       }))
       setReceipt(rows)
       setPhase('receipt')
