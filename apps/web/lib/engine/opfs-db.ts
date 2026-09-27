@@ -32,8 +32,8 @@ let cachedWasm: ArrayBuffer | null = null
 
 async function fetchWasmBytes(): Promise<ArrayBuffer> {
   if (!cachedWasm) {
-    const res = await fetch('/wa-sqlite.wasm')
-    if (!res.ok) throw new Error(`wa-sqlite.wasm HTTP ${res.status} — is apps/web/public/wa-sqlite.wasm being served?`)
+    const res = await fetch('/wa-sqlite-async.wasm')
+    if (!res.ok) throw new Error(`wa-sqlite-async.wasm HTTP ${res.status} — is apps/web/public/wa-sqlite-async.wasm being served?`)
     cachedWasm = await res.arrayBuffer()
   }
   return cachedWasm

@@ -53,7 +53,7 @@ Goal: move compute to the device, encrypt everything that leaves it, and reduce 
 
 - **Key hierarchy (client-only):** `password → Argon2id(salt) → KEK`, 32-byte random **DEK**, `XChaCha20-Poly1305` snapshot envelope; DEK wrapped by password-KEK, **WebAuthn PRF output**, and recovery-code-KEK (secretbox wraps). Primitives: hash-wasm + `@noble/ciphers` (libsodium-wrappers 0.7.16's ESM entry was found broken; noble is ESM-native and Worker-safe).
 - **Server is opaque:** `vault_blobs` (one row/user) holds base64 ciphertext + wrap metadata only. `GET|PUT|DELETE /v1/vault` never decrypts. E2E-tested (`apps/api/vault-e2e.mts`): signup → PUT → GET byte-identical → client decrypt → DELETE → `NO_VAULT`.
-- **OPFS database:** wa-sqlite sync build + `OriginPrivateFileSystemVFS` in a dedicated Worker (`wa-sqlite.wasm` vendored). Lock seals `momoney.db` → `momoney.db.sealed` with the DEK; unlock unseals. DEK lives in memory only, wiped on lock.
+- **OPFS database:** wa-sqlite async (Asyncify) build + `OriginPrivateFileSystemVFS` in a dedicated Worker (`wa-sqlite-async.wasm` vendored; main thread transfers bytes via a `boot` op since blob-URL workers can't fetch relatively). Lock seals `momoney.db` → `momoney.db.sealed` with the DEK; unlock unseals. DEK lives in memory only, wiped on lock.
 - **UI:** `/settings/vault` (setup, 3 unlock paths, sync, recovery code shown once).
 
 > 🧠 **ELI5 — keys, locks, and safes:**

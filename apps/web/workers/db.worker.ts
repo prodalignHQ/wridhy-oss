@@ -1,14 +1,12 @@
 // ─── Encrypted OPFS SQLite engine (dedicated Worker) ────────────────────────
-// wa-sqlite sync build + OriginPrivateFileSystemVFS. OPFS sync access handles
-// only work in a dedicated Worker — never the main thread.
-//
-// At-rest story (Phase 2): the live `momoney.db` OPFS file is sealed with the
-// vault DEK (XChaCha20-Poly1305) on lock and unsealed on unlock, so a locked
-// device holds ciphertext only. Page-level encryption (SQLite3MC custom
-// wa-sqlite build, `PRAGMA key`) is the follow-up and drops into openDb()
-// without changing this protocol.
+// wa-sqlite ASYNC build (Asyncify) + OriginPrivateFileSystemVFS. The async
+// build is REQUIRED: the OPFS VFS methods are async (file-handle acquisition
+// cannot be synchronous), and the sync build coerces their returned Promises
+// to ints — open "succeeds" while registration is still pending, then every
+// xRead hits an empty file map ('filename' of undefined). Same Factory API,
+// same call sites; ~2x the WASM bytes, no COOP/COEP needed.
 
-import SQLiteESMFactory from 'wa-sqlite/dist/wa-sqlite.mjs'
+import SQLiteAsyncESMFactory from 'wa-sqlite/dist/wa-sqlite-async.mjs'
 import * as SQLite from 'wa-sqlite/src/sqlite-api.js'
 import { OriginPrivateFileSystemVFS } from 'wa-sqlite/src/examples/OriginPrivateFileSystemVFS.js'
 import {
@@ -51,7 +49,7 @@ let modulePromise: Promise<unknown> | null = null
 
 async function getModule(): Promise<unknown> {
   if (!modulePromise) {
-    modulePromise = SQLiteESMFactory({
+    modulePromise = SQLiteAsyncESMFactory({
       locateFile: (file: string) => `/${file}`,
     })
   }
@@ -216,7 +214,7 @@ interface UpsertPayload {
     case 'boot': {
       const { wasm } = req.payload as { wasm: ArrayBuffer }
       // Emscripten instantiates from memory — no fetch, no URL resolution.
-      modulePromise = SQLiteESMFactory({ wasmBinary: new Uint8Array(wasm) })
+      modulePromise = SQLiteAsyncESMFactory({ wasmBinary: new Uint8Array(wasm) })
       await modulePromise
       return { ok: true }
     }
