@@ -58,12 +58,31 @@ async function getModule(): Promise<unknown> {
   return modulePromise
 }
 
+let opening: Promise<void> | null = null
+
 async function openDb(): Promise<void> {
   if (db !== null) return
+  // Serialize: concurrent calls share one open. A second Factory() +
+  // vfs_register() pair throws 'already registered' and leaves stale VFS
+  // file maps behind (the xRead/xLock 'filename' crashes). Single-threaded
+  // assignment here is atomic, so this is race-free.
+  if (!opening) {
+    opening = doOpen().finally(() => {
+      opening = null
+    })
+  }
+  await opening
+  if (db === null) throw new Error('Database open failed')
+}
+
+async function doOpen(): Promise<void> {
   const module = await getModule()
-  sqlite3 = SQLite.Factory(module)
-  const vfs = new OriginPrivateFileSystemVFS()
-  await sqlite3.vfs_register(vfs, false)
+  // Singleton API object + single VFS registration for the worker lifetime.
+  if (!sqlite3) {
+    sqlite3 = SQLite.Factory(module)
+    const vfs = new OriginPrivateFileSystemVFS()
+    await sqlite3.vfs_register(vfs, false)
+  }
   // Never shadow a sealed database with a fresh empty one: if the sealed
   // file exists but the live file is gone, the vault is locked — creating
   // momoney.db here would make reads return empty and let later upserts
@@ -366,12 +385,19 @@ interface UpsertPayload {
   }
 }
 
-self.onmessage = async (e: MessageEvent<DbWorkerRequest>) => {
+// Serialized: every op runs to completion before the next starts. Without
+// this, a read racing seal's close (or two concurrent opens) corrupts VFS
+// state and produces the xRead/xLock 'filename' crashes.
+let opQueue: Promise<void> = Promise.resolve()
+
+self.onmessage = (e: MessageEvent<DbWorkerRequest>) => {
   const { id } = e.data
-  try {
-    const res = await handle(e.data)
-    self.postMessage({ id, ...res } satisfies DbWorkerResponse)
-  } catch (err) {
-    self.postMessage({ id, ok: false, error: err instanceof Error ? err.message : 'DB worker failed' } satisfies DbWorkerResponse)
-  }
+  opQueue = opQueue.then(async () => {
+    try {
+      const res = await handle(e.data)
+      self.postMessage({ id, ...res } satisfies DbWorkerResponse)
+    } catch (err) {
+      self.postMessage({ id, ok: false, error: err instanceof Error ? err.message : 'DB worker failed' } satisfies DbWorkerResponse)
+    }
+  })
 }
