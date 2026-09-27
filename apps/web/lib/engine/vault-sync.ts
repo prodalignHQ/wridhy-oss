@@ -129,18 +129,20 @@ export interface PasskeySetupWrap {
 }
 
 /**
- * Passwordless setup: DEK wrapped by one or more passkey PRF outputs plus a
- * mandatory recovery wrap. No password wrap is stored.
- * @param params explicit Argon2 params — passkey onboarding derives the PRF
- *   input from `params.saltB64` *before* setup, so it must be caller-provided
- *   there (standard-base64 salt, as produced by `createVaultParams`).
+ * Passkey setup: DEK wrapped by one or more passkey PRF outputs plus a
+ * mandatory recovery wrap. A password wrap is ALSO mandatory (policy since
+ * onboarding v2): passkeys are device-bound, so the password is the portable
+ * knowledge factor that lets a new device join without retyping a recovery
+ * code. Pass `passwordKek` (derived by the caller, wiped after use).
  */
 export async function setupVaultWithPasskeys(
   passkeys: PasskeySetupWrap[],
   snapshot: VaultSnapshot,
-  params: VaultParams = createVaultParams()
+  params: VaultParams = createVaultParams(),
+  passwordKek: Uint8Array | null = null
 ): Promise<{ blob: VaultBlob; recoveryCode: string; dek: Uint8Array; wrapError: string | null }> {
   if (passkeys.length === 0) throw new VaultError('NO_WRAP', 'At least one passkey is required')
+  if (!passwordKek) throw new VaultError('NO_WRAP', 'A vault password is required (it is what new devices join with)')
   const dek = generateDek()
   const recoveryCode = createRecoveryCode()
   const kekRec = await deriveKek(normalizeRecoveryCode(recoveryCode), params)
@@ -151,11 +153,12 @@ export async function setupVaultWithPasskeys(
     salt: params.saltB64,
     opslimit: params.iterations,
     memlimit: params.memorySize,
-    wrappedDekPassword: null,
+    wrappedDekPassword: await wrapDek(dek, passwordKek),
     wrappedDekRecovery: await wrapDek(dek, kekRec),
     version: 1,
     wraps: [],
   }
+  passwordKek.fill(0)
   await pushBlob(blob)
   // Store each per-device wrap independently. The recovery wrap is already
   // stored, so a failing authenticator degrades (warning) instead of
@@ -190,6 +193,22 @@ export async function unlockWithPassword(blob: VaultBlob, password: string): Pro
   } catch {
     throw new VaultError('DECRYPT_FAILED', 'Incorrect password')
   }
+}
+
+/** Add a password wrap to a vault that lacks one (e.g. early passkey-only
+ * vaults). PUT is full-replace, so every existing field is re-sent; the
+ * wraps table is untouched by PUT. Requires the DEK (unlocked). */
+export async function addPasswordWrap(
+  blob: VaultBlob,
+  dek: Uint8Array,
+  password: string
+): Promise<VaultBlob> {
+  if (password.length < 12) throw new VaultError('DECRYPT_FAILED', 'Password must be at least 12 characters')
+  const kek = await deriveKek(password, paramsFromBlob(blob))
+  const updated: VaultBlob = { ...blob, wrappedDekPassword: await wrapDek(dek, kek) }
+  kek.fill(0)
+  await pushBlob(updated)
+  return updated
 }
 
 /** Register a passkey and store its per-device PRF wrap. Requires the DEK (unlocked). */

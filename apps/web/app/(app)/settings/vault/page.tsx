@@ -35,6 +35,8 @@ export default function VaultPage() {
   const [prfSupported, setPrfSupported] = useState<boolean | null>(null)
   const [deviceLabel, setDeviceLabel] = useState('')
   const [chosenCredential, setChosenCredential] = useState<string | null>(null)
+  const [vaultPassword, setVaultPassword] = useState('')
+  const [vaultPasswordConfirm, setVaultPasswordConfirm] = useState('')
   const [pendingEdits, setPendingEdits] = useState<number | null>(null)
   const [lastBackup, setLastBackup] = useState<string | null>(null)
   const [dbStats, setDbStats] = useState<{ sealed: boolean; counts: Record<string, number> | null } | null>(null)
@@ -140,6 +142,25 @@ export default function VaultPage() {
       toast.success(`Passkey registered (${label})`)
     } catch {
       toast.error(vault.error ?? 'Passkey registration failed')
+    }
+  }
+
+  const handleAddPassword = async () => {
+    if (vaultPassword.length < 12) {
+      toast.error('Password must be at least 12 characters')
+      return
+    }
+    if (vaultPassword !== vaultPasswordConfirm) {
+      toast.error('Passwords do not match')
+      return
+    }
+    try {
+      await vault.addPassword(vaultPassword)
+      setVaultPassword('')
+      setVaultPasswordConfirm('')
+      toast.success('Vault password set — new devices can join with it')
+    } catch {
+      toast.error(vault.error ?? 'Failed to set password')
     }
   }
 
@@ -358,6 +379,41 @@ export default function VaultPage() {
               <Button variant="ghost" size="sm" onClick={() => { void vault.lock() }}>
                 <Lock size={14} className="mr-2" /> Lock
               </Button>
+            </div>
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Vault password
+              </p>
+              {vault.blob?.wrappedDekPassword ? (
+                <p className="text-xs text-muted-foreground">
+                  Set — new devices join with it. To change it, contact support (rotation UI is coming soon).
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    No vault password yet. Without one, new devices can only join with the recovery code.
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      placeholder="New vault password (12+)"
+                      value={vaultPassword}
+                      onChange={(e) => setVaultPassword(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                    <Input
+                      type="password"
+                      placeholder="Confirm"
+                      value={vaultPasswordConfirm}
+                      onChange={(e) => setVaultPasswordConfirm(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                    <Button variant="outline" size="sm" onClick={handleAddPassword} disabled={vault.busy} className="shrink-0">
+                      <KeyRound size={14} className="mr-2" /> Set password
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-2 border-t border-border pt-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

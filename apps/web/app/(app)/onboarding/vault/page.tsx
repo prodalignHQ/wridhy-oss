@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { useVaultStore } from '@/lib/store/vault.store'
 import { useAuthStore } from '@/lib/store/auth.store'
 import { isWebAuthnAvailable } from '@/lib/engine/webauthn-prf'
-import { normalizeRecoveryCode, createVaultParams } from '@momoney/local-engine'
+import { normalizeRecoveryCode, createVaultParams, deriveKek } from '@momoney/local-engine'
 
 type Step = 'intro' | 'method' | 'recovery' | 'done'
 
@@ -28,6 +28,16 @@ export default function VaultOnboardingPage() {
   const [confirmCode, setConfirmCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [warn, setWarn] = useState<string | null>(null)
+  // Passkey-first flow state: taps done (credential + PRF proven), awaiting
+  // the mandatory vault password before creation.
+  const [pendingPk, setPendingPk] = useState<{
+    credentialId: string
+    label: string
+    prfOutput: Uint8Array
+    saltB64: string
+    iterations: number
+    memorySize: number
+  } | null>(null)
 
   // Already has a vault → nothing to do here.
   useEffect(() => {
@@ -96,25 +106,62 @@ export default function VaultOnboardingPage() {
     setBusy(true)
     setWarn(null)
     try {
-      const [
-        { registerPrfCredential, evalPrf, derivePrfInput },
-        { setupVaultWithPasskeys },
-      ] = await Promise.all([
-        import('@/lib/engine/webauthn-prf'),
-        import('@/lib/engine/vault-sync'),
-      ])
+      const { registerPrfCredential, evalPrf, derivePrfInput } = await import('@/lib/engine/webauthn-prf')
       const params = createVaultParams()
       const label = deviceLabel.trim() || 'This device'
       // Two authenticator taps: register, then prove PRF evaluability.
+      // Creation happens after the mandatory password step below.
       const { credentialIdB64url } = await registerPrfCredential(user?.email ?? 'momoney-user')
       const prfOutput = await evalPrf(credentialIdB64url, await derivePrfInput(params.saltB64))
+      setPendingPk({
+        credentialId: credentialIdB64url,
+        label,
+        prfOutput,
+        saltB64: params.saltB64,
+        iterations: params.iterations,
+        memorySize: params.memorySize,
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Passkey setup failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handlePasskeyFinalize = async () => {
+    if (!pendingPk) return
+    if (password.length < 12) {
+      toast.error('Password must be at least 12 characters')
+      return
+    }
+    if (password !== confirm) {
+      toast.error('Passwords do not match')
+      return
+    }
+    setBusy(true)
+    setWarn(null)
+    try {
+      const { setupVaultWithPasskeys } = await import('@/lib/engine/vault-sync')
+      // The password is the portable factor: this exact KEK is what a new
+      // device will derive to join. The passkey stays the daily driver here.
+      const passwordKek = await deriveKek(password, {
+        saltB64: pendingPk.saltB64,
+        iterations: pendingPk.iterations,
+        memorySize: pendingPk.memorySize,
+      })
       const { blob, recoveryCode, dek, wrapError } = await setupVaultWithPasskeys(
-        [{ credentialId: credentialIdB64url, label, prfOutput }],
+        [{ credentialId: pendingPk.credentialId, label: pendingPk.label, prfOutput: pendingPk.prfOutput }],
         await currentSnapshot(),
-        params
+        { saltB64: pendingPk.saltB64, iterations: pendingPk.iterations, memorySize: pendingPk.memorySize },
+        passwordKek
       )
+      passwordKek.fill(0)
+      pendingPk.prfOutput.fill(0)
+      setPendingPk(null)
+      setPassword('')
+      setConfirm('')
       vault.adoptSession(blob, dek, await currentSnapshot(), recoveryCode)
-      if (wrapError) setWarn(`Vault created, but the passkey wrap needs attention: ${wrapError}. Your recovery code works regardless.`)
+      if (wrapError) setWarn(`Vault created, but the passkey wrap needs attention: ${wrapError}. Password and recovery code work regardless.`)
       setStep('recovery')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Passkey setup failed')
@@ -170,15 +217,36 @@ export default function VaultOnboardingPage() {
               <div className="space-y-3 rounded-xl border border-border p-4">
                 <p className="text-sm font-semibold flex items-center gap-2"><Fingerprint size={15} /> Passkey (recommended)</p>
                 <p className="text-xs text-muted-foreground">Face ID / fingerprint / PIN. Nothing to remember, nothing to phish.</p>
-                <Input
-                  placeholder="Device name (e.g. MacBook, Pixel)"
-                  value={deviceLabel}
-                  onChange={(e) => setDeviceLabel(e.target.value)}
-                  className="h-9 text-sm"
-                />
-                <Button onClick={handlePasskeySetup} disabled={busy} className="w-full">
-                  {busy ? 'Waiting for authenticator…' : 'Create vault with passkey'}
-                </Button>
+                {!pendingPk ? (
+                  <>
+                    <Input
+                      placeholder="Device name (e.g. MacBook, Pixel)"
+                      value={deviceLabel}
+                      onChange={(e) => setDeviceLabel(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                    <Button onClick={handlePasskeySetup} disabled={busy} className="w-full">
+                      {busy ? 'Waiting for authenticator…' : 'Continue with passkey'}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400">
+                      ✓ Passkey ready on this device. One last thing — set the vault password below.
+                      It&apos;s what lets a <b>different</b> device (your phone, a new laptop) join later.
+                    </p>
+                    <Input type="password" placeholder="Vault password (12+ characters)" value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <Input type="password" placeholder="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+                    <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => { pendingPk.prfOutput.fill(0); setPendingPk(null); setPassword(''); setConfirm('') }} disabled={busy} className="shrink-0">
+                        Back
+                      </Button>
+                      <Button onClick={handlePasskeyFinalize} disabled={busy} className="w-full">
+                        {busy ? 'Creating…' : 'Create my vault'}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <p className="rounded-xl border border-border p-4 text-xs text-muted-foreground">

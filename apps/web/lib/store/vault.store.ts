@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import type { VaultSnapshot } from '@momoney/local-engine'
 import {
+  addPasswordWrap,
   decryptVaultSnapshot,
   fetchVaultBlob,
   registerPasskey,
@@ -36,6 +37,8 @@ interface VaultState {
   unlockRecovery: (code: string) => Promise<void>
   addPasskey: (userName: string, label: string) => Promise<void>
   revokePasskey: (credentialId: string) => Promise<void>
+  /** Set the vault password on a vault that lacks one (early passkey-only vaults). */
+  addPassword: (password: string) => Promise<void>
   sync: (snapshot: VaultSnapshot) => Promise<void>
   lock: () => Promise<void>
   clearError: () => void
@@ -191,6 +194,21 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       set({ blob: updated })
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to revoke passkey' })
+      throw err
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  addPassword: async (password) => {
+    const { blob } = get()
+    if (!blob || !dek) throw new Error('Vault must be unlocked to set a password')
+    set({ busy: true, error: null })
+    try {
+      const updated = await addPasswordWrap(blob, dek, password)
+      set({ blob: updated })
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to set password' })
       throw err
     } finally {
       set({ busy: false })
