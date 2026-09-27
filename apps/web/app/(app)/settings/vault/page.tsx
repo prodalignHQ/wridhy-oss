@@ -42,6 +42,8 @@ export default function VaultPage() {
   const [lastBackup, setLastBackup] = useState<string | null>(null)
   const [dbStats, setDbStats] = useState<{ sealed: boolean; counts: Record<string, number> | null } | null>(null)
   const [workerError, setWorkerError] = useState<string | null>(null)
+  const [kdfTest, setKdfTest] = useState<null | { quick: boolean; full: boolean; quickMs: number; fullMs: number }>(null)
+  const [kdfBusy, setKdfBusy] = useState(false)
   const [showMigrate, setShowMigrate] = useState(false)
   const [serverTotal, setServerTotal] = useState<number | null>(null)
   const [retiredAt, setRetiredAt] = useState<string | null>(null)
@@ -265,6 +267,17 @@ export default function VaultPage() {
     }
   }
 
+  const handleKdfTest = async () => {
+    setKdfBusy(true)
+    try {
+      const { runKdfSelfTest } = await import('@momoney/local-engine')
+      setKdfTest(await runKdfSelfTest())
+    } catch {
+      setKdfTest({ quick: false, full: false, quickMs: 0, fullMs: 0 })
+    } finally {
+      setKdfBusy(false)
+    }
+  }
   const handleCheckUpdates = async () => {
     try {
       const changed = await vault.pullUpdates()
@@ -318,6 +331,26 @@ export default function VaultPage() {
               Worker error: {workerError}
             </p>
           )}
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Key check:{' '}
+              {kdfTest === null ? (
+                'not run'
+              ) : kdfTest.quick && kdfTest.full ? (
+                <span className="font-semibold text-emerald-500">
+                  healthy (quick {kdfTest.quickMs}ms, full {kdfTest.fullMs}ms)
+                </span>
+              ) : (
+                <span className="font-semibold text-rose-500">
+                  FAILED (quick {String(kdfTest.quick)}, full {String(kdfTest.full)}) — Argon2 is broken in this
+                  browser; password/recovery unlock cannot work here
+                </span>
+              )}
+            </p>
+            <Button variant="outline" size="sm" onClick={handleKdfTest} disabled={kdfBusy} className="shrink-0">
+              {kdfBusy ? 'Testing…' : 'Run key check'}
+            </Button>
+          </div>
           {dbStats === null ? (
             <p className="text-xs text-muted-foreground">Unavailable (worker/OPFS not running here).</p>
           ) : dbStats.sealed && !dbStats.counts ? (

@@ -145,6 +145,63 @@ export function normalizeRecoveryCode(input: string): string {
   return input.trim().toLowerCase().replace(/[^0-9a-f]/g, '')
 }
 
+// ─── KDF self-test (environment lie-detector) ────────────────────────────────
+// Derives two FIXED vectors and compares against values computed with the
+// pinned hash-wasm in Node. If a browser disagrees, its Argon2 is broken
+// (bad WASM load, memory cap, wrong params wiring) — and EVERY password /
+// recovery unlock on that browser fails no matter how correct the inputs.
+// Quick vector (8 MiB) isolates "KDF totally broken" from "64 MiB too big".
+
+const SELF_TEST_PASSWORD = 'momoney-kdf-self-test-v1'
+const SELF_TEST_SALT = '000102030405060708090a0b0c0d0e0f'
+const SELF_TEST_QUICK_HEX = 'f9f638fac88ef40873f3218014a68785b19bf521bbf3bd3e5dca46c77daed265'
+const SELF_TEST_FULL_HEX = '9ac52e32b2dabb16df051e8f085b603a868e2e579989c95142f1be662abae4de'
+
+export interface KdfSelfTest {
+  quick: boolean
+  full: boolean
+  quickMs: number
+  fullMs: number
+}
+
+export async function runKdfSelfTest(): Promise<KdfSelfTest> {
+  const salt = hexToBytes(SELF_TEST_SALT)
+  const t0 = Date.now()
+  let quick = false
+  try {
+    const out = (await argon2id({
+      password: SELF_TEST_PASSWORD,
+      salt,
+      parallelism: 1,
+      iterations: 1,
+      memorySize: 8192,
+      hashLength: 32,
+      outputType: 'hex',
+    })) as unknown as string
+    quick = out === SELF_TEST_QUICK_HEX
+  } catch {
+    quick = false
+  }
+  const quickMs = Date.now() - t0
+  const t1 = Date.now()
+  let full = false
+  try {
+    const out = (await argon2id({
+      password: SELF_TEST_PASSWORD,
+      salt,
+      parallelism: 1,
+      iterations: 3,
+      memorySize: 65536,
+      hashLength: 32,
+      outputType: 'hex',
+    })) as unknown as string
+    full = out === SELF_TEST_FULL_HEX
+  } catch {
+    full = false
+  }
+  return { quick, full, quickMs: quickMs, fullMs: Date.now() - t1 }
+}
+
 // ─── Portable base64 (no atob/Buffer — runs in Workers too) ─────────────────
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
