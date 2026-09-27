@@ -33,7 +33,12 @@ interface Statement {
   duplicatesSkipped: number
   importedAt: string
   account: { accountName: string; accountType: string; bankName: string }
-  /** True for rows imported on-device that haven't synced to the server yet. */
+  /**
+   * Permanent origin marker: true for rows composed from OPFS (their ids
+   * never exist on the server). NEVER cleared — the merge below keys on it.
+   */
+  isLocal?: boolean
+  /** Badge flag: true while no backup of any kind has landed for it. */
   localOnly?: boolean
 }
 
@@ -435,7 +440,7 @@ export default function StatementsPage() {
       const { readLocalCache } = await import('@/lib/engine/opfs-db')
       const cache = await readLocalCache()
       if (!cache) {
-        setStatements((prev) => prev.filter((s) => !s.localOnly))
+        setStatements((prev) => prev.filter((s) => !s.isLocal))
         return
       }
       const serverIds = new Set((serverList ?? statements).map((s) => s.id))
@@ -459,11 +464,16 @@ export default function StatementsPage() {
               accountType: acct?.accountType ?? 'bank',
               bankName: acct?.bankName ?? s.bankId,
             },
+            // Permanent origin marker (never cleared) + badge flag.
+            isLocal: true,
             // Badge only while no backup of any kind has landed for it.
             localOnly: pending.has(s.id),
           }
         })
-      setStatements((prev) => [...prev.filter((s) => !s.localOnly), ...localOnly])
+      // Merge on the origin marker, NOT the badge: backed-up local rows
+      // (badge cleared) must replace, never duplicate. The old code keyed
+      // on the badge and duplicated every backed-up row on each refresh.
+      setStatements((prev) => [...prev.filter((s) => !s.isLocal), ...localOnly])
     } catch {
       // OPFS unavailable — server list stands alone
     }
@@ -662,9 +672,16 @@ export default function StatementsPage() {
     const { deleteStatementFromCache } = await import('@/lib/engine/opfs-db')
     const target = statements.find((s) => s.id === id)
     try {
-      // On-device-only imports have no server row — drop them locally.
-      if (!target?.localOnly) {
-        await apiClient.fetch(`/v1/statements/${id}`, { method: 'DELETE' })
+      // Local-origin rows never exist on the server (their ids are client
+      // UUIDs) — drop them locally regardless of backup/badge state.
+      if (!target?.isLocal) {
+        try {
+          await apiClient.fetch(`/v1/statements/${id}`, { method: 'DELETE' })
+        } catch (err) {
+          // Already gone server-side (404): converge locally instead of
+          // leaving a stale row behind.
+          if ((err as { status?: number }).status !== 404) throw err
+        }
       }
       setStatements((prev) => prev.filter((s) => s.id !== id))
       await deleteStatementFromCache(id).catch(() => {})
