@@ -12,6 +12,7 @@ import {
   encryptSnapshot,
   generateDek,
   normalizeRecoveryCode,
+  normalizeVaultParams,
   unwrapDek,
   wrapDek,
   type VaultParams,
@@ -69,7 +70,8 @@ export class VaultError extends Error {
 }
 
 function paramsFromBlob(blob: VaultBlob): VaultParams {
-  return { saltB64: blob.salt, iterations: blob.opslimit, memorySize: blob.memlimit }
+  const { iterations, memorySize } = normalizeVaultParams(blob.opslimit, blob.memlimit)
+  return { saltB64: blob.salt, iterations, memorySize }
 }
 
 export async function fetchVaultBlob(): Promise<VaultBlob | null> {

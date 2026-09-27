@@ -29,6 +29,26 @@ export interface VaultParams {
   memorySize: number
 }
 
+/**
+ * Interpret stored (opslimit, memlimit) as VaultParams, tolerating the
+ * libsodium era: libsodium stored Argon2id memory in BYTES while this code
+ * uses KiB. A memlimit that is an exact multiple of 1024 and implausibly
+ * large as KiB (>1 GiB — no UI ever produces such values) is divided back
+ * to KiB. opslimit (iterations) passes through untouched.
+ * Without this, vaults created in that window derive a different KEK and
+ * every password/recovery unlock fails closed — looking exactly like a
+ * "corrupted" vault, when only the unit changed.
+ * Cross-library equality holds because both sides run Argon2id13 with
+ * parallelism 1 (libsodium pwhash is single-lane by design), so identical
+ * (password, salt, iterations, memory) inputs yield identical keys.
+ */
+export function normalizeVaultParams(opslimit: number, memlimit: number): { iterations: number; memorySize: number } {
+  if (Number.isInteger(memlimit) && memlimit > 1048576 && memlimit % 1024 === 0) {
+    return { iterations: opslimit, memorySize: Math.floor(memlimit / 1024) }
+  }
+  return { iterations: opslimit, memorySize: memlimit }
+}
+
 /** Fresh Argon2 parameters. ~64MB/3 passes keeps unlock ≈1s on desktop/mobile. */
 export function createVaultParams(): VaultParams {
   return {
