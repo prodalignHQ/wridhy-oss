@@ -138,7 +138,7 @@ export function MigrationWizard({ onDone }: { onDone: () => void }) {
     setError(null)
     try {
       const { apiClient } = await import('@/lib/api')
-      const res = await apiClient.fetch<{ deleted: Record<string, number> }>('/v1/user-data', {
+      const res = await apiClient.fetch<{ deleted: Record<string, number> }>('/v1/vault/user-data', {
         method: 'DELETE',
         body: JSON.stringify({ confirm: 'DELETE' }),
       })
