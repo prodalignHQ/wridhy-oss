@@ -15,7 +15,7 @@ import {
   unlockWithRecovery,
   type VaultBlob,
 } from '../engine/vault-sync'
-import { sealLocalDb, unsealLocalDb, readChangelog, clearChangelog, markBackupComplete, hasPendingWork } from '../engine/opfs-db'
+import { sealLocalDb, unsealLocalDb, readChangelog, clearChangelog, markBackupComplete, hasPendingWork, restoreSnapshotToCache } from '../engine/opfs-db'
 
 // ─── In-memory vault session ─────────────────────────────────────────────────
 // DEK lives here only. Locking wipes it. Nothing key-related is persisted.
@@ -109,6 +109,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const newDek = await unlockWithPassword(blob, password)
       await unsealLocalDb(newDek).catch(() => {})
       const snapshot = await decryptVaultSnapshot(blob, newDek)
+      // New device / fresh profile: seed OPFS from the snapshot so every
+      // OPFS-reading page works immediately. Idempotent elsewhere.
+      await restoreSnapshotToCache(snapshot).catch(() => {})
       wipeBytes(dek)
       dek = newDek
       set({ status: 'unlocked', snapshot })
@@ -128,6 +131,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const newDek = await unlockWithPasskey(blob, credentialId)
       await unsealLocalDb(newDek).catch(() => {})
       const snapshot = await decryptVaultSnapshot(blob, newDek)
+      // New device / fresh profile: seed OPFS from the snapshot so every
+      // OPFS-reading page works immediately. Idempotent elsewhere.
+      await restoreSnapshotToCache(snapshot).catch(() => {})
       wipeBytes(dek)
       dek = newDek
       set({ status: 'unlocked', snapshot })
@@ -147,6 +153,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const newDek = await unlockWithRecovery(blob, code)
       await unsealLocalDb(newDek).catch(() => {})
       const snapshot = await decryptVaultSnapshot(blob, newDek)
+      // New device / fresh profile: seed OPFS from the snapshot so every
+      // OPFS-reading page works immediately. Idempotent elsewhere.
+      await restoreSnapshotToCache(snapshot).catch(() => {})
       wipeBytes(dek)
       dek = newDek
       set({ status: 'unlocked', snapshot })

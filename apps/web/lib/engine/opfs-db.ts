@@ -17,6 +17,7 @@ import type {
   LocalStatement,
   LocalTransaction,
   LocalTransactionOwner,
+  VaultSnapshot,
 } from '@momoney/local-engine'
 
 let worker: Worker | null = null
@@ -214,6 +215,28 @@ function parseJsonArray(value: unknown): string[] {
 export async function cacheServerRows(cache: LocalCachePatch): Promise<boolean> {
   const res = await call('upsert', cache, 60_000)
   return !!res?.ok
+}
+
+/**
+ * Restore a decrypted vault snapshot into OPFS (new device / fresh profile).
+ * Upserts are idempotent, so running this on the originating device is a
+ * harmless no-op merge. Without this, unlock on a new device decrypts into
+ * memory only and every OPFS-reading page stays empty.
+ */
+export async function restoreSnapshotToCache(snapshot: VaultSnapshot): Promise<boolean> {
+  return cacheServerRows({
+    transactions: snapshot.transactions ?? [],
+    categories: snapshot.categories ?? [],
+    statements: snapshot.statements ?? [],
+    accounts: snapshot.financialAccounts ?? [],
+    owners: snapshot.ownerList ?? [],
+    transactionOwners: snapshot.owners ?? [],
+    rules: snapshot.rules ?? [],
+    merchants: snapshot.merchants ?? [],
+    invoices: snapshot.invoices ?? [],
+    invoiceStatements: snapshot.invoiceStatements ?? [],
+    invoiceItems: snapshot.invoiceItems ?? [],
+  })
 }
 
 /** Read the full local cache. Null when unavailable or empty. */
