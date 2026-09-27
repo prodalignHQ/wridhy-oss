@@ -168,15 +168,6 @@ export default function VaultPage() {
         <p className="text-sm text-muted-foreground mt-0.5">
           Your data is encrypted on this device. The server only ever sees ciphertext.
         </p>
-        {fromLogin && vault.status !== 'unlocked' && (
-          <div className="mt-3 rounded-xl border border-sky-500/40 bg-sky-500/5 px-4 py-3 text-sm">
-            <span className="text-muted-foreground">You just logged in — unlock to see your data, or </span>
-            <button onClick={() => router.replace('/dashboard')} className="font-semibold text-primary hover:underline">
-              continue without unlocking →
-            </button>
-            <span className="text-muted-foreground"> (limited view, most data stays sealed)</span>
-          </div>
-        )}
       </div>
 
       <Card className="bg-card border-border">

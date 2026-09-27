@@ -9,10 +9,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useVaultStore } from '@/lib/store/vault.store'
-import { isWebAuthnAvailable } from '@/lib/engine/webauthn-prf'
+import { useAuthStore } from '@/lib/store/auth.store'
+import { isWebAuthnAvailable, suggestDeviceLabel } from '@/lib/engine/webauthn-prf'
 import type { VaultBlob } from '@/lib/engine/vault-sync'
 
-type Mode = 'pick' | 'passkey' | 'password' | 'recovery'
+type Mode = 'pick' | 'passkey' | 'password' | 'recovery' | 'add-device'
 
 /**
  * Post-login unlock gate. Detects which unlock methods exist on the vault
@@ -23,6 +24,7 @@ type Mode = 'pick' | 'passkey' | 'password' | 'recovery'
 export default function UnlockGate() {
   const router = useRouter()
   const vault = useVaultStore()
+  const userEmail = useAuthStore((s) => (s.user as { email?: string } | null)?.email ?? 'momoney-user')
   const [blob, setBlob] = useState<VaultBlob | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -95,8 +97,13 @@ export default function UnlockGate() {
     try {
       await vault.unlockPassword(password)
       setPassword('')
-      toast.success('Welcome back — your money is unlocked')
-      done()
+      // New device? Offer to make it passwordless before continuing.
+      if (isWebAuthnAvailable()) {
+        setMode('add-device')
+      } else {
+        toast.success('Welcome back — your money is unlocked')
+        done()
+      }
     } catch {
       setError('Wrong vault password. Hint: this is your vault password, not your login password.')
     } finally {
@@ -111,10 +118,30 @@ export default function UnlockGate() {
     try {
       await vault.unlockRecovery(recoveryCode)
       setRecoveryCode('')
-      toast.success('Recovered — consider adding a fresh passkey in Settings → Vault')
-      done()
+      // Recovery is exactly how new devices join: offer this device a key.
+      if (isWebAuthnAvailable()) {
+        setMode('add-device')
+      } else {
+        toast.success('Recovered — consider adding a fresh passkey in Settings → Vault')
+        done()
+      }
     } catch {
       setError('That code did not match. It looks like xxxx-xxxx-xxxx-xxxx — check for typos.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const doAddDevice = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await vault.addPasskey(userEmail, suggestDeviceLabel())
+      toast.success('This device is set — next time, just use your fingerprint')
+      done()
+    } catch {
+      setError('Could not add this device. You can do it later in Settings → Vault — continuing for now.')
+      setTimeout(done, 1200)
     } finally {
       setBusy(false)
     }
@@ -285,17 +312,32 @@ export default function UnlockGate() {
           </div>
         )}
 
+        {mode === 'add-device' && (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Fingerprint size={15} /> Make this device passwordless?
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Looks like this device doesn&apos;t have its own unlock yet. Add one and next time
+                you&apos;ll just use your fingerprint — no typing.
+              </p>
+            </div>
+            <Button onClick={doAddDevice} disabled={busy} className="w-full h-11 gap-2">
+              {busy ? <Loader2 size={16} className="animate-spin" /> : <Fingerprint size={16} />}
+              {busy ? 'Waiting for your fingerprint…' : 'Yes, set up this device'}
+            </Button>
+            <Button variant="ghost" onClick={done} disabled={busy} className="w-full text-muted-foreground">
+              Not now
+            </Button>
+          </div>
+        )}
+
         {error && (
           <p className="rounded-xl border border-rose-500/40 bg-rose-500/5 px-4 py-3 text-xs leading-relaxed text-rose-500">
             {error}
           </p>
         )}
-
-        <div className="border-t border-border pt-3 text-center">
-          <button onClick={() => router.replace('/dashboard')} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
-            Continue without unlocking (you&apos;ll see limited info) →
-          </button>
-        </div>
       </CardContent>
     </Card>
   )

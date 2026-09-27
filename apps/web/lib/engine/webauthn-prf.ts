@@ -18,6 +18,29 @@ export function isWebAuthnAvailable(): boolean {
   )
 }
 
+/** Human device label for passkey registration ("Mac · Chrome"). */
+export function suggestDeviceLabel(): string {
+  if (typeof navigator === 'undefined') return 'Passkey'
+  const ua = navigator.userAgent
+  const os = ua.includes('Mac')
+    ? 'Mac'
+    : ua.includes('Windows')
+      ? 'Windows'
+      : ua.includes('Android')
+        ? 'Android'
+        : ua.includes('iPhone') || ua.includes('iPad')
+          ? 'iPhone'
+          : 'Device'
+  const browser = ua.includes('Chrome')
+    ? 'Chrome'
+    : ua.includes('Safari')
+      ? 'Safari'
+      : ua.includes('Firefox')
+        ? 'Firefox'
+        : 'Browser'
+  return `${os} · ${browser}`
+}
+
 /** Best-effort PRF capability probe. False negatives possible → UI falls back. */
 export async function isPrfSupported(): Promise<boolean> {
   try {

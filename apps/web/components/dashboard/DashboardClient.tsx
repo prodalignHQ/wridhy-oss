@@ -234,9 +234,6 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
             <Link href="/unlock">
               <Button size="sm" className="bg-primary text-white">Unlock vault</Button>
             </Link>
-            <Button variant="ghost" size="sm" onClick={() => setShowLockedBanner(false)} className="text-muted-foreground">
-              Later
-            </Button>
           </div>
         </div>
       )}
