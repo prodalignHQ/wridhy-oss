@@ -10,7 +10,7 @@
 ## Milestone A — Close the plaintext gaps (P0) — largely built, see DONE 006
 
 - [x] **A1. Explicit backfill flow.** `MigrationWizard`: inventory → unbounded pull → encrypt → decrypt + count-match receipt. Offered in onboarding (server rows exist) and Settings → Vault.
-- [ ] **A2. Migrate server-driven reads to OPFS before any deletion.** DONE for transactions/dashboard/insights/invoices. Remaining server-direct: reference pickers (rules/merchants/owners/accounts/categories — metadata, cached, acceptable) and net-worth CRUD (assets/liabilities/drafts still fully server-side — next).
+- [x] **A2. Migrate server-driven reads to OPFS.** DONE for transactions, dashboard, insights, invoices, accounts, owners, rules (+preview/reapply/category-delete), merchants (cached, no UI), net-worth (live compute, snapshots, drafts, asset/liability CRUD). Remaining server-direct: reference pickers merged (not pure), invoice server lifecycle for non-local ids (by design).
 - [x] **A3. Plaintext retirement.** `DELETE /v1/vault/user-data` (vault-required, typed `DELETE`, ordered deletes, per-table receipt) + permanent UI receipt + retired marker. E2E covers rejection paths.
 
 ## Milestone B — True multi-device + conflicts (P0/P1)
