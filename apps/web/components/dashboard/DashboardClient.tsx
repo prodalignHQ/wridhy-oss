@@ -30,6 +30,7 @@ import { toast } from 'sonner'
 import { apiClient } from '@/lib/api'
 import { formatINR } from '@/lib/format'
 import { useVaultStore } from '@/lib/store/vault.store'
+import { isLocalMode } from '@/lib/local-mode'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -137,8 +138,12 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
   // Vault exists but locked → unlock gate once per session (with a vault,
   // nearly all data is sealed — wandering the app locked is misleading).
   // Login and vault-unlock stay separate by design: two keys, two jobs.
+  // Vault onboarding/gating is skipped entirely in standalone-binary local
+  // mode: zero-setup means zero nags — the vault stays available in
+  // Settings for users who explicitly want at-rest sealing, but nothing
+  // pushes them there and nothing redirects.
   useEffect(() => {
-    if (loading) return
+    if (loading || isLocalMode()) return
     let cancelled = false
     import('@/lib/engine/vault-sync').then(async ({ fetchVaultBlob }) => {
       const blob = await fetchVaultBlob().catch(() => 'error' as const)
