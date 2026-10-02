@@ -5,6 +5,7 @@ import { TrendingUp, PlusCircle, Camera, FileEdit, X, Loader2, Trash2, Eye, Cale
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { apiClient } from '@/lib/api'
+import { PageHelp } from '@/components/guide/PageHelp'
 import { formatINR } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { StatCard } from '@/components/ui/custom/StatCard'
@@ -662,7 +663,10 @@ export default function NetWorthPage() {
       {/* ─── Page header ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Net Worth</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-semibold text-foreground">Net Worth</h1>
+            <PageHelp section="networth" />
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             Track and aggregate assets and liabilities across your household
           </p>

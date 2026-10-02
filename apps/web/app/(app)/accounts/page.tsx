@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { AddAccountDialog } from '@/components/accounts/AddAccountDialog'
+import { PageHelp } from '@/components/guide/PageHelp'
 
 interface Account {
   id: string
@@ -89,7 +90,10 @@ export default function AccountsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Accounts</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-semibold text-foreground">Accounts</h1>
+            <PageHelp section="accounts" />
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             Manage your connected bank accounts, credit cards, and digital wallets.
           </p>

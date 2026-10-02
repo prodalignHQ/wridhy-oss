@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { useVaultStore } from '@/lib/store/vault.store'
 import { MigrationWizard, readRetiredAt } from '@/components/vault/MigrationWizard'
+import { PageHelp } from '@/components/guide/PageHelp'
 import { isPrfSupported, isWebAuthnAvailable } from '@/lib/engine/webauthn-prf'
 import { useAuthStore } from '@/lib/store/auth.store'
 import type { VaultSnapshot } from '@momoney/local-engine'
@@ -272,7 +273,10 @@ export default function VaultPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Encrypted Vault</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-2xl font-semibold text-foreground">Encrypted Vault</h1>
+          <PageHelp section="vault" />
+        </div>
         <p className="text-sm text-muted-foreground mt-0.5">
           Your data is encrypted on this device. The server only ever sees ciphertext.
         </p>

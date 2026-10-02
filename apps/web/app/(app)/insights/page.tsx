@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useStorageMode } from '@/lib/store/storage-mode'
 import { apiClient } from '@/lib/api'
 import { Owner } from '@/lib/store/transactions.store'
+import { PageHelp } from '@/components/guide/PageHelp'
 import { YearOverviewChart } from '@/components/insights/YearOverviewChart'
 import { CategoryComparisonTable } from '@/components/insights/CategoryComparisonTable'
 import { CategoryAveragesTable } from '@/components/insights/CategoryAveragesTable'
@@ -136,7 +137,10 @@ export default function InsightsPage() {
       {/* ── Header & Filters ── */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Insights Dashboard</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-semibold text-foreground">Insights Dashboard</h1>
+            <PageHelp section="insights" />
+          </div>
           <p className="text-sm text-muted-foreground mt-0.5">Track your spending patterns and category performance</p>
         </div>
         

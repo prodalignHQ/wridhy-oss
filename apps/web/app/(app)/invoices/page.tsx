@@ -58,6 +58,7 @@ import { SplitOwnerModal } from '@/components/transactions/split-owner-modal'
 import { CategoryPicker } from '@/components/transactions/category-picker'
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { PageHelp } from '@/components/guide/PageHelp'
 
 interface Statement {
   id: string
@@ -1444,7 +1445,10 @@ function InvoicesContent() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Invoices</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-semibold text-foreground">Invoices</h1>
+            <PageHelp section="invoices" />
+          </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Build invoice drafts from monthly statements, then generate a stored snapshot.
           </p>

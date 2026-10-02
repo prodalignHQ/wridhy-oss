@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api'
+import { PageHelp } from '@/components/guide/PageHelp'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -229,7 +230,10 @@ export default function OwnersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">Household Members</h2>
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-xl font-semibold text-foreground">Household Members</h2>
+            <PageHelp section="household" />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">Manage people and shared accounts to split transactions with.</p>
         </div>
       </div>

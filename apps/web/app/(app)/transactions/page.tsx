@@ -50,6 +50,7 @@ import {
   type Category,
 } from '@/lib/store/transactions.store'
 import { apiClient } from '@/lib/api'
+import { PageHelp } from '@/components/guide/PageHelp'
 import { cn } from '@/lib/utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -443,7 +444,10 @@ export default function TransactionsPage() {
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Transactions</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-semibold text-foreground">Transactions</h1>
+            <PageHelp section="transactions" />
+          </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {total > 0
               ? `${total.toLocaleString('en-IN')} total transaction${total === 1 ? '' : 's'}`

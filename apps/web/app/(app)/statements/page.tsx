@@ -12,6 +12,7 @@ import { apiClient } from '@/lib/api'
 import { readPendingStatements, writePendingStatements } from '@/lib/engine/opfs-db'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { AmountBadge } from '@/components/ui/custom/AmountBadge'
+import { PageHelp } from '@/components/guide/PageHelp'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -718,7 +719,10 @@ export default function StatementsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Statements</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-semibold text-foreground">Statements</h1>
+            <PageHelp section="statements" />
+          </div>
           <p className="text-sm text-muted-foreground mt-0.5">Upload bank statements to import transactions</p>
         </div>
       </div>

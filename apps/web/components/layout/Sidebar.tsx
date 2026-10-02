@@ -17,11 +17,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Users as UserGroupIcon,
+  Route,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth.store"
 import { useUIStore } from "@/lib/store/ui.store"
 import { TOUR_PATH } from "@/lib/store/tour.store"
+import { GUIDE_PATH } from "@/lib/guide-content"
 import { useHasVault } from "@/lib/use-has-vault"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme/ThemeToggle"
@@ -42,6 +44,8 @@ const toolNavItems = [
   { href: "/rules", label: "Rules", icon: Sliders },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
+
+const helpNavItems = [{ href: GUIDE_PATH, label: "Guide", icon: Route }]
 
 function NavItem({
   href,
@@ -243,6 +247,27 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
                 {...item}
                 isCollapsed={isSidebarCollapsed}
                 disabled={!emailVerified}
+                active={pathname === item.href || pathname.startsWith(item.href + "/")}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Help */}
+        <div>
+          {!isSidebarCollapsed ? (
+            <p className="mb-1.5 px-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              Help
+            </p>
+          ) : (
+            <div className="mb-4 border-t border-sidebar-border/50 mx-2" />
+          )}
+          <div className="space-y-0.5">
+            {helpNavItems.map((item) => (
+              <NavItem
+                key={item.href}
+                {...item}
+                isCollapsed={isSidebarCollapsed}
                 active={pathname === item.href || pathname.startsWith(item.href + "/")}
               />
             ))}

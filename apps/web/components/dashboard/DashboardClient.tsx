@@ -39,6 +39,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { NetWorthWidget } from '@/components/networth/NetWorthWidget'
 import { AddAccountDialog } from '@/components/accounts/AddAccountDialog'
+import { PageHelp } from '@/components/guide/PageHelp'
 import { MonthlyInsight } from '@momoney/types'
 
 interface Account {
@@ -300,6 +301,7 @@ export function DashboardClient({ userId, userEmail, userName }: DashboardClient
               Welcome back, {displayName}
             </h1>
             <span className="text-xl">👋</span>
+            <PageHelp section="dashboard" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             Here is your financial pulse, connected accounts, and monthly cash flow.

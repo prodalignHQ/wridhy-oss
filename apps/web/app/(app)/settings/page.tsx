@@ -3,6 +3,7 @@ import { Users, Shield, Database, Lock } from "lucide-react"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { SetUpVaultCard } from "@/components/tour/SetUpVaultCard"
+import { PageHelp } from "@/components/guide/PageHelp"
 
 export default function SettingsPage() {
   const sections = [
@@ -39,7 +40,10 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
+          <PageHelp section="settings" />
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
