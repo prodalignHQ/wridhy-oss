@@ -71,6 +71,80 @@ export interface VaultBlob {
   wraps: VaultWrap[]
 }
 
+/**
+ * Unlock metadata cache (offline unlock support). Stores everything needed
+ * to derive and unwrap EXCEPT the snapshot ciphertext and the DEK: salt,
+ * params, wraps. Written on every blob update (see store subscription);
+ * read when the API is unreachable. Ciphertext then comes from the sealed
+ * OPFS file, and the snapshot is rebuilt from OPFS after unseal.
+ */
+const VAULT_META_KEY = 'momoney_vault_meta'
+
+export function writeCachedVaultMeta(blob: VaultBlob): void {
+  try {
+    if (typeof window === 'undefined') return
+    const { cipher: _c, nonce: _n, ...meta } = blob
+    void _c
+    void _n
+    localStorage.setItem(VAULT_META_KEY, JSON.stringify(meta))
+  } catch {
+    // private mode — offline unlock simply won't be available
+  }
+}
+
+export function readCachedVaultMeta(): VaultBlob | null {
+  try {
+    if (typeof window === 'undefined') return null
+    const raw = localStorage.getItem(VAULT_META_KEY)
+    if (!raw) return null
+    const meta = JSON.parse(raw) as {
+      salt?: unknown
+      opslimit?: unknown
+      memlimit?: unknown
+      wrappedDekPassword?: unknown
+      wrappedDekRecovery?: unknown
+      version?: unknown
+      updatedAt?: unknown
+      wraps?: unknown
+      cipher?: unknown
+      nonce?: unknown
+    }
+    if (typeof meta.salt !== 'string' || !meta.salt) return null
+    if (typeof meta.opslimit !== 'number' || typeof meta.memlimit !== 'number') return null
+    const asText = (v: unknown): string | null => (typeof v === 'string' ? v : null)
+    const wraps = Array.isArray(meta.wraps)
+      ? (meta.wraps as Array<Record<string, unknown>>).map((w) => ({
+          credentialId: String(w['credentialId'] ?? ''),
+          wrappedDek: String(w['wrappedDek'] ?? ''),
+          label: String(w['label'] ?? 'Passkey'),
+          createdAt: String(w['createdAt'] ?? ''),
+        }))
+      : []
+    return {
+      cipher: asText(meta.cipher) ?? '',
+      nonce: asText(meta.nonce) ?? '',
+      salt: meta.salt,
+      opslimit: meta.opslimit,
+      memlimit: meta.memlimit,
+      wrappedDekPassword: asText(meta.wrappedDekPassword),
+      wrappedDekRecovery: asText(meta.wrappedDekRecovery),
+      version: typeof meta.version === 'number' ? meta.version : 1,
+      updatedAt: asText(meta.updatedAt) ?? undefined,
+      wraps,
+    }
+  } catch {
+    return null
+  }
+}
+
+export function clearCachedVaultMeta(): void {
+  try {
+    if (typeof window !== 'undefined') localStorage.removeItem(VAULT_META_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 export class VaultError extends Error {
   code: 'NO_VAULT' | 'NO_WRAP' | 'DECRYPT_FAILED' | 'PRF_UNSUPPORTED' | 'CONFLICT'
   /** Which stage failed: key derivation (environment/KDF) vs unwrap (wrong key). */

@@ -32,6 +32,8 @@ interface VaultState {
   setup: (password: string, snapshot: VaultSnapshot) => Promise<void>
   /** Adopt an already-created session (e.g. passkey-first onboarding). */
   adoptSession: (blob: VaultBlob, dek: Uint8Array, snapshot: VaultSnapshot, recoveryCode: string | null) => void
+  /** Stage a fetched blob without unlocking (offline unlock preparation). */
+  stageBlob: (blob: VaultBlob) => void
   unlockPassword: (password: string) => Promise<void>
   unlockPasskey: (credentialId?: string) => Promise<void>
   unlockRecovery: (code: string) => Promise<void>
@@ -67,6 +69,26 @@ export function getVaultDek(): Uint8Array | null {
 
 function wipeBytes(b: Uint8Array | null) {
   if (b) b.fill(0)
+}
+
+/**
+ * Snapshot after unlock, online or offline. With a full blob the ciphertext
+ * decrypt is authoritative (failures throw — tamper/wrong-key must stay
+ * loud). With offline cached metadata there is no ciphertext, so the view
+ * is rebuilt from the unsealed OPFS database instead.
+ */
+async function snapshotAfterUnlock(blob: VaultBlob, newDek: Uint8Array): Promise<VaultSnapshot | null> {
+  if (blob.cipher) {
+    const snapshot = await decryptVaultSnapshot(blob, newDek)
+    // New device / fresh profile: seed OPFS from the snapshot so every
+    // OPFS-reading page works immediately. Idempotent elsewhere.
+    await restoreSnapshotToCache(snapshot).catch(() => {})
+    return snapshot
+  }
+  const { readLocalCache } = await import('../engine/opfs-db')
+  const { buildVaultSnapshot } = await import('../engine/vault-sync')
+  const cache = await readLocalCache().catch(() => null)
+  return cache ? buildVaultSnapshot(cache) : null
 }
 
 export const useVaultStore = create<VaultState>((set, get) => ({
@@ -125,10 +147,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     try {
       const newDek = await unlockWithPassword(blob, password)
       await unsealLocalDb(newDek).catch(() => {})
-      const snapshot = await decryptVaultSnapshot(blob, newDek)
-      // New device / fresh profile: seed OPFS from the snapshot so every
-      // OPFS-reading page works immediately. Idempotent elsewhere.
-      await restoreSnapshotToCache(snapshot).catch(() => {})
+      const snapshot = await snapshotAfterUnlock(blob, newDek)
       wipeBytes(dek)
       dek = newDek
       set({ status: 'unlocked', snapshot })
@@ -154,10 +173,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     try {
       const newDek = await unlockWithPasskey(blob, credentialId)
       await unsealLocalDb(newDek).catch(() => {})
-      const snapshot = await decryptVaultSnapshot(blob, newDek)
-      // New device / fresh profile: seed OPFS from the snapshot so every
-      // OPFS-reading page works immediately. Idempotent elsewhere.
-      await restoreSnapshotToCache(snapshot).catch(() => {})
+      const snapshot = await snapshotAfterUnlock(blob, newDek)
       wipeBytes(dek)
       dek = newDek
       set({ status: 'unlocked', snapshot })
@@ -188,10 +204,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     try {
       const newDek = await unlockWithRecovery(blob, code)
       await unsealLocalDb(newDek).catch(() => {})
-      const snapshot = await decryptVaultSnapshot(blob, newDek)
-      // New device / fresh profile: seed OPFS from the snapshot so every
-      // OPFS-reading page works immediately. Idempotent elsewhere.
-      await restoreSnapshotToCache(snapshot).catch(() => {})
+      const snapshot = await snapshotAfterUnlock(blob, newDek)
       wipeBytes(dek)
       dek = newDek
       set({ status: 'unlocked', snapshot })
@@ -309,6 +322,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set({ status: 'unlocked', blob, snapshot, recoveryCode, error: null, busy: false })
   },
 
+  stageBlob: (blob) => {
+    if (get().status !== 'unlocked') {
+      set({ blob, status: 'locked', error: null })
+    }
+  },
+
   pullUpdates: async () => {
     const { blob } = get()
     if (!blob || !dek) return false
@@ -353,3 +372,20 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }))
+
+// Persist unlock metadata (salt/params/wraps — never keys, never ciphertext)
+// on every blob update, so offline unlock stays possible. Best-effort and
+// synchronous-safe: a storage failure must never break the state update.
+if (typeof window !== 'undefined') {
+  import('../engine/vault-sync').then(({ writeCachedVaultMeta }) => {
+    useVaultStore.subscribe((s) => {
+      if (s.blob) {
+        try {
+          writeCachedVaultMeta(s.blob)
+        } catch {
+          // ignore — online flow unaffected
+        }
+      }
+    })
+  }).catch(() => {})
+}

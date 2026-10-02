@@ -50,6 +50,56 @@ export function NetWorthWidget({ ownerId: propOwnerId, ownerName: propOwnerName,
       if (!user) return
       setIsLoading(true)
       try {
+        const { useVaultStore } = await import('@/lib/store/vault.store')
+        if (useVaultStore.getState().isUnlocked()) {
+          const [{ loadReferenceMerged }, { computeLiveLocal, listSnapshotsLocal }] = await Promise.all([
+            import('@/lib/engine/reference'),
+            import('@/lib/engine/networth-local'),
+          ])
+          const owners = (await loadReferenceMerged('owners', () =>
+            apiClient.fetch<Owner[]>('/v1/owners')
+          )) as Owner[]
+          let targetOwnerId = propOwnerId
+          let targetOwnerName = propOwnerName
+          if (!targetOwnerId) {
+            const defaultOwner = owners.find((o) => o.isDefault) || owners[0]
+            if (defaultOwner) {
+              targetOwnerId = defaultOwner.id
+              targetOwnerName = defaultOwner.name
+            }
+          }
+          if (targetOwnerId) {
+            setOwnerInfo({ id: targetOwnerId, name: targetOwnerName || 'You' })
+            const live = await computeLiveLocal([targetOwnerId])
+            const hist = await listSnapshotsLocal([targetOwnerId])
+            setLiveData({ totalAssets: live.totalAssets, totalLiabilities: live.totalLiabilities, netWorth: live.netWorth })
+            setSnapshots(
+              hist.map((s) => ({
+                id: s.id,
+                snapshotDate: s.snapshotDate,
+                netWorth: s.netWorth,
+                totalAssets: s.totalAssets,
+                totalLiabilities: s.totalLiabilities,
+                ownerId: s.ownerId,
+              }))
+            )
+          } else {
+            const live = await computeLiveLocal(null)
+            const hist = await listSnapshotsLocal(null)
+            setLiveData({ totalAssets: live.totalAssets, totalLiabilities: live.totalLiabilities, netWorth: live.netWorth })
+            setSnapshots(
+              hist.map((s) => ({
+                id: s.id,
+                snapshotDate: s.snapshotDate,
+                netWorth: s.netWorth,
+                totalAssets: s.totalAssets,
+                totalLiabilities: s.totalLiabilities,
+                ownerId: s.ownerId,
+              }))
+            )
+          }
+          return
+        }
         let targetOwnerId = propOwnerId
         let targetOwnerName = propOwnerName
 

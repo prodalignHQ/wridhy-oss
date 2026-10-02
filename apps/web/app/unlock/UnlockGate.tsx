@@ -34,6 +34,7 @@ export default function UnlockGate() {
   const [chosenCredential, setChosenCredential] = useState<string>('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [offline, setOffline] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -43,31 +44,42 @@ export default function UnlockGate() {
         router.replace('/dashboard')
         return
       }
-      const { fetchVaultBlob } = await import('@/lib/engine/vault-sync')
+      const { fetchVaultBlob, readCachedVaultMeta } = await import('@/lib/engine/vault-sync')
       const found = await fetchVaultBlob().catch(() => 'error' as const)
       if (cancelled) return
       if (found === 'error') {
-        setLoadError('Could not reach the server. Check your connection and retry.')
-        setLoading(false)
-        return
+        // Offline (or server down): fall back to cached unlock metadata.
+        // Password/passkey/recovery all verify locally; the snapshot view
+        // rebuilds from the unsealed OPFS database.
+        const cached = readCachedVaultMeta()
+        if (!cached) {
+          setLoadError('Could not reach the server and no saved vault info on this device. Reconnect and retry.')
+          setLoading(false)
+          return
+        }
+        useVaultStore.getState().stageBlob(cached)
+        setBlob(cached)
+        setOffline(true)
+      } else {
+        if (!found) {
+          // No vault — onboarding owns this case.
+          router.replace('/dashboard')
+          return
+        }
+        // Seed the STORE, not just local state: unlock actions read get().blob,
+        // and on a fresh login the store is empty — without this, every unlock
+        // throws 'No vault loaded', which the UI misreports as a wrong
+        // password/code. (This was the fresh-login failure.)
+        await vault.refresh().catch(() => {})
+        if (cancelled) return
+        setBlob(found)
       }
-      if (!found) {
-        // No vault — onboarding owns this case.
-        router.replace('/dashboard')
-        return
-      }
-      // Seed the STORE, not just local state: unlock actions read get().blob,
-      // and on a fresh login the store is empty — without this, every unlock
-      // throws 'No vault loaded', which the UI misreports as a wrong
-      // password/code. (This was the fresh-login failure.)
-      await vault.refresh().catch(() => {})
-      if (cancelled) return
-      setBlob(found)
-      const wraps = found.wraps ?? []
-      if (wraps.length > 0 && isWebAuthnAvailable()) {
+      const activeBlob = useVaultStore.getState().blob ?? blob
+      const list = activeBlob?.wraps ?? []
+      if (list.length > 0 && isWebAuthnAvailable()) {
         setMode('passkey')
-        setChosenCredential(wraps[0]?.credentialId ?? '')
-      } else if (found.wrappedDekPassword) {
+        setChosenCredential(list[0]?.credentialId ?? '')
+      } else if (activeBlob?.wrappedDekPassword) {
         setMode('password')
       } else {
         setMode('recovery')
@@ -235,6 +247,12 @@ export default function UnlockGate() {
             #{blob.salt.replace(/[^A-Za-z0-9]/g, '').slice(0, 6)}
             <br />
             Recovery codes only work for the vault that issued them.
+          </p>
+        )}
+        {offline && (
+          <p className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-center text-xs leading-relaxed text-amber-600 dark:text-amber-400">
+            You&apos;re offline — unlocking with this device&apos;s saved vault info. Everything works
+            locally; changes will back up when you reconnect.
           </p>
         )}
       </CardHeader>

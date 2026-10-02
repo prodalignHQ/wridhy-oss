@@ -42,6 +42,7 @@
 
 - [ ] **Mobile (Android/iOS).** Same envelope via noble/hash-wasm on React Native; Rust core only if profiling demands it.
 - [ ] **Managed service productionization.** Deployment, billing, device-conflict UX at scale.
+- [ ] **Offline shell (DONE 007 spec).** Service worker + client session fallback; offline unlock metadata already ships. Server-id invoice ops stay online-only until Phase 5 replay.
 
 ---
 

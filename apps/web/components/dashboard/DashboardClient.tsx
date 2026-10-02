@@ -94,9 +94,20 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [isAddAccountOpen, setIsAddAccountOpen] = useState(false)
 
-  // Fetch accounts and owners
+  // Fetch accounts and owners (merged OPFS-first when unlocked)
   const loadInitialData = useCallback(async () => {
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        const { loadReferenceMerged } = await import('@/lib/engine/reference')
+        const [accList, ownerList] = await Promise.all([
+          loadReferenceMerged('accounts', () => apiClient.fetch<Account[]>('/v1/accounts')),
+          loadReferenceMerged('owners', () => apiClient.fetch<Owner[]>('/v1/owners')),
+        ])
+        setAccounts(accList as Account[])
+        setOwners(ownerList as Owner[])
+        return
+      }
       const [accList, ownerList] = await Promise.all([
         apiClient.fetch<Account[]>('/v1/accounts').catch(() => []),
         apiClient.fetch<Owner[]>('/v1/owners').catch(() => []),
