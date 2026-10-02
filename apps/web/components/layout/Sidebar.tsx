@@ -21,6 +21,8 @@ import {
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth.store"
 import { useUIStore } from "@/lib/store/ui.store"
+import { TOUR_PATH } from "@/lib/store/tour.store"
+import { useHasVault } from "@/lib/use-has-vault"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme/ThemeToggle"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -111,6 +113,40 @@ function NavItem({
   return item
 }
 
+/** Sidebar entry point for setting up a vault. Mirrors NavItem's
+    collapsed/expanded treatment, tooltip included. */
+function SetUpVaultLink({ isCollapsed }: { isCollapsed: boolean }) {
+  const link = (
+    <Link
+      href={TOUR_PATH}
+      className={cn(
+        "flex items-center rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-300 hover:bg-muted hover:text-foreground",
+        isCollapsed ? "justify-center px-2" : "gap-3"
+      )}
+    >
+      <Lock size={16} className="flex-shrink-0" />
+      <div
+        className={cn(
+          "overflow-hidden transition-all duration-300 ease-in-out",
+          isCollapsed ? "w-0 opacity-0" : "w-[200px] opacity-100 flex-1"
+        )}
+      >
+        <span className="truncate">Set up your vault</span>
+      </div>
+    </Link>
+  )
+
+  if (!isCollapsed) return link
+  return (
+    <Tooltip>
+      <TooltipTrigger>{link}</TooltipTrigger>
+      <TooltipContent side="right" className="font-medium">
+        Set up your vault
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 type SidebarProps = {
   user: {
     email: string
@@ -123,6 +159,10 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
   const pathname = usePathname()
   const logout = useAuthStore((state) => state.logout)
   const { isSidebarCollapsed, toggleSidebar } = useUIStore()
+  // null while unknown, so the row stays hidden until we know it is wanted.
+  const hasVault = useHasVault()
+  // No point offering to set up a vault from the setup screen itself.
+  const onSetupRoute = pathname.startsWith(TOUR_PATH)
 
   const initials =
     user.name
@@ -219,6 +259,10 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
 
         <div className={cn("flex flex-col gap-3", isSidebarCollapsed && "items-center")}>
           <ThemeToggle isCollapsed={isSidebarCollapsed} />
+
+          {/* Vault setup is only offered while there is no vault. Once one
+              exists it belongs in Settings → Encrypted Vault, not in chrome. */}
+          {!onSetupRoute && hasVault === false && <SetUpVaultLink isCollapsed={isSidebarCollapsed} />}
 
           <div
             className={cn(

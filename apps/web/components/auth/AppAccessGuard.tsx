@@ -11,8 +11,13 @@ type AppAccessGuardProps = {
 export function AppAccessGuard({ emailVerified, children }: AppAccessGuardProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const onDashboardRoute = pathname === '/dashboard' || pathname.startsWith('/dashboard/')
-  const shouldRedirect = !emailVerified && !onDashboardRoute
+  // The vault tour is the one non-dashboard route unverified users may open.
+  // Vault setup is the first thing a new account should do; gating it behind
+  // email verification would leave their data unencrypted until they click a
+  // mail link. It reaches no user data — only the crypto ceremony.
+  const openToUnverified = ['/dashboard', '/onboarding/vault']
+  const allowed = openToUnverified.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  const shouldRedirect = !emailVerified && !allowed
 
   useEffect(() => {
     if (shouldRedirect) {

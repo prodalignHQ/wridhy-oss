@@ -1,6 +1,8 @@
-import { Settings, Users, Shield, Database, Download, Lock } from "lucide-react"
+import { Fragment } from "react"
+import { Users, Shield, Database, Lock } from "lucide-react"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
+import { SetUpVaultCard } from "@/components/tour/SetUpVaultCard"
 
 export default function SettingsPage() {
   const sections = [
@@ -42,26 +44,31 @@ export default function SettingsPage() {
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sections.map((section) => (
-          <Link key={section.title} href={section.href} className={section.status === "Coming soon" ? "cursor-not-allowed" : ""}>
-            <Card className="p-6 bg-card border-border hover:border-primary/50 transition-colors h-full flex flex-col">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                  <section.icon size={20} />
+          <Fragment key={section.title}>
+            <Link href={section.href} className={section.status === "Coming soon" ? "cursor-not-allowed" : ""}>
+              <Card className="p-6 bg-card border-border hover:border-primary/50 transition-colors h-full flex flex-col">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    <section.icon size={20} />
+                  </div>
+                  <h2 className="font-semibold text-foreground">{section.title}</h2>
                 </div>
-                <h2 className="font-semibold text-foreground">{section.title}</h2>
-              </div>
-              <p className="text-sm text-muted-foreground mb-4 flex-1">
-                {section.description}
-              </p>
-              <div className="mt-auto">
-                <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded ${
-                  section.status === "Available" ? "bg-emerald-500/10 text-emerald-500" : "bg-card text-muted-foreground"
-                }`}>
-                  {section.status}
-                </span>
-              </div>
-            </Card>
-          </Link>
+                <p className="text-sm text-muted-foreground mb-4 flex-1">
+                  {section.description}
+                </p>
+                <div className="mt-auto">
+                  <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded ${
+                    section.status === "Available" ? "bg-emerald-500/10 text-emerald-500" : "bg-card text-muted-foreground"
+                  }`}>
+                    {section.status}
+                  </span>
+                </div>
+              </Card>
+            </Link>
+            {/* Sits directly under the Vault card, and only until there is a
+                vault to manage. */}
+            {section.href === "/settings/vault" && <SetUpVaultCard />}
+          </Fragment>
         ))}
       </div>
     </div>

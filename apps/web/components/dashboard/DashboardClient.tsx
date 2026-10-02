@@ -30,6 +30,7 @@ import { toast } from 'sonner'
 import { apiClient } from '@/lib/api'
 import { formatINR } from '@/lib/format'
 import { useVaultStore } from '@/lib/store/vault.store'
+import { TOUR_PATH } from '@/lib/store/tour.store'
 import { isLocalMode } from '@/lib/local-mode'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -58,6 +59,8 @@ interface Owner {
 }
 
 interface DashboardClientProps {
+  /** Used to scope the tour's persisted flags to this account. */
+  userId?: string
   userEmail?: string
   userName?: string
 }
@@ -80,7 +83,7 @@ const AVATAR_BG: Record<string, string> = {
   violet: 'bg-violet-500 text-white',
 }
 
-export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
+export function DashboardClient({ userId, userEmail, userName }: DashboardClientProps) {
   const router = useRouter()
   const [currentMonth, setCurrentMonth] = useState(() => format(new Date(), 'yyyy-MM'))
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -145,7 +148,7 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
     loadInitialData()
   }, [loadInitialData])
 
-  // Vault onboarding: no vault + not skipped → guided setup; skipped → banner.
+  // Vault onboarding: no vault + not skipped → vault setup; skipped → banner.
   // Vault exists but locked → unlock gate once per session (with a vault,
   // nearly all data is sealed — wandering the app locked is misleading).
   // Login and vault-unlock stay separate by design: two keys, two jobs.
@@ -160,14 +163,17 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
       const blob = await fetchVaultBlob().catch(() => 'error' as const)
       if (cancelled) return
       if (blob === null) {
-        let skipped = false
-        try {
-          skipped = sessionStorage.getItem('momoney_vault_onboarding_skip') === '1'
-        } catch {
-          // ignore
-        }
-        if (!skipped) {
-          router.replace('/onboarding/vault')
+        // Durable skip, scoped to this account. 'idle' and 'running' both
+        // prompt: a tour abandoned mid-ceremony should resume, not silently
+        // disappear. Only an explicit skip downgrades this to a banner.
+        const { useTourStore, adoptLegacySkip } = await import('@/lib/store/tour.store')
+        // localStorage is per-origin, not per-account: without this, the first
+        // account to finish (or skip) the tour would suppress it for every
+        // other account that later signs in on the same browser.
+        if (userId) useTourStore.getState().ensureScope(userId)
+        const status = adoptLegacySkip()
+        if (status !== 'skipped') {
+          router.replace(TOUR_PATH)
         } else {
           setShowVaultBanner(true)
         }
@@ -195,7 +201,7 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
     return () => {
       cancelled = true
     }
-  }, [loading, router])
+  }, [loading, router, userId])
 
   // Vault unlocked elsewhere (e.g. settings tab) → drop the locked banner.
   useEffect(() => {
@@ -271,13 +277,14 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
             <div>
               <p className="text-sm font-semibold text-foreground">Your data isn&apos;t end-to-end encrypted yet</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Secure your vault in 60 seconds — passkey or password, plus a recovery code.
+                Set up your vault to lock your money data — a password, a fingerprint, and a recovery key. About a
+                minute.
               </p>
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
-            <Link href="/onboarding/vault">
-              <Button size="sm" className="bg-primary text-white">Secure my vault</Button>
+            <Link href={TOUR_PATH}>
+              <Button size="sm" className="bg-primary text-white">Set up your vault</Button>
             </Link>
             <Button variant="ghost" size="sm" onClick={() => setShowVaultBanner(false)} className="text-muted-foreground">
               Later

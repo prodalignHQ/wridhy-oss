@@ -142,3 +142,72 @@
 .label-sm {
   @apply text-xs font-medium uppercase tracking-wide text-muted-foreground;
 }
+
+/* ─── Guided tour microanimations ─────────────────────────────────────────── */
+/* One-shot "it landed" pops and a slow halo behind the vault shield. Kept
+   deliberately cheap (transform/opacity only) so the ceremony stays smooth
+   on the low-end machines the local build targets. */
+
+@theme inline {
+  --animate-tour-pop: mm-tour-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-tour-halo: mm-tour-halo 2600ms ease-out infinite;
+  --animate-tour-shimmer: mm-tour-shimmer 2200ms ease-in-out infinite;
+  --animate-tour-float: mm-tour-float 5s ease-in-out infinite;
+}
+
+@keyframes mm-tour-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes mm-tour-halo {
+  0% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@keyframes mm-tour-shimmer {
+  0%,
+  100% {
+    background-position: -180% 0;
+  }
+  50% {
+    background-position: 180% 0;
+  }
+}
+
+@keyframes mm-tour-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* Users who ask for less motion get the tour without the flourishes. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-tour-pop,
+  .animate-tour-halo,
+  .animate-tour-shimmer,
+  .animate-tour-float {
+    animation: none !important;
+  }
+}

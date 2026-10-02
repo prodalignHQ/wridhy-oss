@@ -16,6 +16,7 @@ export default async function DashboardPage() {
         <DashboardVerificationNotice email={session.user.email} />
       ) : (
         <DashboardClient
+          userId={session?.user?.id}
           userEmail={session?.user?.email}
           userName={session?.user?.name}
         />
