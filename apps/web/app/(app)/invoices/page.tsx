@@ -11,6 +11,7 @@ import {
   FileText,
   Filter,
   Layers,
+  Lock,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -346,6 +347,7 @@ function InvoicesContent() {
   const [savingDraft, setSavingDraft] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [movingToDraft, setMovingToDraft] = useState(false)
+  const [movingToVault, setMovingToVault] = useState(false)
   const [deletingInvoice, setDeletingInvoice] = useState(false)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [collapsedOwners, setCollapsedOwners] = useState<Set<string>>(new Set())
@@ -1004,10 +1006,12 @@ function InvoicesContent() {
         return
       }
 
-      if (unlocked && needsLocal) {
+      // Vault unlocked → invoices never live in server tables, regardless
+      // of statement origin (linked statements are ensured locally first).
+      if (unlocked) {
         const { createLocalInvoice } = await import('@/lib/engine/local-invoices')
         const localId = await createLocalInvoice(newInvoiceName.trim(), newInvoiceMonth, newStatementIds)
-        toast.success('Draft invoice created on this device')
+        toast.success('Draft invoice created on this device — never touches server tables')
         await refreshInvoiceList(localId)
         setComposerOpen(false)
         setActiveInvoiceId(localId)
@@ -1123,6 +1127,36 @@ function InvoicesContent() {
       toast.error(error instanceof Error ? error.message : 'Failed to move invoice to draft')
     } finally {
       setMovingToDraft(false)
+    }
+  }
+
+  const handleMoveToVault = async () => {
+    if (!activeInvoice || activeInvoice.id.startsWith('local-')) return
+    setMovingToVault(true)
+    try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (!useVaultStore.getState().isUnlocked()) {
+        toast.error('Unlock your vault first — migrated invoices live there')
+        return
+      }
+      const { migrateServerInvoiceToVault, deleteLocalInvoice } = await import('@/lib/engine/local-invoices')
+      const localId = await migrateServerInvoiceToVault(activeInvoice)
+      try {
+        await apiClient.fetch(`/v1/invoices/${activeInvoice.id}`, { method: 'DELETE' })
+      } catch (err) {
+        // Server row survives: roll the local copy back so no twins exist.
+        await deleteLocalInvoice(localId).catch(() => {})
+        throw err
+      }
+      toast.success('Invoice moved into your encrypted vault — server copy deleted')
+      await refreshInvoiceList(localId)
+      setComposerOpen(false)
+      setActiveInvoiceId(localId)
+      await openLocalInvoice(localId)
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Failed to move invoice')
+    } finally {
+      setMovingToVault(false)
     }
   }
 
@@ -1691,6 +1725,18 @@ function InvoicesContent() {
                         <Trash2 size={15} />
                         Delete Invoice
                       </Button>
+                      {!activeInvoice.id.startsWith('local-') && (
+                        <Button
+                          variant="outline"
+                          onClick={() => void handleMoveToVault()}
+                          disabled={movingToVault}
+                          className="gap-2 border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
+                          title="Copy into your encrypted vault and delete the server original"
+                        >
+                          <Lock size={15} />
+                          {movingToVault ? 'Moving…' : 'Move to vault'}
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         onClick={() => void handleSaveDraft()}
@@ -1720,6 +1766,18 @@ function InvoicesContent() {
                         <Trash2 size={15} />
                         Delete Invoice
                       </Button>
+                      {!activeInvoice.id.startsWith('local-') && (
+                        <Button
+                          variant="outline"
+                          onClick={() => void handleMoveToVault()}
+                          disabled={movingToVault}
+                          className="gap-2 border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
+                          title="Copy into your encrypted vault and delete the server original"
+                        >
+                          <Lock size={15} />
+                          {movingToVault ? 'Moving…' : 'Move to vault'}
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         onClick={() => void handleMoveToDraft()}
