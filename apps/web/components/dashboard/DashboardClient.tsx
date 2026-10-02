@@ -24,6 +24,7 @@ import {
   Clock,
   Loader2,
   Lock,
+  Route,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -40,6 +41,8 @@ import { Input } from '@/components/ui/input'
 import { NetWorthWidget } from '@/components/networth/NetWorthWidget'
 import { AddAccountDialog } from '@/components/accounts/AddAccountDialog'
 import { PageHelp } from '@/components/guide/PageHelp'
+import { GuidePrompt } from '@/components/guide/GuidePrompt'
+import { GUIDE_PATH } from '@/lib/guide-content'
 import { MonthlyInsight } from '@momoney/types'
 
 interface Account {
@@ -253,6 +256,7 @@ export function DashboardClient({ userId, userEmail, userName }: DashboardClient
 
   return (
     <div className="space-y-8 pb-12">
+      <GuidePrompt />
       {showLockedBanner && (
         <div className="flex flex-col gap-3 rounded-2xl border border-sky-500/40 bg-sky-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -320,6 +324,18 @@ export function DashboardClient({ userId, userEmail, userName }: DashboardClient
               className="bg-transparent text-foreground font-medium outline-none cursor-pointer text-xs"
             />
           </div>
+
+          <Link href={GUIDE_PATH}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-border text-foreground/80 shadow-sm"
+            >
+              <Route size={14} />
+              <span className="hidden sm:inline">Guided tour</span>
+              <span className="sm:hidden">Tour</span>
+            </Button>
+          </Link>
 
           <Button
             onClick={() => setIsAddAccountOpen(true)}

@@ -9,8 +9,11 @@ import { persist } from 'zustand/middleware'
 
 interface GuideState {
   done: string[]
+  /** One-time post-setup nudge ("take the guided tour?") was dismissed. */
+  promptDismissed: boolean
   toggle: (stepId: string) => void
   markDone: (stepId: string) => void
+  dismissPrompt: () => void
   reset: () => void
 }
 
@@ -18,6 +21,7 @@ export const useGuideStore = create<GuideState>()(
   persist(
     (set) => ({
       done: [],
+      promptDismissed: false,
       toggle: (stepId) =>
         set((state) => ({
           done: state.done.includes(stepId)
@@ -26,6 +30,7 @@ export const useGuideStore = create<GuideState>()(
         })),
       markDone: (stepId) =>
         set((state) => (state.done.includes(stepId) ? state : { done: [...state.done, stepId] })),
+      dismissPrompt: () => set({ promptDismissed: true }),
       reset: () => set({ done: [] }),
     }),
     { name: 'momoney-guide' }
