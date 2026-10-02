@@ -6,6 +6,34 @@
 
 import type { DbWorkerRequest, DbWorkerResponse } from '@/workers/db.worker'
 import { OPFS_SCHEMA_VERSION } from '@momoney/local-engine'
+
+export const RETIRED_STORAGE_KEY = 'momoney_server_retired_at'
+
+/**
+ * True once this browser completed plaintext retirement. Server content
+ * endpoints are then provably empty for this user, so vault flows skip
+ * them entirely (no pointless fetches, no access-pattern metadata).
+ * Vault blob / wraps / auth fetches are unaffected.
+ */
+export function isServerRetired(): boolean {
+  try {
+    return (
+      typeof window !== 'undefined' && localStorage.getItem(RETIRED_STORAGE_KEY) !== null
+    )
+  } catch {
+    return false
+  }
+}
+
+export function markServerRetired(): void {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(RETIRED_STORAGE_KEY, new Date().toISOString())
+    }
+  } catch {
+    // ignore
+  }
+}
 import type {
   LocalAsset,
   LocalCategory,

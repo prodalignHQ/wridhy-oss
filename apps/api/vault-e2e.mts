@@ -78,8 +78,6 @@ async function main() {
       opslimit: params.iterations,
       memlimit: params.memorySize,
       wrappedDekPassword: wrapDek(dek, kek),
-      wrappedDekPrf: null,
-      prfCredentialId: null,
       wrappedDekRecovery: null,
       version: 1,
     }
@@ -172,6 +170,95 @@ async function main() {
     const body3 = (await res.json()) as { success: boolean; data: Record<string, unknown> }
     if (body3.data['cipher'] !== env2.cipherB64) throw new Error('Stale write overwrote vault')
     console.log('stale write rejected, vault intact: true')
+
+    // Cross-account restore: export A's blob, fresh account B restores it,
+    // unlocks with A's password, and reads A's data. Proves portability.
+    res = await req('/v1/vault')
+    const backup = (await res.json()) as {
+      success: boolean
+      data: {
+        cipher: string
+        nonce: string
+        salt: string
+        opslimit: number
+        memlimit: number
+        wrappedDekPassword: string | null
+        wrappedDekRecovery: string | null
+        version: number
+        wraps: Array<{ credentialId: string; wrappedDek: string; label: string }>
+      }
+    }
+    const emailB = `vault-e2e-b-${Date.now()}@example.com`
+    let resB = await fetch(`${BASE}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ email: emailB, password, name: 'Vault E2E B' }),
+    })
+    if (!resB.ok) throw new Error('signup B failed')
+    const createdB = (await resB.json()) as { user: { id: string } }
+    const userIdB = createdB.user.id
+    await db.update(users).set({ emailVerified: true }).where(eq(users.id, userIdB))
+    resB = await fetch(`${BASE}/api/auth/sign-in/email`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ email: emailB, password }),
+    })
+    if (!resB.ok) throw new Error('signin B failed')
+    const matchB = (resB.headers.get('set-cookie') ?? '').match(/better-auth\.session_token=([^;]+)/)
+    if (!matchB) throw new Error('no session cookie B')
+    const reqB = (path: string, init?: RequestInit) =>
+      fetch(`${BASE}${path}`, {
+        ...init,
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `better-auth.session_token=${matchB[1]}`,
+          ...(init?.headers ?? {}),
+        },
+      })
+    // Restore = PUT blob fields + re-register wraps (mirrors restoreVaultFromFile).
+    resB = await reqB('/v1/vault', {
+      method: 'PUT',
+      body: JSON.stringify({
+        cipher: backup.data.cipher,
+        nonce: backup.data.nonce,
+        salt: backup.data.salt,
+        opslimit: backup.data.opslimit,
+        memlimit: backup.data.memlimit,
+        wrappedDekPassword: backup.data.wrappedDekPassword,
+        wrappedDekRecovery: backup.data.wrappedDekRecovery,
+        version: 1,
+      }),
+    })
+    if (resB.status !== 200) throw new Error('restore PUT failed: ' + (await resB.text()).slice(0, 200))
+    for (const w of backup.data.wraps) {
+      resB = await reqB('/v1/vault/wraps', {
+        method: 'POST',
+        body: JSON.stringify({ credentialId: w.credentialId, wrappedDek: w.wrappedDek, label: w.label }),
+      })
+      if (resB.status !== 201) throw new Error('restore wrap failed')
+    }
+    resB = await reqB('/v1/vault')
+    const bodyB = (await resB.json()) as {
+      success: boolean
+      data: { cipher: string; nonce: string; wrappedDekPassword: string; wraps: unknown[] }
+    }
+    const kekB = await deriveKek('e2e-test-password-123', {
+      saltB64: backup.data.salt,
+      iterations: backup.data.opslimit,
+      memorySize: backup.data.memlimit,
+    })
+    const dekB = await unwrapDek(bodyB.data.wrappedDekPassword, kekB)
+    const snapB = await decryptSnapshot(bodyB.data.cipher, bodyB.data.nonce, dekB)
+    console.log(
+      'cross-account restore ok:',
+      (snapB.transactions as unknown[]).length === 1,
+      'wraps:',
+      (bodyB.data.wraps as unknown[]).length
+    )
+    if ((snapB.transactions as unknown[]).length !== 1) throw new Error('Restored data mismatch')
+    // Cleanup B.
+    await reqB('/v1/vault', { method: 'DELETE' })
+    await db.delete(users).where(eq(users.id, userIdB))
 
     res = await req('/v1/vault', { method: 'DELETE' })
     console.log('DELETE status:', res.status)

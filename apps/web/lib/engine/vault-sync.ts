@@ -387,6 +387,68 @@ export async function revokePasskey(blob: VaultBlob, credentialId: string): Prom
   return { ...blob, wraps: blob.wraps.filter((w) => w.credentialId !== credentialId) }
 }
 
+export interface VaultBackupFile {
+  exportedAt: string
+  vault: VaultBlob & { userId?: string; updatedAt?: string }
+}
+
+/**
+ * Restore a vault from an encrypted backup file — same account or a FRESH
+ * account (portable: sign up anew, restore, unlock with the ORIGINAL
+ * password/recovery code, everything reappears). PRF wraps transfer as
+ * metadata; only credentials present on this device will actually unlock
+ * (add this device's passkey after unlocking). Existing wraps for other
+ * credentialIds are left untouched server-side... no — restore REPLACES the
+ * blob row and re-registers exactly the file's wraps, so a restore is a
+ * faithful copy, not a merge. Callers refresh the store afterwards.
+ */
+export async function restoreVaultFromFile(file: File): Promise<void> {
+  const parsed: unknown = JSON.parse(await file.text())
+  const root = (parsed as { vault?: Record<string, unknown> }).vault ?? parsed
+  const rec = root as Record<string, unknown>
+  for (const field of ['cipher', 'nonce', 'salt', 'opslimit', 'memlimit']) {
+    if (typeof rec[field] !== 'string' && typeof rec[field] !== 'number') {
+      throw new Error('Not a MoMoney vault backup file (missing fields)')
+    }
+  }
+  // Clear any existing wraps first so the restore is a faithful copy, not a
+  // merge of two DEK lineages (stale wraps would fail decrypt confusingly).
+  const existing = await fetchVaultBlob().catch(() => null)
+  for (const w of existing?.wraps ?? []) {
+    await apiClient
+      .fetch(`/v1/vault/wraps/${encodeURIComponent(w.credentialId)}`, { method: 'DELETE' })
+      .catch(() => {})
+  }
+  const asTextOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null)
+  const asInt = (v: unknown, fallback: number): number =>
+    typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : fallback
+  await apiClient.fetch('/v1/vault', {
+    method: 'PUT',
+    body: JSON.stringify({
+      cipher: rec['cipher'],
+      nonce: rec['nonce'],
+      salt: rec['salt'],
+      opslimit: asInt(rec['opslimit'], 3),
+      memlimit: asInt(rec['memlimit'], 65536),
+      wrappedDekPassword: asTextOrNull(rec['wrappedDekPassword']),
+      wrappedDekRecovery: asTextOrNull(rec['wrappedDekRecovery']),
+      version: 1,
+    }),
+  })
+  const wraps = Array.isArray(rec['wraps']) ? (rec['wraps'] as Array<Record<string, unknown>>) : []
+  for (const w of wraps) {
+    if (typeof w['credentialId'] !== 'string' || typeof w['wrappedDek'] !== 'string') continue
+    await apiClient.fetch('/v1/vault/wraps', {
+      method: 'POST',
+      body: JSON.stringify({
+        credentialId: w['credentialId'],
+        wrappedDek: w['wrappedDek'],
+        label: typeof w['label'] === 'string' ? w['label'] : 'Passkey',
+      }),
+    }).catch(() => {})
+  }
+}
+
 export async function unlockWithRecovery(blob: VaultBlob, code: string): Promise<Uint8Array> {
   if (!blob.wrappedDekRecovery) throw new VaultError('NO_WRAP', 'No recovery code registered on this vault')
   let kek: Uint8Array

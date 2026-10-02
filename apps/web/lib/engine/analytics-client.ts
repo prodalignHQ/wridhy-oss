@@ -21,6 +21,7 @@ import {
   cacheServerRows,
   deleteTransactionsFromCache,
   emptyCache,
+  isServerRetired,
   readLocalCache,
   type LocalCache,
 } from './opfs-db'
@@ -219,6 +220,9 @@ export async function loadMergedInput(): Promise<LocalInput> {
 }
 
 async function fetchCloudInput(options?: { maxRows?: number; onProgress?: (page: number, totalPages: number) => void }): Promise<LocalInput> {
+  // Retired servers hold no content rows by construction — skip every
+  // content fetch (vault blob/wraps/auth are fetched elsewhere, unaffected).
+  if (isServerRetired()) return emptyCache()
   const maxRows = options?.maxRows ?? 10000
   const onProgress = options?.onProgress
   const [catsRaw, stmtsRaw, acctsRaw, ownersRaw, rulesRaw, merchantsRaw, invoicesRaw, assetsRaw, liabilitiesRaw, historyRaw, draftRaw] = await Promise.all([
@@ -432,6 +436,21 @@ export async function refreshLocalCache(): Promise<void> {
 
 /** Light per-table server counts for migration inventory (no bulk fetch). */
 export async function fetchServerCounts(): Promise<Array<{ key: string; label: string; count: number }>> {
+  if (isServerRetired()) {
+    return [
+      { key: 'transactions', label: 'Transactions', count: 0 },
+      { key: 'statements', label: 'Statements', count: 0 },
+      { key: 'categories', label: 'Categories', count: 0 },
+      { key: 'rules', label: 'Categorization rules', count: 0 },
+      { key: 'merchants', label: 'Merchants', count: 0 },
+      { key: 'accounts', label: 'Accounts', count: 0 },
+      { key: 'owners', label: 'Household members', count: 0 },
+      { key: 'assets', label: 'Assets', count: 0 },
+      { key: 'liabilities', label: 'Liabilities', count: 0 },
+      { key: 'snapshots', label: 'Net-worth snapshots', count: 0 },
+      { key: 'invoices', label: 'Invoices', count: 0 },
+    ]
+  }
   const [txns, stmts, cats, rules, merchants, accts, owners, assets, liabs, history, invoices] = await Promise.all([
     apiClient.fetch<{ total: number }>('/v1/transactions?limit=1&page=1').catch(() => ({ total: 0 })),
     apiClient.fetch<unknown[]>('/v1/statements').catch(() => []),

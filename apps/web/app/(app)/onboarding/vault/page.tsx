@@ -217,6 +217,33 @@ export default function VaultOnboardingPage() {
             <Button variant="ghost" onClick={skip} className="w-full text-muted-foreground">
               Skip for now
             </Button>
+            <div className="border-t border-border pt-3 text-center">
+              <p className="text-xs text-muted-foreground mb-2">Moving from another account? Bring your encrypted backup:</p>
+              <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+                Restore from backup file →
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!file) return
+                    setBusy(true)
+                    try {
+                      const { restoreVaultFromFile } = await import('@/lib/engine/vault-sync')
+                      await restoreVaultFromFile(file)
+                      toast.success('Backup restored — unlock with your original password or recovery code')
+                      router.replace('/unlock')
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : 'Restore failed')
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                />
+              </label>
+            </div>
           </CardContent>
         </Card>
       )}

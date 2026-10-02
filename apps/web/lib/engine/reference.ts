@@ -16,6 +16,7 @@ import {
   type LocalCache,
 } from './opfs-db'
 import { scheduleEncryptedBackup } from './mutations'
+import { isServerRetired } from './opfs-db'
 
 export function useReferenceLocal(): boolean {
   try {
@@ -68,7 +69,8 @@ export async function loadReferenceMerged<K extends CacheKey>(
 ): Promise<LocalCache[K]> {
   const [local, server] = await Promise.all([
     readReferenceTable(key).catch(() => null),
-    serverFetch().catch(() => [] as unknown[]),
+    // Retired servers hold nothing — don't even ask (no access metadata).
+    (isServerRetired() ? Promise.resolve([] as unknown[]) : serverFetch().catch(() => [] as unknown[])),
   ])
   const list = (server ?? []) as Array<Record<string, unknown>>
   if (list.length > 0) {

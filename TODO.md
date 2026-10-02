@@ -19,6 +19,7 @@
 - [ ] **B2. Conflict UI.** Version conflicts currently auto-retry once, then error. Need a merge view (per-field last-write-wins + manual resolve for splits/owners).
 - [ ] **B3. Device list polish.** Show per-device last-sync; warn on long-silent devices.
 - [ ] **B4. QR device pairing (passwordless join).** Today a new device joins via vault password or recovery code (password is mandatory at setup precisely so this always works). The upgrade: new device shows a QR with an ephemeral pubkey + session id; an existing unlocked device scans and POSTs the DEK wrapped to it via short-TTL opaque relay endpoints; new device unwraps, registers its own passkey. Needs relay API, QR lib, camera permission flow, and the same audit treatment as the rest of the trusted path.
+- [x] **B5. Portable encrypted export/import (done).** Vault blob downloads as a file; `restoreVaultFromFile` replays blob + wraps onto any account (same or fresh) — unlock with the original password/recovery. E2E proves cross-account restore.
 
 ## Milestone C — Key lifecycle (P1)
 

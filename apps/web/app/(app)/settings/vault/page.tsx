@@ -240,28 +240,10 @@ export default function VaultPage() {
   const handleRestoreFile = async (file: File | undefined) => {
     if (!file) return
     try {
-      const parsed: unknown = JSON.parse(await file.text())
-      const vaultData = (parsed as { vault?: Record<string, unknown> }).vault ?? parsed
-      const rec = vaultData as Record<string, unknown>
-      if (typeof rec['cipher'] !== 'string' || typeof rec['nonce'] !== 'string' || typeof rec['salt'] !== 'string') {
-        throw new Error('Not a MoMoney vault backup file')
-      }
-      const { apiClient } = await import('@/lib/api')
-      await apiClient.fetch('/v1/vault', {
-        method: 'PUT',
-        body: JSON.stringify({
-          cipher: rec['cipher'],
-          nonce: rec['nonce'],
-          salt: rec['salt'],
-          opslimit: rec['opslimit'],
-          memlimit: rec['memlimit'],
-          wrappedDekPassword: rec['wrappedDekPassword'] ?? null,
-          wrappedDekRecovery: rec['wrappedDekRecovery'] ?? null,
-          version: rec['version'] ?? 1,
-        }),
-      })
+      const { restoreVaultFromFile } = await import('@/lib/engine/vault-sync')
+      await restoreVaultFromFile(file)
       await vault.refresh()
-      toast.success('Vault restored from file — unlock to verify')
+      toast.success('Vault restored from file — unlock with your original password or recovery code')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Restore failed')
     }
