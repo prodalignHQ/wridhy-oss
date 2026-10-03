@@ -6,6 +6,7 @@
 
 import type { DbWorkerRequest, DbWorkerResponse } from '@/workers/db.worker'
 import { OPFS_SCHEMA_VERSION } from '@momoney/local-engine'
+import { markBackupClean } from './backup-state'
 
 export const RETIRED_STORAGE_KEY = 'momoney_server_retired_at'
 
@@ -229,7 +230,14 @@ async function currentAuthUserId(): Promise<string | null> {
     // module is cached after first load, so this is just a promise hop.
     const { useAuthStore } = await import('@/lib/store/auth.store')
     const user = useAuthStore.getState().user as { id?: string } | null
-    return user?.id ?? null
+    if (user?.id) return user.id
+    // Unlock can precede AuthHydrator (in-memory user still null): ask the
+    // session directly once instead of silently scoping to the shared
+    // anonymous file — restored vault data would land there and look
+    // "missing" once the store hydrates and the scope switches.
+    const { authClient } = await import('@/lib/auth.client')
+    const session = await authClient.getSession().catch(() => null)
+    return (session?.data?.user as { id?: string } | undefined)?.id ?? null
   } catch {
     return null
   }
@@ -376,11 +384,17 @@ export async function restoreSnapshotToCache(snapshot: VaultSnapshot): Promise<b
   })
 }
 
-/** Read the full local cache. Null when unavailable or empty. */
+/** Read the full local cache. Null when unavailable or fully empty. */
 export async function readLocalCache(): Promise<LocalCache | null> {
   const res = await call('readAll', undefined, 30_000)
   const bundle = res?.rows?.[0] as RawBundle | undefined
-  if (!bundle || bundle.transactions.length === 0) return null
+  if (!bundle) return null
+  // Null must mean "no on-device data at all" (fresh profile, sealed DB).
+  // Gating on transactions alone hid existing reference rows (rules,
+  // categories, merchants) and made backups snapshot an empty cache,
+  // wiping freshly migrated system data from the vault.
+  const hasAnyRows = Object.values(bundle).some((rows) => Array.isArray(rows) && rows.length > 0)
+  if (!hasAnyRows) return null
   return {
     transactions: bundle.transactions.map(rowToTransaction),
     categories: (bundle.categories ?? []).map((c) => ({
@@ -639,6 +653,8 @@ function writeLastBackupAt(iso: string): void {
 export function markBackupComplete(): void {
   writePendingStatements(new Set())
   writeLastBackupAt(new Date().toISOString())
+  // A completed backup clears the unload guard (see backup-state.ts).
+  markBackupClean()
 }
 
 export interface PendingWork {

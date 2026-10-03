@@ -48,14 +48,17 @@ const STEP_META: Record<StepId, { label: string }> = {
  *  returns to idle instead of shouting at the user. */
 type StepResult = { ok: boolean; error?: string }
 
-/** Snapshot the OPFS cache into the encrypted payload for a brand-new vault. */
+/** Snapshot the OPFS cache into the encrypted payload for a brand-new vault,
+ * seeded with the shared system reference data (rules/categories/merchants)
+ * so a fresh vault is usable offline from the start. */
 async function currentSnapshot() {
-  const [{ readLocalCache, emptyCache }, { buildVaultSnapshot }] = await Promise.all([
+  const [{ readLocalCache, emptyCache }, { buildVaultSnapshot, seedSystemReferenceData }] = await Promise.all([
     import('@/lib/engine/opfs-db'),
     import('@/lib/engine/vault-sync'),
   ])
   const cache = await readLocalCache().catch(() => null)
-  return buildVaultSnapshot(cache ?? emptyCache())
+  const snapshot = buildVaultSnapshot(cache ?? emptyCache())
+  return seedSystemReferenceData(snapshot).catch(() => snapshot)
 }
 
 function describeError(err: unknown, fallback: string): string {

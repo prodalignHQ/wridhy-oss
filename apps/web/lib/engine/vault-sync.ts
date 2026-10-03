@@ -49,6 +49,83 @@ export function buildVaultSnapshot(cache: LocalCache): VaultSnapshot {
   }
 }
 
+/**
+ * Seed shared system reference data (categories, rules, merchants) into a
+ * vault snapshot. Fresh vaults snapshot an empty OPFS cache, so without this
+ * a brand-new vault contains zero system rules — the only path that copied
+ * them in was the optional migration wizard. Union by id: existing rows are
+ * never overwritten, missing system rows are added. Best-effort: setup is
+ * online by construction, but a failed fetch still returns the snapshot
+ * unchanged rather than failing setup.
+ */
+export async function seedSystemReferenceData(snapshot: VaultSnapshot): Promise<VaultSnapshot> {
+  try {
+    const [catsRaw, rulesRaw, merchantsRaw] = await Promise.all([
+      apiClient.fetch<Array<{ id: string; name: string; color?: string | null; type?: string }>>('/v1/categories').catch(() => []),
+      apiClient.fetch<Array<{
+        id: string; userId: string | null; matchField: 'merchant' | 'description' | 'amount'
+        matchType: 'contains' | 'equals' | 'regex' | 'gt' | 'lt'; matchValue: string
+        categoryId: string; priority: number; source: 'system' | 'user'; isActive: boolean
+      }>>('/v1/rules').catch(() => []),
+      apiClient.fetch<Array<{
+        id: string; userId: string | null; rawPatterns: string[]; normalizedName: string
+        defaultCategoryId: string | null; isSystem: boolean
+      }>>('/v1/merchants').catch(() => []),
+    ])
+    if (catsRaw.length === 0 && rulesRaw.length === 0 && merchantsRaw.length === 0) return snapshot
+
+    const categories = [...(snapshot.categories ?? [])]
+    const haveCategories = new Set(categories.map((c) => c.id))
+    for (const c of catsRaw) {
+      if (haveCategories.has(c.id)) continue
+      haveCategories.add(c.id)
+      categories.push({
+        id: c.id,
+        name: c.name,
+        color: c.color ?? null,
+        type: (c.type ?? 'expense') as VaultSnapshot['categories'][number]['type'],
+      })
+    }
+
+    const rules = [...(snapshot.rules ?? [])]
+    const haveRules = new Set(rules.map((r) => r.id))
+    for (const r of rulesRaw) {
+      if (haveRules.has(r.id)) continue
+      haveRules.add(r.id)
+      rules.push({
+        id: r.id,
+        userId: r.userId ?? null,
+        matchField: r.matchField,
+        matchType: r.matchType,
+        matchValue: r.matchValue,
+        categoryId: r.categoryId,
+        priority: r.priority,
+        source: r.source,
+        isActive: r.isActive,
+      })
+    }
+
+    const merchants = [...(snapshot.merchants ?? [])]
+    const haveMerchants = new Set(merchants.map((m) => m.id))
+    for (const m of merchantsRaw) {
+      if (haveMerchants.has(m.id)) continue
+      haveMerchants.add(m.id)
+      merchants.push({
+        id: m.id,
+        userId: m.userId ?? null,
+        rawPatterns: m.rawPatterns ?? [],
+        normalizedName: m.normalizedName,
+        defaultCategoryId: m.defaultCategoryId ?? null,
+        isSystem: m.isSystem,
+      })
+    }
+
+    return { ...snapshot, categories, rules, merchants }
+  } catch {
+    return snapshot
+  }
+}
+
 export interface VaultWrap {
   credentialId: string
   wrappedDek: string

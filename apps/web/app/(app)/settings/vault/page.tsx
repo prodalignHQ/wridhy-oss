@@ -101,7 +101,14 @@ export default function VaultPage() {
       return
     }
     try {
-      await vault.setup(password, emptySnapshot())
+      let snapshot = emptySnapshot()
+      try {
+        const { seedSystemReferenceData } = await import('@/lib/engine/vault-sync')
+        snapshot = await seedSystemReferenceData(snapshot)
+      } catch {
+        // Seeding is best-effort — setup proceeds with the empty snapshot.
+      }
+      await vault.setup(password, snapshot)
       setPassword('')
       setConfirm('')
       toast.success('Encrypted vault created — save your recovery code')

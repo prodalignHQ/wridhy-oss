@@ -219,6 +219,7 @@ export default function RulesPage() {
   const [editingRule, setEditingRule] = useState<Rule | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Rule | null>(null)
   const [reapplyLoading, setReapplyLoading] = useState(false)
+  const [repairLoading, setRepairLoading] = useState(false)
 
   // Category form state
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
@@ -712,6 +713,37 @@ export default function RulesPage() {
     setDialogOpen(true)
   }
 
+  // Vaults created before system-data seeding (or retired before the first
+  // server convergence) can end up with zero system rows locally. This
+  // re-pulls the shared system reference data into OPFS and backs it up.
+  // Explicit user action, so it runs even in retired mode.
+  const handleRestoreSystemDefaults = async () => {
+    setRepairLoading(true)
+    try {
+      const [{ readLocalCache, emptyCache, cacheServerRows }, { buildVaultSnapshot, seedSystemReferenceData }] =
+        await Promise.all([
+          import('@/lib/engine/opfs-db'),
+          import('@/lib/engine/vault-sync'),
+        ])
+      const cache = await readLocalCache().catch(() => null)
+      const seeded = await seedSystemReferenceData(buildVaultSnapshot(cache ?? emptyCache()))
+      const ok = await cacheServerRows({
+        categories: seeded.categories,
+        rules: seeded.rules,
+        merchants: seeded.merchants,
+      })
+      if (!ok) throw new Error('On-device database unavailable')
+      const { scheduleEncryptedBackup } = await import('@/lib/engine/mutations')
+      scheduleEncryptedBackup()
+      toast.success('System defaults restored')
+      fetchData()
+    } catch (err) {
+      console.error('Failed to restore system defaults:', err)
+      toast.error('Failed to restore system defaults')
+    } finally {
+      setRepairLoading(false)
+    }
+  }
   const openCreateDialog = () => {
     setEditingRule(null)
     setDialogOpen(true)
@@ -807,6 +839,27 @@ export default function RulesPage() {
           <p className="text-sm text-muted-foreground mb-4">
             System rules are maintained by MoMoney. Create a My Rule with a lower priority number to override them.
           </p>
+          {systemRules.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-border rounded-xl">
+              <Sliders className="w-10 h-10 text-muted-foreground/70 mb-3" />
+              <h3 className="text-foreground/80 font-medium mb-1">No system rules on this device</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mb-4">
+                This vault was created without the shared defaults. Restore them to get auto-categorization out of the box.
+              </p>
+              <Button
+                className="bg-primary hover:bg-primary"
+                onClick={handleRestoreSystemDefaults}
+                disabled={repairLoading}
+              >
+                {repairLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Restore system defaults
+              </Button>
+            </div>
+          ) : (
           <div className="space-y-2">
             {systemRules
               .sort((a, b) => a.priority - b.priority)
@@ -820,6 +873,7 @@ export default function RulesPage() {
                 />
               ))}
           </div>
+          )}
         </TabsContent>
       </Tabs>
 

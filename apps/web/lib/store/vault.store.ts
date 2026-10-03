@@ -124,6 +124,10 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const { blob, recoveryCode, dek: newDek } = await setupVaultWithPassword(password, snapshot)
       wipeBytes(dek)
       dek = newDek
+      // Seed the on-device cache from the setup snapshot (it carries system
+      // reference rows the empty OPFS file lacks), so vault-gated reads work
+      // immediately — idempotent merge, safe to run on non-empty caches.
+      await restoreSnapshotToCache(snapshot).catch(() => {})
       set({ status: 'unlocked', blob, snapshot, recoveryCode })
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Vault setup failed' })

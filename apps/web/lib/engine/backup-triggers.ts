@@ -7,6 +7,7 @@
 // All triggers are gated and best-effort; OPFS durability is the guarantee.
 
 import { flushEncryptedBackup } from './mutations'
+import { isBackupDirty } from './backup-state'
 import { useVaultStore } from '@/lib/store/vault.store'
 
 let registered = false
@@ -42,8 +43,20 @@ export function initBackupTriggers(): void {
   })
 
   // Last resort before the page dies. Floating promise: the browser may or
-  // may not let it finish. Pending markers survive either way.
-  window.addEventListener('beforeunload', () => {
+  // may not let it finish — so when a backup is outstanding we ALSO ask to
+  // stay, giving the flush a chance to complete. In-app (SPA) navigations
+  // never reach here; only tab close / reload / external navigation does.
+  // Pending markers survive either way, so a confirmed leave retries later.
+  window.addEventListener('beforeunload', (e) => {
+    if (isBackupDirty()) {
+      e.preventDefault()
+    }
+    void flushEncryptedBackup()
+  })
+
+  // pagehide fires where beforeunload is skipped (mobile Safari, some
+  // window-close paths). No prompt is possible here — best-effort flush.
+  window.addEventListener('pagehide', () => {
     void flushEncryptedBackup()
   })
 }

@@ -398,6 +398,47 @@ export default function TransactionsPage() {
   const handleReapplyRules = async () => {
     setReapplyLoading(true)
     try {
+      const { useVaultStore } = await import('@/lib/store/vault.store')
+      if (useVaultStore.getState().isUnlocked()) {
+        // Vault mode: transactions live in OPFS, so the server reapply would
+        // touch zero rows. Mirror the Rules page local reapply instead.
+        const [{ readLocalCache, patchTransactionInCache }, { categorize }, { getDefaultMerchants }] =
+          await Promise.all([
+            import('@/lib/engine/opfs-db'),
+            import('@momoney/rules-engine'),
+            import('@momoney/rules-engine'),
+          ])
+        const cache = await readLocalCache().catch(() => null)
+        if (!cache) throw new Error('Local cache unavailable')
+        const uncategorizedName = 'Uncategorized'
+        const targets = cache.transactions.filter((t) => {
+          if (t.categoryId) {
+            const cat = cache.categories.find((c) => c.id === t.categoryId)
+            return !cat || cat.name === uncategorizedName
+          }
+          return true
+        })
+        const activeRules = cache.rules.filter((r) => r.isActive)
+        const userMerchants = cache.merchants.filter((m) => !m.isSystem)
+        let updatedCount = 0
+        for (const t of targets) {
+          const result = categorize(
+            { date: new Date(t.date), description: t.description, amount: parseFloat(t.amount), type: t.type },
+            activeRules,
+            cache.categories.map((c) => ({ id: c.id, name: c.name, color: c.color })),
+            userMerchants,
+            getDefaultMerchants()
+          )
+          if (result.categoryId && result.categoryId !== (t.categoryId ?? '')) {
+            if (await patchTransactionInCache(t.id, { categoryId: result.categoryId })) updatedCount++
+          }
+        }
+        const { scheduleEncryptedBackup } = await import('@/lib/engine/mutations')
+        scheduleEncryptedBackup()
+        toast.success(`Updated ${updatedCount} transactions`)
+        fetchTransactions()
+        return
+      }
       const result = await apiClient.fetch<{ updatedCount: number }>('/v1/rules/reapply', {
         method: 'POST',
       })

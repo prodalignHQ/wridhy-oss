@@ -193,20 +193,70 @@ async function loadLocalInput(): Promise<LocalInput> {
   cacheServerRows(cloud).catch(() => {})
 
   // 4. UNION (the step Phase 3 missed): server rows are canonical, but
-  // vault-only rows live exclusively in OPFS. Return both — server wins on
-  // dedupHash collision — so fresh imports are visible immediately.
+  // vault-only rows live exclusively in OPFS. Union EVERY table — server
+  // wins on id collision — so fresh imports and local reference rows are
+  // visible immediately. Joins read these same tables (category names,
+  // account labels, owner avatars), so a transactions-only union shows
+  // correctly-filtered rows with blank joins ("— Uncategorized", "—",
+  // "Unassigned") whenever the local category/account/owner is missing
+  // server-side — exactly the retired/offline vault case.
   if (cached) {
-    const serverHashes = new Set(cloud.transactions.map((t) => t.dedupHash))
-    const serverIds = new Set(cloud.transactions.map((t) => t.id))
-    const localOnly = cached.transactions.filter(
-      (t) => !serverIds.has(t.id) && !(t.dedupHash && serverHashes.has(t.dedupHash))
-    )
-    if (localOnly.length > 0) {
-      return { ...cloud, transactions: [...cloud.transactions, ...localOnly] }
-    }
+    return unionCaches(cloud, cached)
   }
 
   return cloud
+}
+
+/** Server-canonical union of two caches (OPFS-exclusive rows appended). */
+function unionCaches(cloud: LocalInput, cached: LocalInput): LocalInput {
+  const serverHashes = new Set(cloud.transactions.map((t) => t.dedupHash))
+  const serverIds = new Set(cloud.transactions.map((t) => t.id))
+  const localOnlyTxns = cached.transactions.filter(
+    (t) => !serverIds.has(t.id) && !(t.dedupHash && serverHashes.has(t.dedupHash))
+  )
+
+  return {
+    ...cloud,
+    transactions: [...cloud.transactions, ...localOnlyTxns],
+    categories: unionById(cloud.categories, cached.categories),
+    statements: unionById(cloud.statements, cached.statements),
+    accounts: unionById(cloud.accounts, cached.accounts),
+    owners: unionById(cloud.owners, cached.owners),
+    transactionOwners: unionByKey(
+      cloud.transactionOwners,
+      cached.transactionOwners,
+      (s) => `${s.transactionId}:${s.ownerId}`
+    ),
+    rules: unionById(cloud.rules, cached.rules),
+    merchants: unionById(cloud.merchants, cached.merchants),
+    invoices: unionById(cloud.invoices, cached.invoices),
+    invoiceStatements: unionByKey(
+      cloud.invoiceStatements,
+      cached.invoiceStatements,
+      (s) => `${s.invoiceId}|${s.statementId ?? ''}|${s.accountId ?? ''}|${s.statementMonth}`
+    ),
+    invoiceItems: unionById(cloud.invoiceItems, cached.invoiceItems),
+    assets: unionById(cloud.assets, cached.assets),
+    liabilities: unionById(cloud.liabilities, cached.liabilities),
+    netWorthSnapshots: unionById(cloud.netWorthSnapshots, cached.netWorthSnapshots),
+    netWorthDrafts: unionById(cloud.netWorthDrafts, cached.netWorthDrafts),
+  }
+}
+
+/** Server rows first, OPFS-exclusive rows appended (server wins on id). */
+function unionById<T extends { id: string }>(server: T[], local: T[]): T[] {
+  if (local.length === 0) return server
+  if (server.length === 0) return [...local]
+  const ids = new Set(server.map((r) => r.id))
+  return [...server, ...local.filter((r) => !ids.has(r.id))]
+}
+
+/** Same as unionById for join tables without a single id column. */
+function unionByKey<T>(server: T[], local: T[], key: (row: T) => string): T[] {
+  if (local.length === 0) return server
+  if (server.length === 0) return [...local]
+  const keys = new Set(server.map(key))
+  return [...server, ...local.filter((r) => !keys.has(key(r)))]
 }
 
 /**

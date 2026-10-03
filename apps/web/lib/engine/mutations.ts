@@ -11,6 +11,7 @@
 // backup follows each mutation batch.
 
 import { useVaultStore } from '@/lib/store/vault.store'
+import { markBackupClean, markBackupDirty } from './backup-state'
 import {
   getTransactionsFromCache,
   hasPendingWork,
@@ -35,6 +36,7 @@ let backupTimer: ReturnType<typeof setTimeout> | null = null
 /** Debounced ciphertext backup after local edits (5s quiet window). */
 export function scheduleEncryptedBackup(): void {
   if (!useLocalMutations()) return
+  markBackupDirty()
   if (backupTimer) clearTimeout(backupTimer)
   backupTimer = setTimeout(() => {
     backupTimer = null
@@ -52,8 +54,18 @@ export async function flushEncryptedBackup(): Promise<boolean> {
     backupTimer = null
   }
   try {
-    if (!useLocalMutations()) return false
-    if (!(await hasPendingWork())) return true
+    // Locked (or never unlocked): nothing can be outstanding — lock() flushes
+    // before sealing, so clear the unload guard instead of firing it later.
+    if (!useLocalMutations()) {
+      markBackupClean()
+      return false
+    }
+    if (!(await hasPendingWork())) {
+      markBackupClean()
+      return true
+    }
+    // Success clears via markBackupComplete inside pushEncrypted; failure
+    // keeps the flag (durable markers + next trigger retry, guard stays up).
     await useVaultStore.getState().pushEncrypted()
     return true
   } catch {
