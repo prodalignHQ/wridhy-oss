@@ -14,6 +14,8 @@ import { merchantsRoute } from './routes/merchants.js'
 import { insightsRoute } from './routes/insights.js'
 import { networthRoute } from './routes/networth.js'
 import { invoicesRoute } from './routes/invoices.js'
+import { incomeGrowthRoute } from './routes/income-growth.js'
+import { salaryRoute } from './routes/salary.js'
 
 export function createApiApp() {
   const app = new Hono()
@@ -39,6 +41,8 @@ export function createApiApp() {
   app.route('/v1/insights', insightsRoute)
   app.route('/v1/networth', networthRoute)
   app.route('/v1/invoices', invoicesRoute)
+  app.route('/v1/income-growth', incomeGrowthRoute)
+  app.route('/v1/salary', salaryRoute)
 
   // ─── Error Handler ────────────────────────────────────────────────────────────
 

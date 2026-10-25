@@ -290,6 +290,71 @@ export const netWorthDrafts = sqliteTable('net_worth_drafts', {
   savedAt: integer('saved_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 
+// ─── Income Growth (Financial Year Income) ───────────────────────────────────
+
+export const financialYearIncomes = sqliteTable('financial_year_incomes', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ownerId: text('owner_id').references(() => owners.id, { onDelete: 'cascade' }),
+  financialYear: text('financial_year').notNull(),
+  grossIncome: text('gross_income').notNull(),
+  taxPaid: text('tax_paid').notNull().default('0'),
+  netIncome: text('net_income').notNull(),
+  breakdown: text('breakdown', { mode: 'json' })
+    .$type<{
+      salary?: number
+      bonus?: number
+      business?: number
+      investments?: number
+      rental?: number
+      freelance?: number
+      other?: number
+    }>()
+    .default({}),
+  notes: text('notes'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
+// ─── Salary Sources ──────────────────────────────────────────────────────────
+
+export const salarySources = sqliteTable('salary_sources', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ownerId: text('owner_id').references(() => owners.id, { onDelete: 'cascade' }),
+  companyName: text('company_name').notNull(),
+  role: text('role').notNull(),
+  employmentType: text('employment_type').notNull().default('full_time'),
+  currency: text('currency').notNull().default('INR'),
+  startDate: integer('start_date', { mode: 'timestamp' }).notNull(),
+  endDate: integer('end_date', { mode: 'timestamp' }),
+  status: text('status').notNull().default('active'),
+  notes: text('notes'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
+// ─── Salary Revisions ────────────────────────────────────────────────────────
+
+export const salaryRevisions = sqliteTable('salary_revisions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  salarySourceId: text('salary_source_id').notNull().references(() => salarySources.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  effectiveDate: integer('effective_date', { mode: 'timestamp' }).notNull(),
+  annualCtc: text('annual_ctc').notNull(),
+  baseSalary: text('base_salary'),
+  monthlyInHand: text('monthly_in_hand'),
+  variablePay: text('variable_pay').default('0'),
+  stockGrant: text('stock_grant').default('0'),
+  hikePercentage: text('hike_percentage'),
+  hikeType: text('hike_type').notNull().default('annual_review'),
+  designation: text('designation'),
+  notes: text('notes'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many, one }) => ({
@@ -307,6 +372,9 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   liabilities: many(liabilities),
   netWorthSnapshots: many(netWorthSnapshots),
   netWorthDraft: one(netWorthDrafts, { fields: [users.id], references: [netWorthDrafts.userId] }),
+  financialYearIncomes: many(financialYearIncomes),
+  salarySources: many(salarySources),
+  salaryRevisions: many(salaryRevisions),
 }))
 
 export const ownersRelations = relations(owners, ({ one, many }) => ({
@@ -316,6 +384,8 @@ export const ownersRelations = relations(owners, ({ one, many }) => ({
   liabilities: many(liabilities),
   netWorthSnapshots: many(netWorthSnapshots),
   netWorthDrafts: many(netWorthDrafts),
+  financialYearIncomes: many(financialYearIncomes),
+  salarySources: many(salarySources),
 }))
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
@@ -410,3 +480,20 @@ export const invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
   statement: one(statements, { fields: [invoiceItems.statementId], references: [statements.id] }),
   category: one(categories, { fields: [invoiceItems.categoryId], references: [categories.id] }),
 }))
+
+export const financialYearIncomesRelations = relations(financialYearIncomes, ({ one }) => ({
+  user: one(users, { fields: [financialYearIncomes.userId], references: [users.id] }),
+  owner: one(owners, { fields: [financialYearIncomes.ownerId], references: [owners.id] }),
+}))
+
+export const salarySourcesRelations = relations(salarySources, ({ one, many }) => ({
+  user: one(users, { fields: [salarySources.userId], references: [users.id] }),
+  owner: one(owners, { fields: [salarySources.ownerId], references: [owners.id] }),
+  revisions: many(salaryRevisions),
+}))
+
+export const salaryRevisionsRelations = relations(salaryRevisions, ({ one }) => ({
+  salarySource: one(salarySources, { fields: [salaryRevisions.salarySourceId], references: [salarySources.id] }),
+  user: one(users, { fields: [salaryRevisions.userId], references: [users.id] }),
+}))
+

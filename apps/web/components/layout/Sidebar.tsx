@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Users as UserGroupIcon,
+  LineChart,
+  Briefcase,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth.store"
@@ -32,6 +34,8 @@ const financeNavItems = [
   { href: "/invoices", label: "Invoices", icon: Receipt },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/networth", label: "Net Worth", icon: TrendingUp },
+  { href: "/income-growth", label: "Income Growth", icon: LineChart },
+  { href: "/salary-progress", label: "Salary Progress", icon: Briefcase },
   { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/settings/owners", label: "Household", icon: UserGroupIcon },
 ]

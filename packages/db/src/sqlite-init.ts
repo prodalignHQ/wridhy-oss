@@ -251,11 +251,62 @@ export function initSqliteDatabase(sqlite: SqliteDatabaseLike) {
       saved_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS financial_year_incomes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      owner_id TEXT REFERENCES owners(id) ON DELETE CASCADE,
+      financial_year TEXT NOT NULL,
+      gross_income TEXT NOT NULL,
+      tax_paid TEXT NOT NULL DEFAULT '0',
+      net_income TEXT NOT NULL,
+      breakdown TEXT DEFAULT '{}',
+      notes TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS salary_sources (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      owner_id TEXT REFERENCES owners(id) ON DELETE CASCADE,
+      company_name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      employment_type TEXT NOT NULL DEFAULT 'full_time',
+      currency TEXT NOT NULL DEFAULT 'INR',
+      start_date INTEGER NOT NULL,
+      end_date INTEGER,
+      status TEXT NOT NULL DEFAULT 'active',
+      notes TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS salary_revisions (
+      id TEXT PRIMARY KEY,
+      salary_source_id TEXT NOT NULL REFERENCES salary_sources(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      effective_date INTEGER NOT NULL,
+      annual_ctc TEXT NOT NULL,
+      base_salary TEXT,
+      monthly_in_hand TEXT,
+      variable_pay TEXT DEFAULT '0',
+      stock_grant TEXT DEFAULT '0',
+      hike_percentage TEXT,
+      hike_type TEXT NOT NULL DEFAULT 'annual_review',
+      designation TEXT,
+      notes TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_transactions_userId_date ON transactions(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_transactions_accountId ON transactions(account_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_dedupHash ON transactions(dedup_hash);
     CREATE INDEX IF NOT EXISTS idx_statements_userId ON statements(user_id);
     CREATE INDEX IF NOT EXISTS idx_categories_userId ON categories(user_id);
     CREATE INDEX IF NOT EXISTS idx_rules_userId ON categorization_rules(user_id);
+    CREATE INDEX IF NOT EXISTS idx_fy_incomes_userId ON financial_year_incomes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_salary_sources_userId ON salary_sources(user_id);
+    CREATE INDEX IF NOT EXISTS idx_salary_revisions_sourceId ON salary_revisions(salary_source_id);
   `)
 }

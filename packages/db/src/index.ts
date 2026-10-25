@@ -97,5 +97,9 @@ export const assets = (isSqlite ? sqliteSchema.assets : pgSchema.assets) as type
 export const liabilities = (isSqlite ? sqliteSchema.liabilities : pgSchema.liabilities) as typeof pgSchema.liabilities
 export const netWorthSnapshots = (isSqlite ? sqliteSchema.netWorthSnapshots : pgSchema.netWorthSnapshots) as typeof pgSchema.netWorthSnapshots
 export const netWorthDrafts = (isSqlite ? sqliteSchema.netWorthDrafts : pgSchema.netWorthDrafts) as typeof pgSchema.netWorthDrafts
+export const financialYearIncomes = (isSqlite ? sqliteSchema.financialYearIncomes : pgSchema.financialYearIncomes) as typeof pgSchema.financialYearIncomes
+export const salarySources = (isSqlite ? sqliteSchema.salarySources : pgSchema.salarySources) as typeof pgSchema.salarySources
+export const salaryRevisions = (isSqlite ? sqliteSchema.salaryRevisions : pgSchema.salaryRevisions) as typeof pgSchema.salaryRevisions
 
 export * from './schema.js'
+

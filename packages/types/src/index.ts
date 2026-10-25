@@ -230,6 +230,161 @@ export const CategoryAverageSchema = z.array(z.object({
 }))
 export type CategoryAverage = z.infer<typeof CategoryAverageSchema>
 
+// ─── Financial Year Income (Income Growth) ───────────────────────────────────
+
+export const FinancialYearIncomeSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  ownerId: z.string().uuid().nullable().optional(),
+  financialYear: z.string().min(1).max(20),
+  grossIncome: z.string(),
+  taxPaid: z.string().default('0'),
+  netIncome: z.string(),
+  breakdown: z.record(z.any()).nullable().optional(),
+  notes: z.string().nullable().optional(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  owner: z.object({
+    id: z.string(),
+    name: z.string(),
+    color: z.string(),
+  }).nullable().optional(),
+})
+export type FinancialYearIncome = z.infer<typeof FinancialYearIncomeSchema>
+
+export const CreateFinancialYearIncomeSchema = z.object({
+  ownerId: z.string().uuid().nullable().optional(),
+  financialYear: z.string().min(1, 'Financial Year is required'),
+  grossIncome: z.number().nonnegative('Gross income must be non-negative'),
+  taxPaid: z.number().nonnegative('Tax paid must be non-negative').default(0),
+  netIncome: z.number().nonnegative('Net income must be non-negative').optional(),
+  breakdown: z.object({
+    salary: z.number().nonnegative().optional(),
+    bonus: z.number().nonnegative().optional(),
+    business: z.number().nonnegative().optional(),
+    investments: z.number().nonnegative().optional(),
+    rental: z.number().nonnegative().optional(),
+    freelance: z.number().nonnegative().optional(),
+    other: z.number().nonnegative().optional(),
+  }).optional(),
+  notes: z.string().optional().nullable(),
+  mode: z.enum(['create', 'add', 'overwrite']).optional().default('create'),
+})
+export type CreateFinancialYearIncome = z.infer<typeof CreateFinancialYearIncomeSchema>
+
+export const UpdateFinancialYearIncomeSchema = CreateFinancialYearIncomeSchema.partial()
+export type UpdateFinancialYearIncome = z.infer<typeof UpdateFinancialYearIncomeSchema>
+
+// ─── Salary Progress (Sources & Hikes) ───────────────────────────────────────
+
+export const EmploymentTypeSchema = z.enum(['full_time', 'part_time', 'contract', 'freelance', 'internship'])
+export type EmploymentType = z.infer<typeof EmploymentTypeSchema>
+
+export const HikeTypeSchema = z.enum(['joining', 'annual_review', 'mid_year_hike', 'promotion', 'market_correction', 'retention', 'other'])
+export type HikeType = z.infer<typeof HikeTypeSchema>
+
+export const SalaryRevisionSchema = z.object({
+  id: z.string().uuid(),
+  salarySourceId: z.string().uuid(),
+  userId: z.string().uuid(),
+  effectiveDate: z.date(),
+  annualCtc: z.string(),
+  baseSalary: z.string().nullable().optional(),
+  monthlyInHand: z.string().nullable().optional(),
+  variablePay: z.string().nullable().optional(),
+  stockGrant: z.string().nullable().optional(),
+  hikePercentage: z.string().nullable().optional(),
+  hikeType: HikeTypeSchema.default('annual_review'),
+  designation: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+export type SalaryRevision = z.infer<typeof SalaryRevisionSchema>
+
+export const SalarySourceSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  ownerId: z.string().uuid().nullable().optional(),
+  companyName: z.string().min(1),
+  role: z.string().min(1),
+  employmentType: EmploymentTypeSchema.default('full_time'),
+  currency: z.string().default('INR'),
+  startDate: z.date(),
+  endDate: z.date().nullable().optional(),
+  status: z.enum(['active', 'past']).default('active'),
+  notes: z.string().nullable().optional(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  revisions: z.array(SalaryRevisionSchema).optional(),
+  owner: z.object({
+    id: z.string(),
+    name: z.string(),
+    color: z.string(),
+  }).nullable().optional(),
+})
+export type SalarySource = z.infer<typeof SalarySourceSchema>
+
+export const CreateSalarySourceSchema = z.object({
+  ownerId: z.string().uuid().nullable().optional(),
+  companyName: z.string().min(1, 'Company name is required'),
+  role: z.string().min(1, 'Role is required'),
+  employmentType: EmploymentTypeSchema.default('full_time'),
+  currency: z.string().default('INR'),
+  startDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Valid start date is required'),
+  endDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Invalid end date').nullable().optional(),
+  status: z.enum(['active', 'past']).default('active'),
+  notes: z.string().nullable().optional(),
+  initialAnnualCtc: z.number().positive('Initial CTC must be greater than 0').optional(),
+  initialBaseSalary: z.number().nonnegative().optional(),
+  initialMonthlyInHand: z.number().nonnegative().optional(),
+  initialVariablePay: z.number().nonnegative().optional(),
+  initialStockGrant: z.number().nonnegative().optional(),
+})
+export type CreateSalarySource = z.infer<typeof CreateSalarySourceSchema>
+
+export const UpdateSalarySourceSchema = z.object({
+  ownerId: z.string().uuid().nullable().optional(),
+  companyName: z.string().min(1).optional(),
+  role: z.string().min(1).optional(),
+  employmentType: EmploymentTypeSchema.optional(),
+  currency: z.string().optional(),
+  startDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Valid start date').optional(),
+  endDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Valid end date').nullable().optional(),
+  status: z.enum(['active', 'past']).optional(),
+  notes: z.string().nullable().optional(),
+})
+export type UpdateSalarySource = z.infer<typeof UpdateSalarySourceSchema>
+
+export const CreateSalaryRevisionSchema = z.object({
+  salarySourceId: z.string().uuid(),
+  effectiveDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Valid effective date is required'),
+  annualCtc: z.number().positive('Annual CTC must be greater than 0'),
+  baseSalary: z.number().nonnegative().optional(),
+  monthlyInHand: z.number().nonnegative().optional(),
+  variablePay: z.number().nonnegative().optional(),
+  stockGrant: z.number().nonnegative().optional(),
+  hikePercentage: z.number().optional(),
+  hikeType: HikeTypeSchema.default('annual_review'),
+  designation: z.string().optional(),
+  notes: z.string().optional(),
+})
+export type CreateSalaryRevision = z.infer<typeof CreateSalaryRevisionSchema>
+
+export const UpdateSalaryRevisionSchema = z.object({
+  effectiveDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Valid effective date').optional(),
+  annualCtc: z.number().positive('Annual CTC must be greater than 0').optional(),
+  baseSalary: z.number().nonnegative().optional(),
+  monthlyInHand: z.number().nonnegative().optional(),
+  variablePay: z.number().nonnegative().optional(),
+  stockGrant: z.number().nonnegative().optional(),
+  hikePercentage: z.number().optional(),
+  hikeType: HikeTypeSchema.optional(),
+  designation: z.string().optional(),
+  notes: z.string().optional(),
+})
+export type UpdateSalaryRevision = z.infer<typeof UpdateSalaryRevisionSchema>
+
 
 // ─── API Response Envelope ────────────────────────────────────────────────────
 

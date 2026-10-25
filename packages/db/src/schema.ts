@@ -294,6 +294,69 @@ export const netWorthDrafts = pgTable('net_worth_drafts', {
   savedAt: timestamp('saved_at').defaultNow().notNull(),
 })
 
+// ─── Income Growth (Financial Year Income) ───────────────────────────────────
+
+export const financialYearIncomes = pgTable('financial_year_incomes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ownerId: uuid('owner_id').references(() => owners.id, { onDelete: 'cascade' }),
+  financialYear: text('financial_year').notNull(), // e.g. "FY 2024-25" or "2024-25"
+  grossIncome: numeric('gross_income', { precision: 15, scale: 2 }).notNull(),
+  taxPaid: numeric('tax_paid', { precision: 15, scale: 2 }).notNull().default('0'),
+  netIncome: numeric('net_income', { precision: 15, scale: 2 }).notNull(),
+  breakdown: jsonb('breakdown').$type<{
+    salary?: number
+    bonus?: number
+    business?: number
+    investments?: number
+    rental?: number
+    freelance?: number
+    other?: number
+  }>().default({}),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+// ─── Salary Sources ──────────────────────────────────────────────────────────
+
+export const salarySources = pgTable('salary_sources', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ownerId: uuid('owner_id').references(() => owners.id, { onDelete: 'cascade' }),
+  companyName: text('company_name').notNull(),
+  role: text('role').notNull(),
+  employmentType: text('employment_type').notNull().default('full_time'), // 'full_time' | 'part_time' | 'contract' | 'freelance'
+  currency: text('currency').notNull().default('INR'),
+  startDate: timestamp('start_date', { mode: 'date' }).notNull(),
+  endDate: timestamp('end_date', { mode: 'date' }),
+  status: text('status').notNull().default('active'), // 'active' | 'past'
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+// ─── Salary Revisions (Hikes & Compensation Changes) ─────────────────────────
+
+export const salaryRevisions = pgTable('salary_revisions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  salarySourceId: uuid('salary_source_id').notNull().references(() => salarySources.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  effectiveDate: timestamp('effective_date', { mode: 'date' }).notNull(), // start date for hike to be in place (supports mid-year hikes)
+  annualCtc: numeric('annual_ctc', { precision: 15, scale: 2 }).notNull(),
+  baseSalary: numeric('base_salary', { precision: 15, scale: 2 }),
+  monthlyInHand: numeric('monthly_in_hand', { precision: 15, scale: 2 }),
+  variablePay: numeric('variable_pay', { precision: 15, scale: 2 }).default('0'),
+  stockGrant: numeric('stock_grant', { precision: 15, scale: 2 }).default('0'),
+  hikePercentage: numeric('hike_percentage', { precision: 6, scale: 2 }),
+  hikeType: text('hike_type').notNull().default('annual_review'), // 'joining' | 'annual_review' | 'mid_year_hike' | 'promotion' | 'market_correction' | 'other'
+  designation: text('designation'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many, one }) => ({
@@ -311,6 +374,9 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   liabilities: many(liabilities),
   netWorthSnapshots: many(netWorthSnapshots),
   netWorthDraft: one(netWorthDrafts, { fields: [users.id], references: [netWorthDrafts.userId] }),
+  financialYearIncomes: many(financialYearIncomes),
+  salarySources: many(salarySources),
+  salaryRevisions: many(salaryRevisions),
 }))
 
 export const ownersRelations = relations(owners, ({ one, many }) => ({
@@ -320,6 +386,8 @@ export const ownersRelations = relations(owners, ({ one, many }) => ({
   liabilities: many(liabilities),
   netWorthSnapshots: many(netWorthSnapshots),
   netWorthDrafts: many(netWorthDrafts),
+  financialYearIncomes: many(financialYearIncomes),
+  salarySources: many(salarySources),
 }))
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
@@ -414,3 +482,20 @@ export const invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
   statement: one(statements, { fields: [invoiceItems.statementId], references: [statements.id] }),
   category: one(categories, { fields: [invoiceItems.categoryId], references: [categories.id] }),
 }))
+
+export const financialYearIncomesRelations = relations(financialYearIncomes, ({ one }) => ({
+  user: one(users, { fields: [financialYearIncomes.userId], references: [users.id] }),
+  owner: one(owners, { fields: [financialYearIncomes.ownerId], references: [owners.id] }),
+}))
+
+export const salarySourcesRelations = relations(salarySources, ({ one, many }) => ({
+  user: one(users, { fields: [salarySources.userId], references: [users.id] }),
+  owner: one(owners, { fields: [salarySources.ownerId], references: [owners.id] }),
+  revisions: many(salaryRevisions),
+}))
+
+export const salaryRevisionsRelations = relations(salaryRevisions, ({ one }) => ({
+  salarySource: one(salarySources, { fields: [salaryRevisions.salarySourceId], references: [salarySources.id] }),
+  user: one(users, { fields: [salaryRevisions.userId], references: [users.id] }),
+}))
+
