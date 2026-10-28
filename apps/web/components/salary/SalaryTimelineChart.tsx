@@ -31,7 +31,9 @@ export interface SalaryTimelineEvent {
   hikeType: string
   designation?: string
   cumulativeGrowth: number
+  hikeCagr?: number | null
   hikeXirr?: number | null
+  cumulativeCagr?: number | null
   cumulativeXirr?: number | null
   isFinalHike?: boolean
   notes?: string | null
@@ -44,6 +46,9 @@ interface SalaryTimelineChartProps {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   const event = payload[0]?.payload as SalaryTimelineEvent | undefined
+
+  const hikeRate = event?.hikeCagr ?? event?.hikeXirr
+  const cumulativeRate = event?.cumulativeCagr ?? event?.cumulativeXirr
 
   return (
     <div className="bg-popover/95 backdrop-blur-md border border-border rounded-xl p-3 shadow-xl text-xs space-y-1.5 min-w-[240px]">
@@ -81,11 +86,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         </div>
       )}
 
-      {event?.hikeXirr !== null && event?.hikeXirr !== undefined && (
+      {hikeRate !== null && hikeRate !== undefined && (
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Hike XIRR (p.a.):</span>
+          <span className="text-muted-foreground">Hike CAGR (p.a.):</span>
           <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-            {event.hikeXirr >= 0 ? '+' : ''}{event.hikeXirr.toFixed(1)}%
+            {hikeRate >= 0 ? '+' : ''}{hikeRate.toFixed(1)}%
           </span>
         </div>
       )}
@@ -95,11 +100,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <span className="font-semibold text-indigo-500">+{event?.cumulativeGrowth || 0}%</span>
       </div>
 
-      {event?.cumulativeXirr !== null && event?.cumulativeXirr !== undefined && (
+      {cumulativeRate !== null && cumulativeRate !== undefined && (
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Career XIRR (p.a.):</span>
+          <span className="text-muted-foreground">Career CAGR (p.a.):</span>
           <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-            {event.cumulativeXirr >= 0 ? '+' : ''}{event.cumulativeXirr.toFixed(1)}%
+            {cumulativeRate >= 0 ? '+' : ''}{cumulativeRate.toFixed(1)}%
           </span>
         </div>
       )}

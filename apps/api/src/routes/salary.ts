@@ -83,7 +83,7 @@ const updateRevisionSchema = z.object({
 })
 
 /**
- * Calculates exact annualized growth rate (XIRR / CAGR) between two compensation points.
+ * Calculates exact annualized growth rate (CAGR) between two compensation points.
  * Uses exact day count for irregular dates: ((endVal / startVal) ^ (365.25 / days) - 1) * 100
  */
 export function calculateAnnualizedGrowth(startVal: number, endVal: number, days: number): number | null {
@@ -137,8 +137,8 @@ salaryRoute.get('/sources', async (c) => {
       let calculatedHikePercentage: number | null = null
       let hikeAmount = 0
       let monthsSinceLastRevision: number | null = null
-      let hikeXirr: number | null = null
-      let cumulativeXirr: number | null = null
+      let hikeCagr: number | null = null
+      let cumulativeCagr: number | null = null
 
       if (index > 0) {
         const prevRev = sortedRevs[index - 1]!
@@ -151,16 +151,16 @@ salaryRoute.get('/sources', async (c) => {
         const diffDays = diffMs / (1000 * 60 * 60 * 24)
         monthsSinceLastRevision = Math.round(diffMs / (1000 * 60 * 60 * 24 * 30.4375))
 
-        // Annualized rate of this specific hike
-        hikeXirr = calculateAnnualizedGrowth(prevCtc, ctc, diffDays)
+        // Annualized rate of this specific hike (CAGR)
+        hikeCagr = calculateAnnualizedGrowth(prevCtc, ctc, diffDays)
 
-        // Cumulative XIRR from initial revision of this salary source
+        // Cumulative CAGR from initial revision of this salary source
         const firstRev = sortedRevs[0]!
         const firstCtc = parseFloat(firstRev.annualCtc) || 0
         const totalDaysFromStart =
           (new Date(rev.effectiveDate).getTime() - new Date(firstRev.effectiveDate).getTime()) /
           (1000 * 60 * 60 * 24)
-        cumulativeXirr = calculateAnnualizedGrowth(firstCtc, ctc, totalDaysFromStart)
+        cumulativeCagr = calculateAnnualizedGrowth(firstCtc, ctc, totalDaysFromStart)
       }
 
       return {
@@ -173,8 +173,10 @@ salaryRoute.get('/sources', async (c) => {
         calculatedHikePercentage,
         hikeAmount,
         monthsSinceLastRevision,
-        hikeXirr,
-        cumulativeXirr,
+        hikeCagr,
+        hikeXirr: hikeCagr,
+        cumulativeCagr,
+        cumulativeXirr: cumulativeCagr,
       }
     })
 
@@ -225,7 +227,7 @@ salaryRoute.get('/sources', async (c) => {
 
   const latestHike = allHikes.length > 0 ? allHikes[0] : null
 
-  // All revisions flattened for overall trajectory and career XIRR
+  // All revisions flattened for career baseline
   const allRevisionsFlattened = enrichedSources
     .flatMap((s) => s.revisions)
     .sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime())
@@ -233,24 +235,29 @@ salaryRoute.get('/sources', async (c) => {
   const earliestRev = allRevisionsFlattened.length > 0 ? allRevisionsFlattened[0]! : null
   const latestRev = allRevisionsFlattened.length > 0 ? allRevisionsFlattened[allRevisionsFlattened.length - 1]! : null
   const earliestSalary = earliestRev ? earliestRev.annualCtcNumber : null
+  const currentTotalSalary = totalActiveAnnualCtc > 0 ? totalActiveAnnualCtc : (latestRev ? latestRev.annualCtcNumber : 0)
   const careerSalaryMultiplier =
-    earliestSalary && earliestSalary > 0 && totalActiveAnnualCtc > 0
-      ? totalActiveAnnualCtc / earliestSalary
+    earliestSalary && earliestSalary > 0 && currentTotalSalary > 0
+      ? currentTotalSalary / earliestSalary
       : null
 
-  let careerXirr: number | null = null
-  let finalHikeXirr: number | null = null
-  if (earliestRev && latestRev && allRevisionsFlattened.length > 1) {
-    const totalCareerDays =
-      (new Date(latestRev.effectiveDate).getTime() - new Date(earliestRev.effectiveDate).getTime()) /
-      (1000 * 60 * 60 * 24)
-    careerXirr = calculateAnnualizedGrowth(earliestRev.annualCtcNumber, latestRev.annualCtcNumber, totalCareerDays)
+  let careerCagr: number | null = null
+  let finalHikeCagr: number | null = null
 
-    const prevRev = allRevisionsFlattened[allRevisionsFlattened.length - 2]!
-    const finalHikeDays =
-      (new Date(latestRev.effectiveDate).getTime() - new Date(prevRev.effectiveDate).getTime()) /
-      (1000 * 60 * 60 * 24)
-    finalHikeXirr = calculateAnnualizedGrowth(prevRev.annualCtcNumber, latestRev.annualCtcNumber, finalHikeDays)
+  if (earliestRev && earliestSalary && earliestSalary > 0 && currentTotalSalary > 0) {
+    const careerStartDate = new Date(earliestRev.effectiveDate)
+    const careerEndDate =
+      totalActiveAnnualCtc > 0 && now > careerStartDate
+        ? now
+        : latestRev
+        ? new Date(latestRev.effectiveDate)
+        : now
+    const totalCareerDays = (careerEndDate.getTime() - careerStartDate.getTime()) / (1000 * 60 * 60 * 24)
+    careerCagr = calculateAnnualizedGrowth(earliestSalary, currentTotalSalary, totalCareerDays)
+  }
+
+  if (latestHike) {
+    finalHikeCagr = latestHike.hikeCagr ?? latestHike.hikeXirr ?? null
   }
 
   return c.json({
@@ -270,16 +277,20 @@ salaryRoute.get('/sources', async (c) => {
               effectiveDate: latestHike.effectiveDate,
               hikePercentage: latestHike.calculatedHikePercentage,
               hikeAmount: latestHike.hikeAmount,
-              hikeXirr: latestHike.hikeXirr,
-              cumulativeXirr: latestHike.cumulativeXirr,
+              hikeCagr: latestHike.hikeCagr,
+              hikeXirr: latestHike.hikeCagr,
+              cumulativeCagr: latestHike.cumulativeCagr,
+              cumulativeXirr: latestHike.cumulativeCagr,
               companyName: latestHike.companyName,
               hikeType: latestHike.hikeType,
               designation: latestHike.designation,
             }
           : null,
         careerSalaryMultiplier,
-        careerXirr,
-        finalHikeXirr,
+        careerCagr,
+        careerXirr: careerCagr,
+        finalHikeCagr,
+        finalHikeXirr: finalHikeCagr,
       },
     },
   })
@@ -633,6 +644,8 @@ salaryRoute.get('/timeline', async (c) => {
     stockGrant: number
     hikePercentage: number | null
     hikeType: string
+    hikeCagr?: number | null
+    hikeXirr?: number | null
     designation?: string | undefined
     notes?: string | undefined
   }> = []
@@ -644,12 +657,18 @@ salaryRoute.get('/timeline', async (c) => {
 
     sourceRevs.forEach((rev, idx) => {
       let hikePercentage: number | null = null
+      let hikeCagr: number | null = null
       if (idx > 0) {
-        const prevCtc = parseFloat(sourceRevs[idx - 1]!.annualCtc) || 0
+        const prevRev = sourceRevs[idx - 1]!
+        const prevCtc = parseFloat(prevRev.annualCtc) || 0
         const ctc = parseFloat(rev.annualCtc) || 0
         if (prevCtc > 0) {
           hikePercentage = parseFloat((((ctc - prevCtc) / prevCtc) * 100).toFixed(1))
         }
+        const diffDays =
+          (new Date(rev.effectiveDate).getTime() - new Date(prevRev.effectiveDate).getTime()) /
+          (1000 * 60 * 60 * 24)
+        hikeCagr = calculateAnnualizedGrowth(prevCtc, ctc, diffDays)
       }
 
       timelineEvents.push({
@@ -667,6 +686,8 @@ salaryRoute.get('/timeline', async (c) => {
         stockGrant: parseFloat(rev.stockGrant || '0') || 0,
         hikePercentage,
         hikeType: rev.hikeType,
+        hikeCagr,
+        hikeXirr: hikeCagr,
         designation: rev.designation || undefined,
         notes: rev.notes || undefined,
       })
@@ -676,33 +697,26 @@ salaryRoute.get('/timeline', async (c) => {
   // Sort chronologically
   timelineEvents.sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime())
 
-  // Calculate cumulative growth and XIRRs from career starting revision
+  // Calculate cumulative growth and CAGRs from career starting revision
   const startCtc = timelineEvents.length > 0 ? timelineEvents[0]!.annualCtc : 0
   const startDate = timelineEvents.length > 0 ? new Date(timelineEvents[0]!.effectiveDate).getTime() : 0
 
   const enrichedTimeline = timelineEvents.map((event, idx) => {
     const cumulativeGrowth = startCtc > 0 ? ((event.annualCtc - startCtc) / startCtc) * 100 : 0
 
-    let hikeXirr: number | null = null
-    let cumulativeXirr: number | null = null
+    let cumulativeCagr: number | null = null
     const isFinalHike = idx === timelineEvents.length - 1 && timelineEvents.length > 1
 
     if (idx > 0) {
-      const prevEvent = timelineEvents[idx - 1]!
-      const diffDays =
-        (new Date(event.effectiveDate).getTime() - new Date(prevEvent.effectiveDate).getTime()) /
-        (1000 * 60 * 60 * 24)
-      hikeXirr = calculateAnnualizedGrowth(prevEvent.annualCtc, event.annualCtc, diffDays)
-
       const totalDays = (new Date(event.effectiveDate).getTime() - startDate) / (1000 * 60 * 60 * 24)
-      cumulativeXirr = calculateAnnualizedGrowth(startCtc, event.annualCtc, totalDays)
+      cumulativeCagr = calculateAnnualizedGrowth(startCtc, event.annualCtc, totalDays)
     }
 
     return {
       ...event,
       cumulativeGrowth: parseFloat(cumulativeGrowth.toFixed(1)),
-      hikeXirr,
-      cumulativeXirr,
+      cumulativeCagr,
+      cumulativeXirr: cumulativeCagr,
       isFinalHike,
     }
   })

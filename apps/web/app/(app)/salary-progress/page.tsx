@@ -58,7 +58,9 @@ interface SalaryRevision {
   designation?: string | null
   notes?: string | null
   monthsSinceLastRevision: number | null
+  hikeCagr?: number | null
   hikeXirr?: number | null
+  cumulativeCagr?: number | null
   cumulativeXirr?: number | null
 }
 
@@ -98,15 +100,19 @@ interface SalaryResponse {
       effectiveDate: string
       hikePercentage: number | null
       hikeAmount: number
+      hikeCagr?: number | null
       hikeXirr?: number | null
+      cumulativeCagr?: number | null
       cumulativeXirr?: number | null
       companyName: string
       hikeType: string
       designation?: string
     } | null
     careerSalaryMultiplier: number | null
-    careerXirr: number | null
-    finalHikeXirr: number | null
+    careerCagr?: number | null
+    careerXirr?: number | null
+    finalHikeCagr?: number | null
+    finalHikeXirr?: number | null
   }
 }
 
@@ -399,8 +405,9 @@ export default function SalaryProgressPage() {
               subLabel={
                 summary?.latestHike
                   ? `${summary.latestHike.companyName} • ${
-                      summary.latestHike.hikeXirr !== null && summary.latestHike.hikeXirr !== undefined
-                        ? `${summary.latestHike.hikeXirr >= 0 ? '+' : ''}${summary.latestHike.hikeXirr.toFixed(1)}% XIRR`
+                      (summary.latestHike.hikeCagr ?? summary.latestHike.hikeXirr) !== null &&
+                      (summary.latestHike.hikeCagr ?? summary.latestHike.hikeXirr) !== undefined
+                        ? `${(summary.latestHike.hikeCagr ?? summary.latestHike.hikeXirr)! >= 0 ? '+' : ''}${(summary.latestHike.hikeCagr ?? summary.latestHike.hikeXirr)!.toFixed(1)}% CAGR`
                         : summary.latestHike.effectiveDate.split('T')[0]
                     }`
                   : 'No hikes recorded yet'
@@ -414,10 +421,11 @@ export default function SalaryProgressPage() {
             />
 
             <StatCard
-              label="Career Growth & XIRR"
+              label="Career Growth & CAGR"
               value={
-                summary?.careerXirr !== null && summary?.careerXirr !== undefined
-                  ? `${summary.careerXirr >= 0 ? '+' : ''}${summary.careerXirr.toFixed(1)}% XIRR`
+                (summary?.careerCagr ?? summary?.careerXirr) !== null &&
+                (summary?.careerCagr ?? summary?.careerXirr) !== undefined
+                  ? `${(summary?.careerCagr ?? summary?.careerXirr)! >= 0 ? '+' : ''}${(summary?.careerCagr ?? summary?.careerXirr)!.toFixed(1)}% CAGR`
                   : summary?.careerSalaryMultiplier
                   ? `${summary.careerSalaryMultiplier.toFixed(1)}x`
                   : '1.0x'
@@ -429,7 +437,7 @@ export default function SalaryProgressPage() {
                     })`
                   : `${summary?.totalHikesCount || 0} hike revisions`
               }
-              trend={summary?.careerXirr && summary.careerXirr > 0 ? 'up' : 'neutral'}
+              trend={(summary?.careerCagr ?? summary?.careerXirr) && (summary?.careerCagr ?? summary?.careerXirr)! > 0 ? 'up' : 'neutral'}
               trendValue={
                 summary?.careerSalaryMultiplier ? `${summary.careerSalaryMultiplier.toFixed(1)}x` : undefined
               }
@@ -686,12 +694,12 @@ export default function SalaryProgressPage() {
                                             {isPositive && '+'}
                                             {rev.calculatedHikePercentage.toFixed(1)}%
                                           </span>
-                                          {rev.hikeXirr !== null && rev.hikeXirr !== undefined && (
+                                          {(rev.hikeCagr ?? rev.hikeXirr) !== null && (rev.hikeCagr ?? rev.hikeXirr) !== undefined && (
                                             <span
                                               className="text-[10px] font-mono font-medium text-emerald-700 dark:text-emerald-400"
-                                              title="Annualized hike return (XIRR) for this revision"
+                                              title="Annualized hike return (CAGR) for this revision"
                                             >
-                                              {rev.hikeXirr >= 0 ? '+' : ''}{rev.hikeXirr.toFixed(1)}% XIRR
+                                              {(rev.hikeCagr ?? rev.hikeXirr)! >= 0 ? '+' : ''}{(rev.hikeCagr ?? rev.hikeXirr)!.toFixed(1)}% CAGR
                                             </span>
                                           )}
                                         </div>
@@ -806,7 +814,7 @@ export default function SalaryProgressPage() {
                                 </span>
                               )}
 
-                              {event.hikeXirr !== null && event.hikeXirr !== undefined && (
+                              {(event.hikeCagr ?? event.hikeXirr) !== null && (event.hikeCagr ?? event.hikeXirr) !== undefined && (
                                 <span
                                   className={cn(
                                     'font-mono font-semibold text-xs px-2 py-0.5 rounded-md border',
@@ -814,9 +822,9 @@ export default function SalaryProgressPage() {
                                       ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
                                       : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
                                   )}
-                                  title="Annualized growth rate (XIRR) for this revision"
+                                  title="Annualized growth rate (CAGR) for this revision"
                                 >
-                                  {event.hikeXirr >= 0 ? '+' : ''}{event.hikeXirr.toFixed(1)}% {isFinalHike ? 'Final Hike XIRR' : 'Hike XIRR'}
+                                  {(event.hikeCagr ?? event.hikeXirr)! >= 0 ? '+' : ''}{(event.hikeCagr ?? event.hikeXirr)!.toFixed(1)}% {isFinalHike ? 'Final Hike CAGR' : 'Hike CAGR'}
                                 </span>
                               )}
 
@@ -824,12 +832,12 @@ export default function SalaryProgressPage() {
                                 {event.cumulativeGrowth}% cumulative
                               </span>
 
-                              {event.cumulativeXirr !== null && event.cumulativeXirr !== undefined && (
+                              {(event.cumulativeCagr ?? event.cumulativeXirr) !== null && (event.cumulativeCagr ?? event.cumulativeXirr) !== undefined && (
                                 <span
                                   className="font-mono text-[10px] text-indigo-600 dark:text-indigo-400 bg-indigo-500/15 border border-indigo-500/25 px-2 py-0.5 rounded-md font-medium"
-                                  title="Cumulative annualized return (Career XIRR) from baseline"
+                                  title="Cumulative annualized return (Career CAGR) from baseline"
                                 >
-                                  {event.cumulativeXirr >= 0 ? '+' : ''}{event.cumulativeXirr.toFixed(1)}% Career XIRR
+                                  {(event.cumulativeCagr ?? event.cumulativeXirr)! >= 0 ? '+' : ''}{(event.cumulativeCagr ?? event.cumulativeXirr)!.toFixed(1)}% Career CAGR
                                 </span>
                               )}
                             </div>
