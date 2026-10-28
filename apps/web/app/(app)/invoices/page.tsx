@@ -55,6 +55,7 @@ import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { OwnerAvatars } from '@/components/ui/custom/OwnerAvatars'
 import { SplitOwnerModal } from '@/components/transactions/split-owner-modal'
 import { CategoryPicker } from '@/components/transactions/category-picker'
+import { PrivacyFlip } from '@/components/privacy/PrivacyFlip'
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -1117,6 +1118,7 @@ function InvoicesContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <PrivacyFlip />
           {isInvoicesSidebarCollapsed && (
             <Button
               variant="outline"

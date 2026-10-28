@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { AddAccountDialog } from '@/components/accounts/AddAccountDialog'
+import { PrivacyFlip } from '@/components/privacy/PrivacyFlip'
 
 interface Account {
   id: string
@@ -76,9 +77,12 @@ export default function AccountsPage() {
             Manage your connected bank accounts, credit cards, and digital wallets.
           </p>
         </div>
-        <Button onClick={() => setIsAddOpen(true)} className="bg-primary hover:bg-primary/90 text-white font-medium">
-          <Plus className="mr-2 h-4 w-4" /> Add Account
-        </Button>
+        <div className="flex items-center gap-2">
+          <PrivacyFlip />
+          <Button onClick={() => setIsAddOpen(true)} className="bg-primary hover:bg-primary/90 text-white font-medium">
+            <Plus className="mr-2 h-4 w-4" /> Add Account
+          </Button>
+        </div>
       </div>
 
       {loading ? (

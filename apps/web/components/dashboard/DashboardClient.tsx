@@ -34,6 +34,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { NetWorthWidget } from '@/components/networth/NetWorthWidget'
 import { AddAccountDialog } from '@/components/accounts/AddAccountDialog'
+import { PrivacyFlip } from '@/components/privacy/PrivacyFlip'
 import { MonthlyInsight } from '@momoney/types'
 
 interface Account {
@@ -168,6 +169,8 @@ export function DashboardClient({ userEmail, userName }: DashboardClientProps) {
         </div>
 
         <div className="flex items-center gap-3">
+          <PrivacyFlip />
+
           {/* Month selector for spending statistics */}
           <div className="flex items-center gap-2 bg-card border border-border px-3 py-1.5 rounded-xl shadow-sm text-xs">
             <Calendar size={14} className="text-muted-foreground shrink-0" />

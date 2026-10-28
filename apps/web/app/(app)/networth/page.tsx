@@ -17,6 +17,7 @@ import { AddLiabilityModal, type Liability } from '@/components/networth/AddLiab
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { resolveAssetTag } from '@momoney/utils'
 import { exportNetWorthPdf, exportNetWorthCsv } from '@/lib/networth-export'
+import { PrivacyFlip } from '@/components/privacy/PrivacyFlip'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -633,6 +634,9 @@ export default function NetWorthPage() {
               })}
             </div>
           )}
+
+          {/* Privacy Flip */}
+          <PrivacyFlip />
 
           {/* Export Dropdown */}
           <DropdownMenu>

@@ -180,7 +180,7 @@ export function NetWorthWidget({ ownerId: propOwnerId, ownerName: propOwnerName,
                   ) : (
                     <TrendingDown size={12} />
                   )}
-                  <span>
+                  <span className="font-mono tabular-nums">
                     {isNeutral ? '' : isPositive ? '+' : ''}
                     {formatINR(delta)}
                   </span>

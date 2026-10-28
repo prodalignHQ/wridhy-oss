@@ -24,6 +24,7 @@ import { Owner } from '@/lib/store/transactions.store'
 import { YearOverviewChart } from '@/components/insights/YearOverviewChart'
 import { CategoryComparisonTable } from '@/components/insights/CategoryComparisonTable'
 import { CategoryAveragesTable } from '@/components/insights/CategoryAveragesTable'
+import { PrivacyFlip } from '@/components/privacy/PrivacyFlip'
 import { MonthlyInsight, YearlyInsight, CategoryComparison, CategoryAverage, AccountingMode } from '@momoney/types'
 import { cn } from '@/lib/utils'
 
@@ -141,6 +142,8 @@ export default function InsightsPage() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
+          <PrivacyFlip />
+
           {/* Accounting Mode Toggle */}
           <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border border-border">
             <button

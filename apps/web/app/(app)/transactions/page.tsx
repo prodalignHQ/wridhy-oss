@@ -43,6 +43,7 @@ import {
 import { OwnerAvatars } from '@/components/ui/custom/OwnerAvatars'
 import { SplitOwnerModal } from '@/components/transactions/split-owner-modal'
 import { CategoryPicker } from '@/components/transactions/category-picker'
+import { PrivacyFlip } from '@/components/privacy/PrivacyFlip'
 import {
   useTransactionsStore,
   type Transaction,
@@ -421,6 +422,7 @@ export default function TransactionsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <PrivacyFlip />
           <Button
             variant="outline"
             className="border-border text-foreground/80 hover:text-foreground gap-2 text-xs h-9"

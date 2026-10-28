@@ -10,6 +10,7 @@ import { UploadDropzone } from '@/components/statements/upload-dropzone'
 import { apiClient } from '@/lib/api'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { AmountBadge } from '@/components/ui/custom/AmountBadge'
+import { PrivacyFlip } from '@/components/privacy/PrivacyFlip'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -460,6 +461,9 @@ export default function StatementsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Statements</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Upload bank statements to import transactions</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <PrivacyFlip />
         </div>
       </div>
 

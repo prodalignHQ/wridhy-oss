@@ -142,3 +142,33 @@
 .label-sm {
   @apply text-xs font-medium uppercase tracking-wide text-muted-foreground;
 }
+
+/* ─── Privacy Mode (Masking Numbers & Amounts for Screenshots) ─────────────── */
+
+html[data-privacy-mode="true"] .font-mono,
+html[data-privacy-mode="true"] .tabular-nums,
+html[data-privacy-mode="true"] .privacy-mask,
+html[data-privacy-mode="true"] [data-privacy-amount],
+html[data-privacy-mode="true"] .stat-card-value,
+html[data-privacy-mode="true"] input[type="number"],
+html[data-privacy-mode="true"] input.font-mono {
+  -webkit-text-security: disc !important;
+  text-security: disc !important;
+  letter-spacing: 0.16em !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: default !important;
+}
+
+/* Also mask Recharts chart text and tooltips */
+html[data-privacy-mode="true"] .recharts-yAxis text,
+html[data-privacy-mode="true"] .recharts-cartesian-axis-tick-value,
+html[data-privacy-mode="true"] .recharts-tooltip-wrapper,
+html[data-privacy-mode="true"] .recharts-pie-label-text {
+  filter: blur(8px) !important;
+  opacity: 0.3 !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+

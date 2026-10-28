@@ -29,6 +29,7 @@ import { StatCard } from '@/components/ui/custom/StatCard'
 import { ConfirmDialog } from '@/components/ui/custom/ConfirmDialog'
 import { IncomeGrowthChart, type IncomeChartRecord } from '@/components/income-growth/IncomeGrowthChart'
 import { AddIncomeModal } from '@/components/income-growth/AddIncomeModal'
+import { PrivacyFlip } from '@/components/privacy/PrivacyFlip'
 
 interface Owner {
   id: string
@@ -142,6 +143,7 @@ export default function IncomeGrowthPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <PrivacyFlip />
           <Link href="/salary-progress">
             <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
               <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />

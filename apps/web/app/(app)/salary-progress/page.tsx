@@ -35,6 +35,7 @@ import { AddSalarySourceModal } from '@/components/salary/AddSalarySourceModal'
 import { AddSalaryRevisionModal } from '@/components/salary/AddSalaryRevisionModal'
 import { SalaryTimelineChart, type SalaryTimelineEvent } from '@/components/salary/SalaryTimelineChart'
 import { SalaryProrationCalculator } from '@/components/salary/SalaryProrationCalculator'
+import { PrivacyFlip } from '@/components/privacy/PrivacyFlip'
 
 interface Owner {
   id: string
@@ -261,6 +262,7 @@ export default function SalaryProgressPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <PrivacyFlip />
           <Link href="/income-growth">
             <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
               <LineChartIcon className="h-3.5 w-3.5 text-muted-foreground" />

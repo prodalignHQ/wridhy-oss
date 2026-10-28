@@ -44,7 +44,7 @@ export function StatCard({
         {trend && trendValue && (
           <span
             className={cn(
-              "flex items-center gap-1 text-xs font-medium",
+              "flex items-center gap-1 text-xs font-medium font-mono tabular-nums",
               trend === "up" && "text-emerald-600 dark:text-emerald-400",
               trend === "down" && "text-rose-600 dark:text-rose-400",
               trend === "neutral" && "text-muted-foreground"

@@ -25,6 +25,7 @@ import { useAuthStore } from "@/lib/store/auth.store"
 import { useUIStore } from "@/lib/store/ui.store"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme/ThemeToggle"
+import { PrivacyToggle } from "@/components/privacy/PrivacyToggle"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 const financeNavItems = [
@@ -223,6 +224,7 @@ export function Sidebar({ user, emailVerified }: SidebarProps) {
 
         <div className={cn("flex flex-col gap-3", isSidebarCollapsed && "items-center")}>
           <ThemeToggle isCollapsed={isSidebarCollapsed} />
+          <PrivacyToggle isCollapsed={isSidebarCollapsed} />
 
           <div
             className={cn(

@@ -32,6 +32,24 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var storage = localStorage.getItem('momoney-ui-storage');
+                if (storage) {
+                  var parsed = JSON.parse(storage);
+                  if (parsed && parsed.state && parsed.state.isPrivacyMode) {
+                    document.documentElement.setAttribute('data-privacy-mode', 'true');
+                    document.documentElement.classList.add('privacy-mode');
+                  }
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${poppins.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
