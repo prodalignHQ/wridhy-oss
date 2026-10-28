@@ -4,11 +4,39 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 interface StatCardProps {
   label: string
   value: string
-  subLabel?: string
+  subLabel?: React.ReactNode
   trend?: "up" | "down" | "neutral"
   trendValue?: string
   valueColor?: "default" | "green" | "red" | "amber"
   icon?: React.ReactNode
+}
+
+/**
+ * Automatically wraps currency amounts, percentages, multipliers, and numbers
+ * inside string subLabels with font-mono so they are masked in Privacy Mode.
+ */
+function renderSubLabel(subLabel: React.ReactNode) {
+  if (typeof subLabel !== 'string') return subLabel
+
+  const numberPattern = /([+\-−]?₹\s*[\d,]+(?:\.\d+)?|[+\-−]?\d+(?:,\d+)*(?:\.\d+)?(?:%|x|Cr|L|k|K)?)/g
+
+  const parts = subLabel.split(numberPattern)
+  if (parts.length === 1) return subLabel
+
+  return parts.map((part, index) => {
+    const isNumber =
+      /^([+\-−]?₹\s*[\d,]+(?:\.\d+)?|[+\-−]?\d+(?:,\d+)*(?:\.\d+)?(?:%|x|Cr|L|k|K)?)$/.test(part) &&
+      /\d/.test(part)
+
+    if (isNumber) {
+      return (
+        <span key={index} className="font-mono tabular-nums">
+          {part}
+        </span>
+      )
+    }
+    return part
+  })
 }
 
 export function StatCard({
@@ -57,7 +85,7 @@ export function StatCard({
           </span>
         )}
         {subLabel && (
-          <span className="text-xs text-muted-foreground">{subLabel}</span>
+          <span className="text-xs text-muted-foreground">{renderSubLabel(subLabel)}</span>
         )}
       </div>
     </div>
