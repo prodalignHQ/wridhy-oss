@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import {
   Plus, Trash2, Edit2, Lock, ArrowRight, Search,
-  Sliders, Check, Loader2, RefreshCw, X, ChevronsUpDown
+  Sliders, Check, Loader2, RefreshCw, X, ChevronsUpDown, Info
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -227,7 +227,6 @@ export default function RulesPage() {
   const [categoryName, setCategoryName] = useState('')
   const [categoryType, setCategoryType] = useState<'expense' | 'investment' | 'income' | 'transfer'>('expense')
   const [categoryColor, setCategoryColor] = useState('#6366f1')
-  const [categoryIcon, setCategoryIcon] = useState('📂')
   const [categoryLoading, setCategoryLoading] = useState(false)
 
   // Category deletion state
@@ -252,8 +251,6 @@ export default function RulesPage() {
     '#ec4899', // Pink
     '#71717a', // Zinc
   ]
-
-  const PRESET_ICONS = ['📂', '🍔', '🚗', '🛍️', '🎬', '💡', '🏥', '✈️', '💰', '🔄', '📱', '🏠']
 
 
   // Form state
@@ -406,7 +403,7 @@ export default function RulesPage() {
           name: categoryName.trim(),
           type: categoryType,
           color: categoryColor,
-          icon: categoryIcon,
+          icon: null,
         }),
       })
       toast.success('Category created')
@@ -972,7 +969,57 @@ export default function RulesPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Category Type</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-sm text-muted-foreground">Category Type</label>
+                <Popover>
+                  <PopoverTrigger
+                    type="button"
+                    className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors rounded-full focus:outline-none cursor-pointer"
+                    aria-label="Category type information"
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-80 p-3.5 bg-card border-border shadow-xl text-xs space-y-2.5 z-50"
+                    side="right"
+                    align="start"
+                  >
+                    <div className="font-semibold text-foreground border-b border-border pb-1.5 flex items-center gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-primary" />
+                      <span>Why Category Type Matters</span>
+                    </div>
+                    <p className="text-muted-foreground leading-relaxed">
+                      Category types determine how transactions are treated across spending analytics, invoice settlements, and net worth reports:
+                    </p>
+                    <div className="space-y-2 pt-0.5">
+                      <div className="rounded p-1.5 bg-muted/40">
+                        <span className="font-semibold text-foreground">Expense: </span>
+                        <span className="text-muted-foreground">
+                          Regular living costs (groceries, bills, dining). Included in monthly burn rate and expense splits.
+                        </span>
+                      </div>
+                      <div className="rounded p-1.5 bg-emerald-500/10 border border-emerald-500/20">
+                        <span className="font-semibold text-emerald-400">Investment: </span>
+                        <span className="text-muted-foreground">
+                          Wealth-building savings (SIPs, stocks, PPF). Tracked separately so investments don’t falsely inflate your living expenses or distort roommate/partner splits.
+                        </span>
+                      </div>
+                      <div className="rounded p-1.5 bg-sky-500/10 border border-sky-500/20">
+                        <span className="font-semibold text-sky-400">Income: </span>
+                        <span className="text-muted-foreground">
+                          Earnings and inflows (salary, freelancing, interest). Counted towards positive cash flow and savings rate.
+                        </span>
+                      </div>
+                      <div className="rounded p-1.5 bg-purple-500/10 border border-purple-500/20">
+                        <span className="font-semibold text-purple-400">Transfer: </span>
+                        <span className="text-muted-foreground">
+                          Internal money movement between your own accounts or CC bill payments. Excluded from expense totals to avoid double-counting.
+                        </span>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
               <Select
                 value={categoryType}
                 onValueChange={(v) => setCategoryType((v as 'expense' | 'investment' | 'income' | 'transfer') || 'expense')}
@@ -1010,24 +1057,6 @@ export default function RulesPage() {
                     style={{ backgroundColor: color }}
                     onClick={() => setCategoryColor(color)}
                   />
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Icon</label>
-              <div className="flex flex-wrap gap-2">
-                {PRESET_ICONS.map(icon => (
-                  <button
-                    key={icon}
-                    className={cn(
-                      "w-8 h-8 rounded-md bg-muted flex items-center justify-center border-2 transition-all hover:bg-secondary",
-                      categoryIcon === icon ? "border-primary bg-secondary" : "border-transparent"
-                    )}
-                    onClick={() => setCategoryIcon(icon)}
-                  >
-                    {icon}
-                  </button>
                 ))}
               </div>
             </div>
