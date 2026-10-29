@@ -195,6 +195,18 @@ rulesRoute.post('/preview', zValidator('json', previewRuleSchema), async (c) => 
         sql`LOWER(${transactions.description}) = ${body.matchValue.toLowerCase()}`
       )
     }
+  } else if (body.matchField === 'merchant') {
+    if (body.matchType === 'contains') {
+      whereClause = and(
+        eq(transactions.userId, userId),
+        sql`LOWER(COALESCE(${transactions.merchant}, '')) LIKE ${'%' + body.matchValue.toLowerCase() + '%'}`
+      )
+    } else if (body.matchType === 'equals') {
+      whereClause = and(
+        eq(transactions.userId, userId),
+        sql`LOWER(COALESCE(${transactions.merchant}, '')) = ${body.matchValue.toLowerCase()}`
+      )
+    }
   }
 
   const matchingTransactions = await db

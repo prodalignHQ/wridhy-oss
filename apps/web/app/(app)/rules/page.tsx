@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import {
   Plus, Trash2, Edit2, Lock, ArrowRight, Search,
-  Sliders, Check, Loader2, RefreshCw, X
+  Sliders, Check, Loader2, RefreshCw, X, ChevronsUpDown
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,9 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue
 } from '@/components/ui/select'
+import {
+  Popover, PopoverContent, PopoverTrigger
+} from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -261,6 +264,20 @@ export default function RulesPage() {
   const [formPriority, setFormPriority] = useState(100)
   const [preview, setPreview] = useState<PreviewResult | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
+  const [categorySearchQuery, setCategorySearchQuery] = useState('')
+  const categorySearchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (categoryPickerOpen) {
+      const id = requestAnimationFrame(() => {
+        categorySearchInputRef.current?.focus({ preventScroll: true })
+      })
+      return () => cancelAnimationFrame(id)
+    } else {
+      setCategorySearchQuery('')
+    }
+  }, [categoryPickerOpen])
 
   const fetchData = useCallback(async () => {
     try {
@@ -523,6 +540,10 @@ export default function RulesPage() {
 
   const selectedCategory = categories.find(c => c.id === formCategoryId)
 
+  const filteredFormCategories = categories.filter((cat) =>
+    cat.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
+  )
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -689,7 +710,10 @@ export default function RulesPage() {
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => {
         setDialogOpen(open)
-        if (!open) setEditingRule(null)
+        if (!open) {
+          setEditingRule(null)
+          setCategoryPickerOpen(false)
+        }
       }}>
         <DialogContent className="max-w-2xl bg-card border-border text-foreground">
           <DialogHeader>
@@ -713,7 +737,6 @@ export default function RulesPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="description" className="text-foreground/90">Description</SelectItem>
-                    <SelectItem value="merchant" className="text-foreground/90">Merchant</SelectItem>
                     <SelectItem value="amount" className="text-foreground/90">Amount</SelectItem>
                   </SelectContent>
                 </Select>
@@ -748,24 +771,99 @@ export default function RulesPage() {
               {/* Category */}
               <div className="space-y-2">
                 <label className="text-sm text-muted-foreground">Assign Category</label>
-                <Select value={formCategoryId} onValueChange={(v) => v && setFormCategoryId(v)}>
-                  <SelectTrigger className="bg-muted border-border">
-                    <SelectValue placeholder="Select Category" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    {categories.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id} label={cat.name} className="flex items-center gap-2">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: cat.color }}
-                          />
-                          {cat.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={categoryPickerOpen} onOpenChange={setCategoryPickerOpen}>
+                  <PopoverTrigger
+                    type="button"
+                    className="w-full flex h-9 items-center justify-between rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground/90 shadow-xs hover:bg-muted/80 focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                  >
+                    {selectedCategory ? (
+                      <span className="flex items-center gap-2 truncate">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: selectedCategory.color }}
+                        />
+                        <span className="truncate">{selectedCategory.name}</span>
+                        {selectedCategory.type && selectedCategory.type !== 'expense' && (
+                          <span className={cn(
+                            "text-[9px] px-1 py-0.2 rounded font-medium uppercase ml-1",
+                            selectedCategory.type === 'investment' ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" :
+                            selectedCategory.type === 'income' ? "bg-sky-500/15 text-sky-300 border border-sky-500/30" :
+                            "bg-purple-500/15 text-purple-300 border border-purple-500/30"
+                          )}>
+                            {selectedCategory.type === 'investment' ? 'Invest' : selectedCategory.type}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Select Category</span>
+                    )}
+                    <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0 opacity-60 ml-2" />
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-(--anchor-width) min-w-[260px] p-2 bg-card border-border shadow-lg"
+                    align="start"
+                    side="bottom"
+                    sideOffset={4}
+                  >
+                    <div className="relative mb-2">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                      <Input
+                        ref={categorySearchInputRef}
+                        placeholder="Search categories..."
+                        value={categorySearchQuery}
+                        onChange={(e) => setCategorySearchQuery(e.target.value)}
+                        className="pl-8 h-8 bg-muted border-border text-xs text-foreground/90"
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto space-y-0.5">
+                      {filteredFormCategories.map((cat) => {
+                        const isSelected = cat.id === formCategoryId
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              setFormCategoryId(cat.id)
+                              setCategoryPickerOpen(false)
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-colors text-left cursor-pointer",
+                              isSelected
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "hover:bg-muted text-foreground/90"
+                            )}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: cat.color }}
+                              />
+                              <span className="truncate">{cat.name}</span>
+                              {cat.type && cat.type !== 'expense' && (
+                                <span className={cn(
+                                  "text-[9px] px-1 py-0.2 rounded font-medium uppercase",
+                                  cat.type === 'investment' ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" :
+                                  cat.type === 'income' ? "bg-sky-500/15 text-sky-300 border border-sky-500/30" :
+                                  "bg-purple-500/15 text-purple-300 border border-purple-500/30"
+                                )}>
+                                  {cat.type === 'investment' ? 'Invest' : cat.type}
+                                </span>
+                              )}
+                            </div>
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-primary shrink-0 ml-2" />
+                            )}
+                          </button>
+                        )
+                      })}
+                      {filteredFormCategories.length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-4">
+                          No categories found
+                        </p>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Priority */}

@@ -325,7 +325,7 @@ statementsRoute.post('/upload', async (c) => {
             statementId: stmt!.id,
             date: txnData.date,
             description: txnData.description,
-            merchant: categorizationResult.categoryId ? txnData.description.split(' ')[0] : null,
+            merchant: null,
             amount: txnData.amount.toFixed(2),
             type: txnData.type,
             categoryId: categorizationResult.categoryId || null,
