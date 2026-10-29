@@ -489,18 +489,87 @@ export default function NetWorthPage() {
   const netWorth = data?.netWorth ?? 0
   const isPositive = netWorth >= 0
 
-  // Trend vs previous snapshot
+  // ─── Trend vs last snapshot ───────────────────────────────────────────────
+  const resolveOwnerId = (ownerId?: string | null): string => {
+    return ownerId || defaultOwnerId || '__default__'
+  }
+
   let trendValue: string | undefined
   let trendDir: 'up' | 'down' | 'neutral' | undefined
-  if (snapshots.length >= 2) {
-    const prev = parseFloat(snapshots[snapshots.length - 2].netWorth)
-    const delta = netWorth - prev
-    trendDir = delta > 0 ? 'up' : delta < 0 ? 'down' : 'neutral'
-    trendValue = `${delta >= 0 ? '+' : ''}${formatINR(delta)} from last snapshot`
+  let singleOwnerLatestSnapshot: Snapshot | null = null
+
+  if (snapshots.length > 0) {
+    // Group snapshots by owner
+    const snapshotsByOwner = new Map<string, Snapshot[]>()
+    for (const snap of snapshots) {
+      const oId = resolveOwnerId(snap.ownerId)
+      if (!snapshotsByOwner.has(oId)) {
+        snapshotsByOwner.set(oId, [])
+      }
+      snapshotsByOwner.get(oId)!.push(snap)
+    }
+
+    // Determine relevant owner snapshots
+    const relevantOwnerSnaps: Snapshot[][] = []
+
+    if (isAllSelected) {
+      // For All Household, sort each member's snapshots chronologically
+      snapshotsByOwner.forEach((ownerSnaps) => {
+        const sorted = [...ownerSnaps].sort(
+          (a, b) => new Date(a.snapshotDate).getTime() - new Date(b.snapshotDate).getTime()
+        )
+        if (sorted.length > 0) {
+          relevantOwnerSnaps.push(sorted)
+        }
+      })
+    } else {
+      // For selected member(s), sort each selected member's snapshots chronologically
+      for (const selectedId of selectedOwnerIds) {
+        const resolvedSelectedId = resolveOwnerId(selectedId)
+        const ownerSnaps = snapshotsByOwner.get(resolvedSelectedId)
+        if (ownerSnaps && ownerSnaps.length > 0) {
+          const sorted = [...ownerSnaps].sort(
+            (a, b) => new Date(a.snapshotDate).getTime() - new Date(b.snapshotDate).getTime()
+          )
+          relevantOwnerSnaps.push(sorted)
+        }
+      }
+    }
+
+    if (isSingleOwner && relevantOwnerSnaps.length > 0) {
+      const singleSnaps = relevantOwnerSnaps[0]
+      singleOwnerLatestSnapshot = singleSnaps[singleSnaps.length - 1]
+    }
+
+    if (relevantOwnerSnaps.length > 0) {
+      const latestSum = relevantOwnerSnaps.reduce((sum, snaps) => {
+        const latest = snaps[snaps.length - 1]
+        return sum + parseFloat(latest?.netWorth || '0')
+      }, 0)
+
+      // If live net worth is equal to the latest snapshot(s) total
+      // (i.e. snapshot for the current date/values was already saved and values haven't drifted),
+      // compare against the previous snapshot baseline before the latest one.
+      const isLiveEqualToLatest = Math.abs(netWorth - latestSum) < 1
+      const hasPriorSnapshots = relevantOwnerSnaps.some((snaps) => snaps.length > 1)
+
+      let baselineSum = latestSum
+      if (isLiveEqualToLatest && hasPriorSnapshots) {
+        baselineSum = relevantOwnerSnaps.reduce((sum, snaps) => {
+          const prior = snaps.length > 1 ? snaps[snaps.length - 2] : snaps[snaps.length - 1]
+          return sum + parseFloat(prior?.netWorth || '0')
+        }, 0)
+      }
+
+      const delta = netWorth - baselineSum
+      const isZero = Math.abs(delta) < 1
+      trendDir = isZero ? 'neutral' : delta > 0 ? 'up' : 'down'
+      trendValue = `${!isZero && delta > 0 ? '+' : ''}${formatINR(isZero ? 0 : delta)} from last snapshot`
+    }
   }
 
   // ─── Unsaved snapshot detection ────────────────────────────────────────────
-  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
+  const latestSnapshot = singleOwnerLatestSnapshot || (snapshots.length > 0 ? snapshots[snapshots.length - 1] : null)
   const currentMonthStr = format(new Date(), 'yyyy-MM')
   const latestSnapshotMonthStr = latestSnapshot ? format(new Date(latestSnapshot.snapshotDate), 'yyyy-MM') : ''
   const isCurrentMonthSaved = latestSnapshotMonthStr === currentMonthStr
