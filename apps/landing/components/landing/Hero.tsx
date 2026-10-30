@@ -1,4 +1,5 @@
-import Link from "next/link"
+import { Github } from "lucide-react"
+import { GITHUB_URL } from "@/lib/utils"
 
 export default function Hero() {
   return (
@@ -28,17 +29,20 @@ export default function Hero() {
           </h1>
 
           <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Drop in bank statements. MoMoney cleans, splits & explains them.
+            Drop in bank statements. Wridhy cleans, splits & explains them.
             Works offline. No snooping.
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/dashboard"
-              className="rounded-xl bg-primary px-6 py-3.5 text-center text-[15px] font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5"
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-center text-[15px] font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5"
             >
-              Start tracking — it&apos;s free →
-            </Link>
+              <Github size={18} />
+              <span>View on GitHub →</span>
+            </a>
             <a
               href="#features"
               className="rounded-xl border-2 border-border bg-card px-6 py-3 text-center text-[15px] font-semibold transition-colors hover:bg-muted"

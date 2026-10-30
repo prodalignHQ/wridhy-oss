@@ -1,9 +1,7 @@
-import Link from "next/link"
-import { isLocalMode } from "@/lib/local-mode"
+import { Github } from "lucide-react"
+import { GITHUB_URL } from "@/lib/utils"
 
 export default function Footer() {
-  // Standalone binary has no accounts — "Log in" goes straight to the app.
-  const loginHref = isLocalMode() ? "/dashboard" : "/login"
   return (
     <footer className="bg-[#18181b] text-white dark:border-t dark:border-border dark:bg-black">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
@@ -13,21 +11,18 @@ export default function Footer() {
             Stop guessing where your money went.
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-white/80">
-            Free. Private. Fun-ish (for finance). Takes 30 seconds.
+            Free. Private. Fun-ish (for finance). Open source on GitHub.
           </p>
-          <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link
-              href="/dashboard"
-              className="rounded-xl bg-white px-7 py-3 text-[15px] font-bold text-primary transition-transform hover:-translate-y-0.5"
+          <div className="mt-5 flex justify-center">
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3 text-[15px] font-bold text-primary transition-transform hover:-translate-y-0.5"
             >
-              Open MoMoney →
-            </Link>
-            <Link
-              href={loginHref}
-              className="rounded-xl border-2 border-white/30 px-7 py-3 text-[15px] font-bold text-white hover:bg-white/10"
-            >
-              Log in
-            </Link>
+              <Github size={18} />
+              <span>View on GitHub →</span>
+            </a>
           </div>
         </div>
 
@@ -36,12 +31,13 @@ export default function Footer() {
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-sm font-bold text-primary">
               ₹
             </span>
-            <span className="font-semibold text-white">MoMoney</span>
+            <span className="font-semibold text-white">Wridhy</span>
             <span>· Private by default</span>
           </div>
           <div className="flex gap-5">
             <a href="#features" className="hover:text-white">Features</a>
             <a href="#privacy" className="hover:text-white">Privacy</a>
+            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white">GitHub</a>
           </div>
         </div>
       </div>

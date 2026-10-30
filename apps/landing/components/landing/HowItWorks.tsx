@@ -1,4 +1,5 @@
-import Link from "next/link"
+import { Github } from "lucide-react"
+import { GITHUB_URL } from "@/lib/utils"
 
 const steps = [
   { emoji: "📥", title: "Drop statements", body: "Drag your CSV / Excel / PDF. That's the whole setup." },
@@ -14,7 +15,7 @@ export default function HowItWorks() {
           How it works 🛝
         </h2>
         <p className="mt-2 text-center text-[15px] text-muted-foreground">
-          If you can attach a file to an email, you can use MoMoney.
+          If you can attach a file to an email, you can use Wridhy.
         </p>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -54,12 +55,15 @@ export default function HowItWorks() {
               Phone + laptop stay in sync. Your money, always with you, safely.
             </p>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <Link
-                href="/dashboard"
-                className="rounded-xl bg-primary px-5 py-2.5 text-center text-sm font-semibold text-white"
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-center text-sm font-semibold text-white"
               >
-                Try the demo →
-              </Link>
+                <Github size={16} />
+                <span>View on GitHub →</span>
+              </a>
               <a
                 href="#features"
                 className="rounded-xl border-2 border-border px-5 py-2 text-center text-sm font-semibold hover:bg-muted"

@@ -1,9 +1,10 @@
 "use client"
+
 import Link from "next/link"
 import { useState } from "react"
-import { Menu, X } from "lucide-react"
+import { Github, Menu, X } from "lucide-react"
 import { ThemeToggle } from "@/components/theme/ThemeToggle"
-import { isLocalMode } from "@/lib/local-mode"
+import { GITHUB_URL } from "@/lib/utils"
 
 const links = [
   { label: "Features", href: "#features" },
@@ -13,8 +14,7 @@ const links = [
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)
-  // Standalone binary has no accounts — "Log in" goes straight to the app.
-  const loginHref = isLocalMode() ? "/dashboard" : "/login"
+
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
@@ -22,7 +22,7 @@ export default function Navbar() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-lg font-bold text-white shadow-sm">
             ₹
           </span>
-          <span className="text-xl font-semibold tracking-tight">MoMoney</span>
+          <span className="text-xl font-semibold tracking-tight">Wridhy</span>
           <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline">
             beta
           </span>
@@ -42,18 +42,15 @@ export default function Navbar() {
 
         <div className="hidden items-center gap-2 md:flex">
           <ThemeToggle isCollapsed />
-          <Link
-            href={loginHref}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-foreground/70 hover:bg-muted"
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-transform hover:-translate-y-0.5"
           >
-            Log in
-          </Link>
-          <Link
-            href="/dashboard"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-transform hover:-translate-y-0.5"
-          >
-            Open app →
-          </Link>
+            <Github size={16} />
+            <span>GitHub</span>
+          </a>
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
@@ -81,19 +78,16 @@ export default function Navbar() {
                 {l.label}
               </a>
             ))}
-            <div className="mt-2 flex gap-2">
-              <Link
-                href={loginHref}
-                className="flex-1 rounded-lg border border-border px-4 py-2.5 text-center text-sm font-semibold"
+            <div className="mt-2 flex">
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-white"
               >
-                Log in
-              </Link>
-              <Link
-                href="/dashboard"
-                className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-white"
-              >
-                Open app →
-              </Link>
+                <Github size={16} />
+                <span>View on GitHub</span>
+              </a>
             </div>
           </div>
         </div>

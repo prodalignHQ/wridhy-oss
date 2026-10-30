@@ -61,10 +61,11 @@ pnpm --filter @momoney/api dev
 
 ### Monorepo Structure
 
-Turborepo + pnpm workspaces. Two apps and five packages:
+Turborepo + pnpm workspaces. Three apps and five packages:
 
 - **`apps/api`** — Hono.js REST API on Node.js (port 3001). Entry point: `src/index.ts`.
 - **`apps/web`** — Next.js 16 App Router frontend (port 3000). Uses Tailwind CSS v4 + shadcn/ui.
+- **`apps/landing`** — Standalone static landing page (port 3002). Pure Next.js static export (`output: 'export'`), zero backend dependencies, deployable directly to Vercel/Cloudflare Pages.
 - **`packages/db`** — Drizzle ORM schema + PostgreSQL client. The single source of truth for all table definitions and relations. Exported as `@momoney/db`.
 - **`packages/types`** — Shared Zod schemas and inferred TypeScript types used across `api` and `web`.
 - **`packages/parsers`** — Bank statement parsers. Each bank implements `BankParser` (see `base.parser.ts`) and is registered via `parser-registry.ts`. Currently supports ICICI savings (CSV/XLS/PDF) and ICICI credit card.
