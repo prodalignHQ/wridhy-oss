@@ -124,25 +124,35 @@ The dev server runs both the Next.js frontend and Hono API server in parallel us
 
 ## 5. Compiling the Standalone Single-File Binary
 
-MoMoney can be compiled into a single executable binary powered by Bun:
+Wridhy can be compiled into a single executable binary powered by Bun:
 
 ```bash
 # 1. Build binary for your current operating system
 pnpm run build:binary
 
 # Output binary created at:
-# ./dist/momoney (macOS/Linux)
+# ./dist/wridhy (macOS/Linux)
 ```
 
-To compile for all target platforms (macOS, Linux x64, Windows x64):
+To compile for all target platforms (macOS Apple Silicon, macOS Intel, Linux x64, Windows x64):
 ```bash
 pnpm run build:binary:all
 
 # Output binaries created at:
-# ./dist/momoney (macOS Apple Silicon)
-# ./dist/momoney-linux-x64 (Linux x64)
-# ./dist/momoney-windows-x64.exe (Windows x64)
+# ./dist/wridhy-darwin-arm64 (macOS Apple Silicon)
+# ./dist/wridhy-darwin-x64 (macOS Intel)
+# ./dist/wridhy-linux-x64 (Linux x64)
+# ./dist/wridhy-windows-x64.exe (Windows x64)
 ```
+
+### Automated GitHub Releases Workflow:
+A GitHub Action (`.github/workflows/release-binaries.yml`) is configured to automatically:
+- Trigger whenever a GitHub Release is published (`on: release: types: [published]`) or manually dispatched via `workflow_dispatch`.
+- Build and cross-compile standalone executables for macOS (Apple Silicon & Intel), Linux (x64 & ARM64), and Windows (x64).
+- Create compressed `.tar.gz` and `.zip` archives where the extracted executable is named `wridhy` (or `wridhy.exe` on Windows).
+- Generate a `checksums.txt` file with SHA-256 signatures for all binaries and archives.
+- Publish all artifacts as a **GitHub Actions Workflow Artifact** (`wridhy-binaries`).
+- Attach all binaries and checksums directly as downloadable assets to the GitHub Release.
 
 ### How the Standalone Build Works Under the Hood:
 1. `apps/web` exports static HTML/JS/CSS assets via `NEXT_OUTPUT_EXPORT=true`.

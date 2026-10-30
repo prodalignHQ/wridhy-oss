@@ -1,0 +1,144 @@
+name: Release Wridhy Binaries
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      upload_to_release:
+        description: 'Attach binaries to GitHub Release if running on a release tag'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release Binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build static web frontend
+        env:
+          NEXT_OUTPUT_EXPORT: "true"
+          NEXT_PUBLIC_API_URL: ""
+          NEXT_PUBLIC_LOCAL_MODE: "true"
+          NODE_ENV: "production"
+        run: pnpm --filter web build
+
+      - name: Bundle static assets into standalone server
+        run: bun scripts/bundle-assets.ts
+
+      - name: Compile Standalone Binaries (macOS, Linux, Windows)
+        run: |
+          mkdir -p dist
+
+          echo "🚀 Compiling for macOS ARM64 (Apple Silicon)..."
+          bun build apps/api/src/standalone.ts --compile --target=bun-darwin-arm64 --outfile dist/wridhy-darwin-arm64
+          chmod +x dist/wridhy-darwin-arm64
+
+          echo "🚀 Compiling for macOS x64 (Intel)..."
+          bun build apps/api/src/standalone.ts --compile --target=bun-darwin-x64 --outfile dist/wridhy-darwin-x64
+          chmod +x dist/wridhy-darwin-x64
+
+          echo "🚀 Compiling for Linux x64..."
+          bun build apps/api/src/standalone.ts --compile --target=bun-linux-x64 --outfile dist/wridhy-linux-x64
+          chmod +x dist/wridhy-linux-x64
+
+          echo "🚀 Compiling for Linux ARM64..."
+          bun build apps/api/src/standalone.ts --compile --target=bun-linux-arm64 --outfile dist/wridhy-linux-arm64
+          chmod +x dist/wridhy-linux-arm64
+
+          echo "🚀 Compiling for Windows x64..."
+          bun build apps/api/src/standalone.ts --compile --target=bun-windows-x64 --outfile dist/wridhy-windows-x64.exe
+
+      - name: Package Archives and Checksums
+        run: |
+          mkdir -p release-assets
+
+          # 1. Raw standalone executables
+          cp dist/wridhy-darwin-arm64 release-assets/
+          cp dist/wridhy-darwin-x64 release-assets/
+          cp dist/wridhy-linux-x64 release-assets/
+          cp dist/wridhy-linux-arm64 release-assets/
+          cp dist/wridhy-windows-x64.exe release-assets/
+
+          # 2. Compressed distribution archives
+          # macOS Apple Silicon
+          mkdir -p tmp-pack/darwin-arm64
+          cp dist/wridhy-darwin-arm64 tmp-pack/darwin-arm64/wridhy
+          chmod +x tmp-pack/darwin-arm64/wridhy
+          tar -czf release-assets/wridhy-darwin-arm64.tar.gz -C tmp-pack/darwin-arm64 wridhy
+          (cd tmp-pack/darwin-arm64 && zip -q -9 ../../release-assets/wridhy-darwin-arm64.zip wridhy)
+
+          # macOS Intel
+          mkdir -p tmp-pack/darwin-x64
+          cp dist/wridhy-darwin-x64 tmp-pack/darwin-x64/wridhy
+          chmod +x tmp-pack/darwin-x64/wridhy
+          tar -czf release-assets/wridhy-darwin-x64.tar.gz -C tmp-pack/darwin-x64 wridhy
+          (cd tmp-pack/darwin-x64 && zip -q -9 ../../release-assets/wridhy-darwin-x64.zip wridhy)
+
+          # Linux x64
+          mkdir -p tmp-pack/linux-x64
+          cp dist/wridhy-linux-x64 tmp-pack/linux-x64/wridhy
+          chmod +x tmp-pack/linux-x64/wridhy
+          tar -czf release-assets/wridhy-linux-x64.tar.gz -C tmp-pack/linux-x64 wridhy
+
+          # Linux ARM64
+          mkdir -p tmp-pack/linux-arm64
+          cp dist/wridhy-linux-arm64 tmp-pack/linux-arm64/wridhy
+          chmod +x tmp-pack/linux-arm64/wridhy
+          tar -czf release-assets/wridhy-linux-arm64.tar.gz -C tmp-pack/linux-arm64 wridhy
+
+          # Windows x64
+          mkdir -p tmp-pack/windows-x64
+          cp dist/wridhy-windows-x64.exe tmp-pack/windows-x64/wridhy.exe
+          (cd tmp-pack/windows-x64 && zip -q -9 ../../release-assets/wridhy-windows-x64.zip wridhy.exe)
+
+          rm -rf tmp-pack
+
+          # 3. Generate SHA-256 Checksums
+          cd release-assets
+          sha256sum * > checksums.txt
+          echo "Generated Checksums:"
+          cat checksums.txt
+          cd ..
+
+      - name: Upload Binaries as GitHub Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wridhy-binaries
+          path: release-assets/
+          retention-days: 90
+
+      - name: Attach Assets to GitHub Release
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_release == true && github.ref_type == 'tag')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
