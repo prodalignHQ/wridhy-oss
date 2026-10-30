@@ -8,50 +8,90 @@
   --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
   --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-accent-green: var(--accent-green);
+  --color-accent-green-bg: var(--accent-green-bg);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-amber-bg: var(--accent-amber-bg);
 }
 
 :root {
-  --background: #faf5e8;
-  --foreground: #18181b;
-  --card: #faf5e8;
-  --card-foreground: #18181b;
-  --primary: #1b365d;
+  --background: #faf6ee;
+  --foreground: #18191b;
+  --surface: #f4eee2;
+  --surface-hover: #ece3d3;
+  --card: #ffffff;
+  --card-foreground: #18191b;
+  --primary: #182c48;
   --primary-foreground: #ffffff;
-  --secondary: #eef2ff;
-  --secondary-foreground: #1b365d;
-  --muted: #efe7d2;
-  --muted-foreground: #71717a;
-  --border: #c8b99d;
+  --muted: #f0e8d9;
+  --muted-foreground: #6c7078;
+  --border: #dfd4c0;
+  --border-subtle: #eae1d0;
+  --accent-green: #15803d;
+  --accent-green-bg: #dcfce7;
+  --accent-amber: #b45309;
+  --accent-amber-bg: #fef3c7;
 }
 
 .dark {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --border: #27272a;
+  --background: #0c0d10;
+  --foreground: #f4f4f6;
+  --surface: #14161b;
+  --surface-hover: #1c1f26;
+  --card: #14161b;
+  --card-foreground: #f4f4f6;
+  --primary: #213c63;
+  --primary-foreground: #ffffff;
+  --muted: #1c1f26;
+  --muted-foreground: #9da3af;
+  --border: #262a34;
+  --border-subtle: #1e222b;
+  --accent-green: #34d399;
+  --accent-green-bg: rgba(16, 185, 129, 0.12);
+  --accent-amber: #fbbf24;
+  --accent-amber-bg: rgba(245, 158, 11, 0.12);
 }
 
 @layer base {
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
-    @apply font-sans;
+    @apply font-sans scroll-smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-background text-foreground selection:bg-primary/15 selection:text-foreground;
+  }
+}
+
+/* Tabular figures for financial numbers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle paper texture border style */
+.editorial-border {
+  border-width: 1px;
+  border-color: var(--border);
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

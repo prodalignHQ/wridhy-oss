@@ -1,44 +1,73 @@
-import { Github } from "lucide-react"
+import Link from "next/link"
+import { Github, ArrowUpRight } from "lucide-react"
 import { GITHUB_URL } from "@/lib/utils"
 
 export default function Footer() {
+  const currentYear = new Date().getFullYear()
+
+  const links = [
+    { label: "Features", href: "#features" },
+    { label: "Philosophy", href: "#philosophy" },
+    { label: "How it works", href: "#how" },
+    { label: "Households", href: "#households" },
+    { label: "Privacy", href: "#privacy" },
+  ]
+
   return (
-    <footer className="bg-[#18181b] text-white dark:border-t dark:border-border dark:bg-black">
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <div className="rounded-2xl bg-primary p-8 text-center sm:p-10">
-          <p className="text-4xl">💸➡️😎</p>
-          <h2 className="mx-auto mt-3 max-w-md text-2xl font-bold leading-tight sm:text-3xl">
-            Stop guessing where your money went.
-          </h2>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-white/80">
-            Free. Private. Fun-ish (for finance). Open source on GitHub.
-          </p>
-          <div className="mt-5 flex justify-center">
+    <footer className="border-t border-border/80 bg-surface/50 text-foreground">
+      <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+          {/* Brand info */}
+          <div className="max-w-sm">
+            <Link href="/" className="inline-flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground shadow-xs">
+                ₹
+              </span>
+              <span className="text-lg font-bold tracking-tight text-foreground">
+                Wridhy
+              </span>
+              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                beta
+              </span>
+            </Link>
+
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+              Self-hosted personal and household finance. Made for people who have better things to do than check their bank balance every hour.
+            </p>
+          </div>
+
+          {/* Navigation Links */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-muted-foreground">
+            {links.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                className="transition-colors hover:text-foreground"
+              >
+                {link.label}
+              </a>
+            ))}
             <a
               href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3 text-[15px] font-bold text-primary transition-transform hover:-translate-y-0.5"
+              className="inline-flex items-center gap-1 transition-colors hover:text-foreground font-medium text-foreground"
             >
-              <Github size={18} />
-              <span>View on GitHub →</span>
+              <Github size={14} />
+              <span>GitHub</span>
+              <ArrowUpRight size={12} className="text-muted-foreground" />
             </a>
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col items-center justify-between gap-4 text-sm text-white/60 sm:flex-row">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-sm font-bold text-primary">
-              ₹
-            </span>
-            <span className="font-semibold text-white">Wridhy</span>
-            <span>· Private by default</span>
-          </div>
-          <div className="flex gap-5">
-            <a href="#features" className="hover:text-white">Features</a>
-            <a href="#privacy" className="hover:text-white">Privacy</a>
-            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white">GitHub</a>
-          </div>
+        {/* Bottom bar */}
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row">
+          <p>
+            © {currentYear} Wridhy. Released under the MIT License.
+          </p>
+          <p className="text-center sm:text-right">
+            Your finances deserve attention. Not obsession.
+          </p>
         </div>
       </div>
     </footer>
