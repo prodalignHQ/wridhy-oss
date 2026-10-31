@@ -8,20 +8,21 @@ import os from 'node:os'
 import fs from 'node:fs'
 
 export const isSqlite = (() => {
-  if (process.env['DB_DIALECT'] === 'sqlite' || process.env['MOMONEY_LOCAL_MODE'] === 'true') {
-    return true
-  }
+  // 1. Explicit Postgres dialect overrides everything
   if (process.env['DB_DIALECT'] === 'postgres' || process.env['DB_DIALECT'] === 'postgresql') {
     return false
   }
+  // 2. Postgres DATABASE_URL overrides everything
   const dbUrl = process.env['DATABASE_URL']
-  if (!dbUrl) {
-    return true // Default to SQLite if no DATABASE_URL is provided
-  }
-  if (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://')) {
+  if (dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://'))) {
     return false
   }
-  return true // file:, sqlite://, local .db file, etc.
+  // 3. Explicit SQLite dialect
+  if (process.env['DB_DIALECT'] === 'sqlite') {
+    return true
+  }
+  // 4. Fallback to SQLite (zero setup)
+  return true
 })()
 
 function getSqliteDb() {
@@ -66,13 +67,15 @@ function getSqliteDb() {
   }
 }
 
+export let rawPgSql: ReturnType<typeof postgres> | null = null
+
 function getPgDb() {
   const dbUrl = process.env['DATABASE_URL']
   if (!dbUrl) {
     throw new Error('DATABASE_URL environment variable is required for PostgreSQL mode')
   }
-  const sql = postgres(dbUrl)
-  return drizzlePg(sql, { schema: pgSchema })
+  rawPgSql = postgres(dbUrl)
+  return drizzlePg(rawPgSql, { schema: pgSchema })
 }
 
 export const db = (isSqlite ? getSqliteDb() : getPgDb()) as unknown as ReturnType<typeof drizzlePg<typeof pgSchema>>

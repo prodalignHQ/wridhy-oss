@@ -1,0 +1,31 @@
+# Git & dependencies
+.git
+.github
+node_modules/
+.pnpm-store/
+
+# Build caches & outputs
+.turbo/
+.next/
+out/
+dist/
+build/
+release-assets/
+apps/api/src/embedded-assets.ts
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Environment and sensitive data
+.env*
+!apps/api/.env.example
+
+# Logs & testing
+*.log
+npm-debug.log*
+pnpm-debug.log*
+coverage/
+*.tsbuildinfo
