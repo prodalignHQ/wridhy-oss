@@ -38,44 +38,40 @@ export default function Features() {
             <button
               type="button"
               onClick={() => setActiveGroup("all")}
-              className={`rounded-lg px-3.5 py-1.5 transition-all ${
-                activeGroup === "all"
+              className={`rounded-lg px-3.5 py-1.5 transition-all ${activeGroup === "all"
                   ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               All 9 Tools
             </button>
             <button
               type="button"
               onClick={() => setActiveGroup("input")}
-              className={`rounded-lg px-3.5 py-1.5 transition-all ${
-                activeGroup === "input"
+              className={`rounded-lg px-3.5 py-1.5 transition-all ${activeGroup === "input"
                   ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               A. Ingestion &amp; Rules
             </button>
             <button
               type="button"
               onClick={() => setActiveGroup("household")}
-              className={`rounded-lg px-3.5 py-1.5 transition-all ${
-                activeGroup === "household"
+              className={`rounded-lg px-3.5 py-1.5 transition-all ${activeGroup === "household"
                   ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               B. Household &amp; Reports
             </button>
             <button
               type="button"
               onClick={() => setActiveGroup("growth")}
-              className={`rounded-lg px-3.5 py-1.5 transition-all ${
-                activeGroup === "growth"
+              className={`rounded-lg px-3.5 py-1.5 transition-all ${activeGroup === "growth"
                   ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               C. Growth &amp; Salary
             </button>
@@ -425,7 +421,7 @@ export default function Features() {
                     Income &amp; tax tracking
                   </h4>
                   <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                    Track gross earnings, TDS withheld, and advance taxes organized cleanly by Indian Financial Year (FY 2025–26).
+                    Track gross earnings and Tax Paid cleanly by the Financial Year.
                   </p>
                 </div>
                 <div className="mt-6 pt-4 border-t border-border/50">
