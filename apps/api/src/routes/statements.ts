@@ -20,9 +20,11 @@ function computeDedupHash(
   accountId: string,
   date: Date,
   amount: number,
-  description: string
+  description: string,
+  type?: 'debit' | 'credit'
 ): string {
-  const key = `${accountId}|${date.toISOString()}|${amount.toFixed(2)}|${description.slice(0, 50)}`
+  const signedAmount = type === 'credit' ? -Math.abs(amount) : Math.abs(amount)
+  const key = `${accountId}|${date.toISOString()}|${signedAmount.toFixed(2)}|${description.slice(0, 50)}`
   return createHash('sha256').update(key).digest('hex')
 }
 
@@ -118,7 +120,7 @@ statementsRoute.post('/preview', async (c) => {
       data: parsedTxns.map((t) => ({
         date: t.date.toISOString(),
         description: t.description,
-        amount: t.amount,
+        amount: Math.abs(t.amount),
         type: t.type,
       })),
     })
@@ -245,7 +247,8 @@ statementsRoute.post('/upload', async (c) => {
   // Compute dedup hashes for all parsed transactions
   const withHashes = parsedTxns.map((txn) => ({
     ...txn,
-    dedupHash: computeDedupHash(accountId, txn.date, txn.amount, txn.description),
+    amount: Math.abs(txn.amount),
+    dedupHash: computeDedupHash(accountId, txn.date, txn.amount, txn.description, txn.type),
   }))
 
   // Derive statementMonth from user input or from earliest transaction date
@@ -326,7 +329,7 @@ statementsRoute.post('/upload', async (c) => {
             date: txnData.date,
             description: txnData.description,
             merchant: null,
-            amount: txnData.amount.toFixed(2),
+            amount: Math.abs(txnData.amount).toFixed(2),
             type: txnData.type,
             categoryId: categorizationResult.categoryId || null,
             dedupHash: txnData.dedupHash,

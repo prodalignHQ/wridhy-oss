@@ -135,7 +135,7 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
 
     for (const owner of transaction.owners) {
       const ownerKey = owner.ownerId ?? owner.name
-      const amount = parseFloat(owner.amount)
+      const amount = Math.abs(parseFloat(owner.amount))
       const adjustedAmount = isCredit ? -amount : amount
 
       if (!ownerTotals.has(ownerKey)) {
@@ -358,7 +358,7 @@ async function loadLiveTransactions(userId: string, statementIds: string[]) {
     statementId: row.statementId,
     date: row.date,
     description: row.description,
-    amount: amountString(row.amount),
+    amount: amountString(Math.abs(parseFloat(row.amount))),
     type: row.type,
     isOneTime: Boolean(row.isOneTime),
     categoryId: row.categoryId,
@@ -374,7 +374,7 @@ async function loadLiveTransactions(userId: string, statementIds: string[]) {
       ownerId: item.ownerId,
       name: item.owner.name,
       color: item.owner.color,
-      amount: amountString(item.amount),
+      amount: amountString(Math.abs(parseFloat(item.amount))),
       percentage: amountString(item.percentage),
     })),
   }))
@@ -712,7 +712,7 @@ invoicesRoute.get('/:id', async (c) => {
     statementId: item.statementId,
     date: item.date,
     description: item.description,
-    amount: amountString(item.amount),
+    amount: amountString(Math.abs(parseFloat(item.amount))),
     type: item.type,
     isOneTime: Boolean(item.isOneTime),
     categoryId: item.categoryId,
@@ -722,7 +722,10 @@ invoicesRoute.get('/:id', async (c) => {
       color: item.categoryColor,
       type: item.categoryType,
     },
-    owners: item.owners,
+    owners: (item.owners || []).map((o) => ({
+      ...o,
+      amount: amountString(Math.abs(parseFloat(o.amount))),
+    })),
   }))
 
   return c.json({

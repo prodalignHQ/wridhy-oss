@@ -595,7 +595,7 @@ function InvoicesContent() {
 
   const filteredTotal = useMemo(() => {
     return filteredTransactions.reduce((acc, t) => {
-      const amount = parseFloat(t.amount)
+      const amount = Math.abs(parseFloat(t.amount))
       const signedAmount = t.type === 'debit' ? -amount : amount
       return acc + signedAmount
     }, 0)
@@ -2235,7 +2235,7 @@ function InvoicesContent() {
                                                   const ownerShare = txn.owners.find((o) => 
                                                     owner.ownerId ? o.ownerId === owner.ownerId : o.name === owner.name
                                                   )
-                                                  const shareAmount = ownerShare ? parseFloat(ownerShare.amount) : 0
+                                                  const shareAmount = ownerShare ? Math.abs(parseFloat(ownerShare.amount)) : 0
                                                   const signedAmount = txn.type === 'credit' ? -shareAmount : shareAmount
 
                                                   return (

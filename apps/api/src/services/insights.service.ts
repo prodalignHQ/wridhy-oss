@@ -100,7 +100,7 @@ export class InsightsService {
     let totalIncomeNum = 0
 
     for (const r of result) {
-      const amt = parseFloat(r.total || '0')
+      const amt = Math.abs(parseFloat(r.total || '0'))
       if (r.type === 'debit') {
         if (r.categoryType === 'investment') {
           totalInvestmentsNum += amt
@@ -278,7 +278,7 @@ export class InsightsService {
     for (const r of result) {
       const monthData = months[r.month]
       if (monthData) {
-        const amt = parseFloat(r.amount || '0')
+        const amt = Math.abs(parseFloat(r.amount || '0'))
         if (r.type === 'debit' && r.categoryType === 'expense') {
           monthData.spend = (parseFloat(monthData.spend) + amt).toFixed(2)
         } else if (r.type === 'credit') {
@@ -351,10 +351,10 @@ export class InsightsService {
       .having(sql`${netCatAmountSql} > 0`)
       .orderBy(desc(netCatAmountSql))
 
-    const totalSpend = rows.reduce((acc, r) => acc + parseFloat(r.amount), 0)
+    const totalSpend = rows.reduce((acc, r) => acc + Math.abs(parseFloat(r.amount)), 0)
 
     return rows.map((r) => {
-      const amtNum = parseFloat(r.amount)
+      const amtNum = Math.abs(parseFloat(r.amount))
       return {
         id: r.id,
         name: r.name,

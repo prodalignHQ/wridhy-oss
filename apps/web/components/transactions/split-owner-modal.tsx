@@ -103,7 +103,7 @@ export function SplitOwnerModal({
     }
   }
 
-  const txnAmount = transaction ? parseFloat(String(transaction.amount)) : 0
+  const txnAmount = transaction ? Math.abs(parseFloat(String(transaction.amount))) : 0
   const n = selectedIds.size
   const shareAmount = n > 0 ? txnAmount / n : 0
 

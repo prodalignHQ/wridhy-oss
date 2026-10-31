@@ -57,7 +57,7 @@ import { cn } from '@/lib/utils'
 
 const formatINR = (value: string | number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
-    parseFloat(String(value))
+    Math.abs(parseFloat(String(value)))
   )
 
 interface FinancialAccount {
@@ -664,7 +664,7 @@ export default function TransactionsPage() {
               onClick={() => {
                 const selectedList = transactions.filter((t) => selectedTransactionIds.has(t.id))
                 const totalSelectedAmount = selectedList.reduce(
-                  (sum, t) => sum + parseFloat(t.amount || '0'),
+                  (sum, t) => sum + Math.abs(parseFloat(t.amount || '0')),
                   0
                 )
                 setIsBulkOwnerAssign(true)

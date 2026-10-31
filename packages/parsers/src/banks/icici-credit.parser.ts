@@ -58,13 +58,10 @@ export const iciciCreditParser: BankParser = {
 
       const type: 'debit' | 'credit' = signRaw.toUpperCase() === 'CR' ? 'credit' : 'debit'
 
-      // For credits, make amount negative so they show as income
-      const finalAmount = type === 'credit' ? -amount : amount
-
       results.push({
         date,
         description,
-        amount: finalAmount,
+        amount: Math.abs(amount),
         type,
         ...(referenceNo ? { referenceNo } : {}),
       })

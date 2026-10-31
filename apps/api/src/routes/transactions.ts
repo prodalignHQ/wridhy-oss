@@ -326,7 +326,7 @@ transactionsRoute.patch(
  
       // 2. Insert new ownership records for each transaction
       for (const txn of txns) {
-        const txnAmount = parseFloat(String(txn.amount))
+        const txnAmount = Math.abs(parseFloat(String(txn.amount)))
         const shareAmount = (txnAmount / n).toFixed(2)
  
         for (const ownerId of ownerIds) {
@@ -418,7 +418,7 @@ transactionsRoute.put('/:id/owners', zValidator('json', assignOwnersSchema), asy
   }
 
   const n = ownerIds.length
-  const txnAmount = parseFloat(String(txn.amount))
+  const txnAmount = Math.abs(parseFloat(String(txn.amount)))
   const shareAmount = (txnAmount / n).toFixed(2)
   const sharePercent = (100 / n).toFixed(2)
 
