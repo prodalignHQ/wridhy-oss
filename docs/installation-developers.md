@@ -18,7 +18,7 @@ Ensure the following tools are installed on your machine:
 ## 2. Clone and Install Dependencies
 
 ```bash
-git clone https://github.com/prodalignHQ/nuffmoney.git momoney
+git clone https://github.com/prodalignHQ/wridhy-oss.git momoney
 cd momoney
 pnpm install
 ```
@@ -181,6 +181,7 @@ A GitHub Action (`.github/workflows/release-binaries.yml`) is configured to auto
 Wridhy is packaged into a minimal multi-stage Docker image (`rohanmallya/wridhy:latest`) that supports **both PostgreSQL and SQLite** seamlessly:
 
 ### Building and Pushing the Docker Image:
+
 ```bash
 # Build and push rohanmallya/wridhy:latest
 ./build.sh
@@ -193,6 +194,7 @@ Wridhy is packaged into a minimal multi-stage Docker image (`rohanmallya/wridhy:
 ```
 
 ### Running with PostgreSQL (Recommended for production / homelab servers):
+
 Pass `DATABASE_URL` pointing to your PostgreSQL instance. Wridhy automatically initializes the database tables and indexes on first boot:
 
 ```bash
@@ -204,13 +206,17 @@ docker run -d \
 ```
 
 ### Running with Docker Compose (Wridhy + PostgreSQL):
+
 The included [`docker-compose.yml`](file:///Users/rohanmallya/Development/prodalign/momoney-oss/docker-compose.yml) starts both PostgreSQL and Wridhy together:
+
 ```bash
 docker compose up -d
 ```
 
 ### Running with SQLite (Zero-configuration):
+
 If `DATABASE_URL` is omitted, Wridhy defaults to SQLite with data persisted in `/data`:
+
 ```bash
 docker run -d \
   --name wridhy \

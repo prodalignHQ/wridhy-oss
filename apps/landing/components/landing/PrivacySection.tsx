@@ -24,12 +24,12 @@ export default function PrivacySection() {
     docker: {
       title: "2. Docker Compose",
       description: "Run containerized with PostgreSQL or SQLite on your home server or homelab.",
-      command: `git clone https://github.com/prodalignHQ/nuffmoney.git\ncd nuffmoney\ndocker compose up -d\n# Running at http://localhost:3000`,
+      command: `git clone https://github.com/prodalignHQ/wridhy-oss.git\ncd nuffmoney\ndocker compose up -d\n# Running at http://localhost:3000`,
     },
     source: {
       title: "3. Clone the Source",
       description: "Full TypeScript source code with pnpm, Next.js, and Hono. Fully inspectable.",
-      command: `git clone https://github.com/prodalignHQ/nuffmoney.git\ncd nuffmoney\npnpm install\npnpm dev`,
+      command: `git clone https://github.com/prodalignHQ/wridhy-oss.git\ncd nuffmoney\npnpm install\npnpm dev`,
     },
   }
 
@@ -118,11 +118,10 @@ export default function PrivacySection() {
               <button
                 type="button"
                 onClick={() => setActiveTab("binary")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
-                  activeTab === "binary"
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${activeTab === "binary"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Laptop size={13} />
                 <span>Binary</span>
@@ -130,11 +129,10 @@ export default function PrivacySection() {
               <button
                 type="button"
                 onClick={() => setActiveTab("docker")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
-                  activeTab === "docker"
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${activeTab === "docker"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Container size={13} />
                 <span>Docker</span>
@@ -142,11 +140,10 @@ export default function PrivacySection() {
               <button
                 type="button"
                 onClick={() => setActiveTab("source")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
-                  activeTab === "source"
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${activeTab === "source"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Code2 size={13} />
                 <span>Source</span>
