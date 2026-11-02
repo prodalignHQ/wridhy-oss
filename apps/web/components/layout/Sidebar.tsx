@@ -105,7 +105,7 @@ function NavItem({
   if (isCollapsed) {
     return (
       <Tooltip>
-        <TooltipTrigger>{item}</TooltipTrigger>
+        <TooltipTrigger render={item} />
         <TooltipContent side="right" className="font-medium">
           {label}
         </TooltipContent>

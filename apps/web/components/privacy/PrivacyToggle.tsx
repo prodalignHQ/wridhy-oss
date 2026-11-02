@@ -7,7 +7,7 @@ import { useUIStore } from '@/lib/store/ui.store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
-const emptySubscribe = () => () => {}
+const emptySubscribe = () => () => { }
 
 export function PrivacyToggle({ isCollapsed }: { isCollapsed?: boolean }) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
@@ -35,21 +35,23 @@ export function PrivacyToggle({ isCollapsed }: { isCollapsed?: boolean }) {
   if (isCollapsed) {
     return (
       <Tooltip>
-        <TooltipTrigger>
-          <button
-            type="button"
-            aria-label="Toggle privacy mode"
-            onClick={handleToggle}
-            className={cn(
-              'inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-200 cursor-pointer',
-              active
-                ? 'border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                : 'border-border bg-muted text-foreground hover:bg-secondary'
-            )}
-          >
-            {active ? <EyeOff className="h-4 w-4 text-amber-500" /> : <Eye className="h-4 w-4" />}
-          </button>
-        </TooltipTrigger>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label="Toggle privacy mode"
+              onClick={handleToggle}
+              className={cn(
+                'inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-200 cursor-pointer',
+                active
+                  ? 'border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                  : 'border-border bg-muted text-foreground hover:bg-secondary'
+              )}
+            >
+              {active ? <EyeOff className="h-4 w-4 text-amber-500" /> : <Eye className="h-4 w-4" />}
+            </button>
+          }
+        />
         <TooltipContent side="right" className="font-medium text-xs">
           {active ? 'Privacy mode: Active (Alt+P)' : 'Privacy mode: Off (Alt+P)'}
         </TooltipContent>
