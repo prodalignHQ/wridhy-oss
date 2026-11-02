@@ -16,10 +16,25 @@ if (typeof (globalThis as any).ImageData === 'undefined') {
   ;(globalThis as any).ImageData = class ImageData {}
 }
 
-// Standalone binary defaults: enforce SQLite and local mode
-process.env['DB_DIALECT'] = 'sqlite'
-process.env['MOMONEY_LOCAL_MODE'] = 'true'
+// Standalone binary defaults: dynamic PostgreSQL or SQLite detection
+const dbUrl = process.env['DATABASE_URL']
+const hasPostgres = Boolean(
+  (dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://'))) ||
+  process.env['DB_DIALECT'] === 'postgres' ||
+  process.env['DB_DIALECT'] === 'postgresql'
+)
+
+if (hasPostgres) {
+  process.env['DB_DIALECT'] = 'postgres'
+} else if (!process.env['DB_DIALECT']) {
+  process.env['DB_DIALECT'] = 'sqlite'
+}
+
+if (!process.env['MOMONEY_LOCAL_MODE']) {
+  process.env['MOMONEY_LOCAL_MODE'] = hasPostgres ? 'false' : 'true'
+}
+
 if (!process.env['BETTER_AUTH_SECRET']) {
-  process.env['BETTER_AUTH_SECRET'] = 'momoney-local-secret-standalone-build-key'
+  process.env['BETTER_AUTH_SECRET'] = 'wridhy-standalone-secret-key'
 }
 

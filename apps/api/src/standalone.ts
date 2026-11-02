@@ -1,23 +1,18 @@
 import './polyfill.js'
 import { createApiApp } from './app.js'
 import { ensureLocalUserAndSeed } from '@momoney/db/local-seed'
+import { isSqlite, rawPgSql } from '@momoney/db'
+import { ensurePostgresInitAndSeed } from '@momoney/db/postgres-init'
 import { embeddedAssets } from './embedded-assets.js'
 import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 
-// Force local mode and SQLite defaults when running as a standalone binary
-process.env['MOMONEY_LOCAL_MODE'] = 'true'
-process.env['DB_DIALECT'] = 'sqlite'
-if (!process.env['BETTER_AUTH_SECRET']) {
-  process.env['BETTER_AUTH_SECRET'] = 'momoney-local-secret-standalone-build-key'
-}
-
 const app = createApiApp()
 
 // Pre-decode gzip buffers into memory for instant sub-millisecond serving
 const assetCache = new Map<string, { mime: string; data: Uint8Array }>()
-for (const [key, value] of Object.entries(embeddedAssets)) {
+for (const [key, value] of Object.entries((embeddedAssets || {}) as Record<string, { mime: string; base64: string }>)) {
   assetCache.set(key, {
     mime: value.mime,
     data: Buffer.from(value.base64, 'base64'),
@@ -105,10 +100,22 @@ async function main() {
   console.log(`  💰 MoMoney — Privacy-First Personal Finance`)
   console.log(`==================================================`)
 
-  // Ensure DB and local user
-  await ensureLocalUserAndSeed()
-  const dbFile = process.env['SQLITE_DB_PATH'] || path.join(os.homedir(), '.momoney', 'momoney.db')
-  console.log(`  📂 Database: ${dbFile}`)
+  // Ensure DB and seed data
+  if (isSqlite) {
+    await ensureLocalUserAndSeed()
+    const dbFile = process.env['SQLITE_DB_PATH'] || path.join(os.homedir(), '.momoney', 'momoney.db')
+    console.log(`  📂 Database: SQLite (${dbFile})`)
+  } else {
+    if (rawPgSql) {
+      await ensurePostgresInitAndSeed(rawPgSql)
+    } else {
+      await ensureLocalUserAndSeed()
+    }
+    const cleanDbUrl = process.env['DATABASE_URL']
+      ? process.env['DATABASE_URL'].replace(/:[^:@]+@/, ':****@')
+      : 'configured'
+    console.log(`  📂 Database: PostgreSQL (${cleanDbUrl})`)
+  }
 
   const desiredPort = parseInt(process.env['PORT'] ?? '3000', 10)
   let port = desiredPort
