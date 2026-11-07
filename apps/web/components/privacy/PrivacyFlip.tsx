@@ -13,7 +13,7 @@ interface PrivacyFlipProps {
   showShortcut?: boolean
 }
 
-const emptySubscribe = () => () => { }
+const emptySubscribe = () => () => {}
 
 export function PrivacyFlip({
   className,
@@ -53,8 +53,8 @@ export function PrivacyFlip({
         variant === 'icon'
           ? 'h-9 w-9 rounded-xl border p-0'
           : variant === 'compact'
-            ? 'h-8 px-2.5 rounded-xl border text-xs gap-1.5'
-            : 'h-9 px-3 rounded-xl border text-xs gap-2 shadow-2xs',
+          ? 'h-8 px-2.5 rounded-xl border text-xs gap-1.5'
+          : 'h-9 px-3 rounded-xl border text-xs gap-2 shadow-2xs',
         active
           ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15'
           : 'border-border bg-card/60 text-muted-foreground hover:bg-muted/80 hover:text-foreground',

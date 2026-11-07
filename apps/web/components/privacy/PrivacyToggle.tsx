@@ -7,7 +7,7 @@ import { useUIStore } from '@/lib/store/ui.store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
-const emptySubscribe = () => () => { }
+const emptySubscribe = () => () => {}
 
 export function PrivacyToggle({ isCollapsed }: { isCollapsed?: boolean }) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
