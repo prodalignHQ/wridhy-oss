@@ -124,8 +124,23 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
     const categoryName = transaction.category?.name ?? 'Uncategorized'
     const categoryId = transaction.category?.id ?? null
     const categoryColor = transaction.category?.color ?? null
-    const categoryType = transaction.category?.type ?? 'expense'
-    
+    const rawType = transaction.category?.type ?? (isCredit ? 'income' : 'expense')
+
+    const upperDesc = (transaction.description || '').toUpperCase()
+    const isPaymentTransfer = isCredit && (
+      upperDesc.includes('PAYMENT RECEIVED') ||
+      upperDesc.includes('BBPS') ||
+      upperDesc.includes('AUTOPAY') ||
+      upperDesc.includes('AUTO DEBIT') ||
+      upperDesc.includes('BILLDESK') ||
+      upperDesc.includes('NEFT') ||
+      upperDesc.includes('IMPS') ||
+      upperDesc.includes('UPI') ||
+      upperDesc.includes('CHEQUE PAYMENT')
+    )
+
+    const categoryType = isPaymentTransfer ? 'transfer' : rawType
+
     // Internal transfers (such as credit card bill payments and account settlements)
     // are balance movements, not living spending, investments, or owner shares.
     if (categoryType === 'transfer') continue
@@ -133,10 +148,32 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
     const isInvestment = categoryType === 'investment'
     const isOneTime = Boolean(transaction.isOneTime)
 
-    for (const owner of transaction.owners) {
-      const ownerKey = owner.ownerId ?? owner.name
+    const totalTxnAmount = Math.abs(parseFloat(transaction.amount))
+    const allocatedSum = (transaction.owners || []).reduce(
+      (sum, o) => sum + Math.abs(parseFloat(o.amount)),
+      0
+    )
+    const unallocatedAmount = Math.max(0, totalTxnAmount - allocatedSum)
+
+    const effectiveOwners: InvoiceOwnerSnapshot[] = [...(transaction.owners || [])]
+    if (effectiveOwners.length === 0 || unallocatedAmount > 0.005) {
+      const remainder = effectiveOwners.length === 0 ? totalTxnAmount : unallocatedAmount
+      const percentage =
+        totalTxnAmount > 0 ? ((remainder / totalTxnAmount) * 100).toFixed(2) : '100'
+      effectiveOwners.push({
+        ownerId: null,
+        name: 'Unassigned',
+        color: '#71717a',
+        amount: remainder.toFixed(2),
+        percentage,
+      })
+    }
+
+    for (const owner of effectiveOwners) {
+      const ownerKey = owner.ownerId ?? 'unassigned'
       const amount = Math.abs(parseFloat(owner.amount))
-      const adjustedAmount = isCredit ? -amount : amount
+      const isExpenseRefund = isCredit && categoryType === 'expense' && categoryName.toLowerCase() !== 'uncategorized' && categoryId !== null
+      const adjustedAmount = isCredit ? (isExpenseRefund ? -amount : 0) : amount
 
       if (!ownerTotals.has(ownerKey)) {
         ownerTotals.set(ownerKey, {
@@ -230,7 +267,11 @@ function buildAnalysis(transactionsList: InvoiceTransactionPayload[]) {
       oneTimeInvestmentTotal: owner.oneTimeInvestmentTotal,
       categories: Array.from(owner.categories.values()).sort((a, b) => b.total - a.total),
     }))
-    .sort((a, b) => b.total - a.total)
+    .sort((a, b) => {
+      if (a.ownerId === null && b.ownerId !== null) return 1
+      if (a.ownerId !== null && b.ownerId === null) return -1
+      return b.total - a.total
+    })
 
   const categoryTotals = Array.from(categoryTotalsMap.values())
     .sort((a, b) => b.total - a.total)

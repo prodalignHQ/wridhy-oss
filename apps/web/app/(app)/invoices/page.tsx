@@ -555,10 +555,8 @@ function InvoicesContent() {
           : !isOneTime && !isInv
       const matchesOwner =
         ownerFilter.length === 0 ||
-        (ownerFilter.length === 1 && ownerFilter[0] === 'unassigned'
-          ? transaction.owners.length === 0
-          : transaction.owners.length === ownerFilter.length &&
-          transaction.owners.every((o) => o.ownerId && ownerFilter.includes(o.ownerId)))
+        (ownerFilter.includes('unassigned') && transaction.owners.length === 0) ||
+        transaction.owners.some((o) => o.ownerId && ownerFilter.includes(o.ownerId))
 
       return matchesSearch && matchesCategory && matchesType && matchesNature && matchesOwner
     })

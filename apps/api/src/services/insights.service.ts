@@ -28,6 +28,23 @@ const statementMonthSql = isSqlite
   ? sql<string>`strftime('%Y-%m', ${statements.statementMonth})`
   : sql<string>`to_char(${statements.statementMonth}, 'YYYY-MM')`
 
+const categoryTypeExpr = sql<string>`case
+  when lower(coalesce(${categories.name}, '')) = 'uncategorized' or ${categories.id} is null then
+    case
+      when lower(${transactions.description}) like '%payment received%'
+        or (${transactions.type} = 'credit' and (
+             lower(${transactions.description}) like '%bbps%'
+          or lower(${transactions.description}) like '%autopay%'
+          or lower(${transactions.description}) like '%billdesk%'
+          or lower(${transactions.description}) like '%auto debit%'
+        ))
+        then 'transfer'
+      when ${transactions.type} = 'credit' then 'income'
+      else 'expense'
+    end
+  else coalesce(cast(${categories.type} as text), 'expense')
+end`
+
 /**
  * Resolves the effective grouping month (YYYY-MM) for a transaction.
  * In 'invoice' mode:
@@ -70,30 +87,42 @@ export class InsightsService {
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
     // ── Totals (grouped by credit/debit and category type) ──
-    const resultQuery = db
-      .select({
-        type: transactions.type,
-        categoryType: sql<string>`coalesce(${categories.type}, 'expense')`,
-        total: sql<string>`sum(${amountExpr})`,
-      })
-      .from(transactions)
-      .leftJoin(statements, eq(transactions.statementId, statements.id))
-      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
-      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
-      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    const buildResultQuery = () => {
+      const q = db
+        .select({
+          type: transactions.type,
+          categoryType: categoryTypeExpr,
+          total: sql<string>`sum(${amountExpr})`,
+        })
+        .from(transactions)
 
-    if (hasOwnerFilter) {
-      resultQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+      if (mode === 'invoice') {
+        const withInvoices = q
+          .leftJoin(statements, eq(transactions.statementId, statements.id))
+          .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+          .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
+          .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        if (hasOwnerFilter) {
+          return withInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+        }
+        return withInvoices
+      }
+
+      const withoutInvoices = q.leftJoin(categories, eq(transactions.categoryId, categories.id))
+      if (hasOwnerFilter) {
+        return withoutInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+      }
+      return withoutInvoices
     }
 
-    const result = await resultQuery
+    const result = await buildResultQuery()
       .where(
         and(
           ...conditions,
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
-      .groupBy(transactions.type, sql`coalesce(${categories.type}, 'expense')`)
+      .groupBy(transactions.type, categoryTypeExpr)
 
     let totalSpendNum = 0
     let totalInvestmentsNum = 0
@@ -127,34 +156,56 @@ export class InsightsService {
     const netFlow = (totalIncomeNum - totalSpendNum - totalInvestmentsNum).toFixed(2)
 
     // ── Top categories (Net spending: debits minus credits/refunds) ──
-    const netCatAmountSql = sql<string>`sum(case when ${transactions.type} = 'debit' then ${amountExpr} else -${amountExpr} end)`
+    const netCatAmountSql = sql<string>`sum(
+      case
+        when ${transactions.type} = 'debit' then ${amountExpr}
+        when ${transactions.type} = 'credit' and ${categoryTypeExpr} = 'expense' and lower(coalesce(${categories.name}, '')) != 'uncategorized' and ${categories.id} is not null then -${amountExpr}
+        else 0
+      end
+    )`
 
-    const topCategoriesQuery = db
-      .select({
-        id: categories.id,
-        name: categories.name,
-        color: categories.color,
-        amount: netCatAmountSql,
-      })
-      .from(transactions)
-      .leftJoin(statements, eq(transactions.statementId, statements.id))
-      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
-      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
-      .innerJoin(categories, eq(transactions.categoryId, categories.id))
+    const catIdExpr = sql<string>`coalesce(cast(${categories.id} as text), 'uncategorized')`
+    const catNameExpr = sql<string>`coalesce(${categories.name}, 'Uncategorized')`
+    const catColorExpr = sql<string>`coalesce(${categories.color}, '#71717a')`
 
-    if (hasOwnerFilter) {
-      topCategoriesQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+    const buildTopCategoriesQuery = () => {
+      const q = db
+        .select({
+          id: catIdExpr,
+          name: catNameExpr,
+          color: catColorExpr,
+          amount: netCatAmountSql,
+        })
+        .from(transactions)
+
+      if (mode === 'invoice') {
+        const withInvoices = q
+          .leftJoin(statements, eq(transactions.statementId, statements.id))
+          .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+          .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
+          .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        if (hasOwnerFilter) {
+          return withInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+        }
+        return withInvoices
+      }
+
+      const withoutInvoices = q.leftJoin(categories, eq(transactions.categoryId, categories.id))
+      if (hasOwnerFilter) {
+        return withoutInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+      }
+      return withoutInvoices
     }
 
-    const topCategoriesRows = await topCategoriesQuery
+    const topCategoriesRows = await buildTopCategoriesQuery()
       .where(
         and(
           ...conditions,
-          or(eq(categories.type, 'expense'), isNull(categories.type)),
+          sql`${categoryTypeExpr} = 'expense'`,
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
-      .groupBy(categories.id, categories.name, categories.color)
+      .groupBy(catIdExpr, catNameExpr, catColorExpr)
       .having(sql`${netCatAmountSql} > 0`)
       .orderBy(desc(netCatAmountSql))
       .limit(5)
@@ -171,13 +222,32 @@ export class InsightsService {
     })
 
     // ── Uncategorized count ──
-    const uncategorizedResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(transactions)
-      .leftJoin(statements, eq(transactions.statementId, statements.id))
-      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
-      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
-      .where(and(...conditions, isNull(transactions.categoryId)))
+    const buildUncategorizedQuery = () => {
+      const q = db
+        .select({ count: sql<number>`count(*)` })
+        .from(transactions)
+        .leftJoin(categories, eq(transactions.categoryId, categories.id))
+
+      if (mode === 'invoice') {
+        return q
+          .leftJoin(statements, eq(transactions.statementId, statements.id))
+          .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+          .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
+      }
+      return q
+    }
+
+    const uncategorizedResult = await buildUncategorizedQuery()
+      .where(
+        and(
+          ...conditions,
+          or(
+            isNull(transactions.categoryId),
+            eq(sql`lower(coalesce(${categories.name}, ''))`, 'uncategorized')
+          ),
+          sql`${categoryTypeExpr} = 'expense'`
+        )
+      )
 
     // ── Reconciliation metadata ──
     const matchedInvoice = await db.query.invoices.findFirst({
@@ -243,31 +313,43 @@ export class InsightsService {
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
-    const resultQuery = db
-      .select({
-        month: effectiveMonth,
-        type: transactions.type,
-        categoryType: sql<string>`coalesce(${categories.type}, 'expense')`,
-        amount: sql<string>`sum(${amountExpr})`,
-      })
-      .from(transactions)
-      .leftJoin(statements, eq(transactions.statementId, statements.id))
-      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
-      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
-      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    const buildResultQuery = () => {
+      const q = db
+        .select({
+          month: effectiveMonth,
+          type: transactions.type,
+          categoryType: categoryTypeExpr,
+          amount: sql<string>`sum(${amountExpr})`,
+        })
+        .from(transactions)
 
-    if (hasOwnerFilter) {
-      resultQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+      if (mode === 'invoice') {
+        const withInvoices = q
+          .leftJoin(statements, eq(transactions.statementId, statements.id))
+          .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+          .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
+          .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        if (hasOwnerFilter) {
+          return withInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+        }
+        return withInvoices
+      }
+
+      const withoutInvoices = q.leftJoin(categories, eq(transactions.categoryId, categories.id))
+      if (hasOwnerFilter) {
+        return withoutInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+      }
+      return withoutInvoices
     }
 
-    const result = await resultQuery
+    const result = await buildResultQuery()
       .where(
         and(
           ...conditions,
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
-      .groupBy(effectiveMonth, transactions.type, sql`coalesce(${categories.type}, 'expense')`)
+      .groupBy(effectiveMonth, transactions.type, categoryTypeExpr)
 
     const months: Record<string, { spend: string; income: string }> = {}
     for (let i = 0; i < 12; i++) {
@@ -314,40 +396,62 @@ export class InsightsService {
     const conditions = [
       eq(transactions.userId, userId),
       sql`${effectiveMonth} = ${targetMonth}`,
-      or(eq(categories.type, 'expense'), isNull(categories.type)),
     ]
 
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
-    const netCatAmountSql = sql<string>`sum(case when ${transactions.type} = 'debit' then ${amountExpr} else -${amountExpr} end)`
+    const netCatAmountSql = sql<string>`sum(
+      case
+        when ${transactions.type} = 'debit' then ${amountExpr}
+        when ${transactions.type} = 'credit' and ${categoryTypeExpr} = 'expense' and lower(coalesce(${categories.name}, '')) != 'uncategorized' and ${categories.id} is not null then -${amountExpr}
+        else 0
+      end
+    )`
+
+    const catIdExpr = sql<string>`coalesce(cast(${categories.id} as text), 'uncategorized')`
+    const catNameExpr = sql<string>`coalesce(${categories.name}, 'Uncategorized')`
+    const catColorExpr = sql<string>`coalesce(${categories.color}, '#71717a')`
 
     // Per-category totals (only expense categories with net > 0)
-    const rowsQuery = db
-      .select({
-        id: categories.id,
-        name: categories.name,
-        color: categories.color,
-        amount: netCatAmountSql,
-      })
-      .from(transactions)
-      .leftJoin(statements, eq(transactions.statementId, statements.id))
-      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
-      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
-      .innerJoin(categories, eq(transactions.categoryId, categories.id))
+    const buildRowsQuery = () => {
+      const q = db
+        .select({
+          id: catIdExpr,
+          name: catNameExpr,
+          color: catColorExpr,
+          amount: netCatAmountSql,
+        })
+        .from(transactions)
 
-    if (hasOwnerFilter) {
-      rowsQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+      if (mode === 'invoice') {
+        const withInvoices = q
+          .leftJoin(statements, eq(transactions.statementId, statements.id))
+          .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+          .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
+          .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        if (hasOwnerFilter) {
+          return withInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+        }
+        return withInvoices
+      }
+
+      const withoutInvoices = q.leftJoin(categories, eq(transactions.categoryId, categories.id))
+      if (hasOwnerFilter) {
+        return withoutInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+      }
+      return withoutInvoices
     }
 
-    const rows = await rowsQuery
+    const rows = await buildRowsQuery()
       .where(
         and(
           ...conditions,
+          sql`${categoryTypeExpr} = 'expense'`,
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
-      .groupBy(categories.id, categories.name, categories.color)
+      .groupBy(catIdExpr, catNameExpr, catColorExpr)
       .having(sql`${netCatAmountSql} > 0`)
       .orderBy(desc(netCatAmountSql))
 
@@ -433,37 +537,59 @@ export class InsightsService {
     const hasOwnerFilter = ownerIds && ownerIds.length > 0
     const amountExpr = hasOwnerFilter ? transactionOwners.amount : transactions.amount
 
-    const netCatAmountSql = sql<string>`sum(case when ${transactions.type} = 'debit' then ${amountExpr} else -${amountExpr} end)`
+    const netCatAmountSql = sql<string>`sum(
+      case
+        when ${transactions.type} = 'debit' then ${amountExpr}
+        when ${transactions.type} = 'credit' and ${categoryTypeExpr} = 'expense' and lower(coalesce(${categories.name}, '')) != 'uncategorized' and ${categories.id} is not null then -${amountExpr}
+        else 0
+      end
+    )`
+
+    const catIdExpr = sql<string>`coalesce(cast(${categories.id} as text), 'uncategorized')`
+    const catNameExpr = sql<string>`coalesce(${categories.name}, 'Uncategorized')`
+    const catColorExpr = sql<string>`coalesce(${categories.color}, '#71717a')`
 
     // 12-month spend per category
-    const avgQuery = db
-      .select({
-        id: categories.id,
-        name: categories.name,
-        color: categories.color,
-        totalAmount: netCatAmountSql,
-      })
-      .from(transactions)
-      .leftJoin(statements, eq(transactions.statementId, statements.id))
-      .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
-      .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
-      .innerJoin(categories, eq(transactions.categoryId, categories.id))
+    const buildAvgQuery = () => {
+      const q = db
+        .select({
+          id: catIdExpr,
+          name: catNameExpr,
+          color: catColorExpr,
+          totalAmount: netCatAmountSql,
+        })
+        .from(transactions)
+
+      if (mode === 'invoice') {
+        const withInvoices = q
+          .leftJoin(statements, eq(transactions.statementId, statements.id))
+          .leftJoin(invoiceStatements, eq(invoiceStatements.statementId, transactions.statementId))
+          .leftJoin(invoices, eq(invoices.id, invoiceStatements.invoiceId))
+          .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        if (hasOwnerFilter) {
+          return withInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+        }
+        return withInvoices
+      }
+
+      const withoutInvoices = q.leftJoin(categories, eq(transactions.categoryId, categories.id))
+      if (hasOwnerFilter) {
+        return withoutInvoices.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
+      }
+      return withoutInvoices
+    }
+
+    const avgRows = await buildAvgQuery()
       .where(
         and(
           eq(transactions.userId, userId),
-          or(eq(categories.type, 'expense'), isNull(categories.type)),
+          sql`${categoryTypeExpr} = 'expense'`,
           sql`${effectiveMonth} >= ${startMonthStr}`,
           sql`${effectiveMonth} <= ${currentMonth}`,
           hasOwnerFilter ? inArray(transactionOwners.ownerId, ownerIds) : undefined
         )
       )
-
-    if (hasOwnerFilter) {
-      avgQuery.leftJoin(transactionOwners, eq(transactionOwners.transactionId, transactions.id))
-    }
-
-    const avgRows = await avgQuery
-      .groupBy(categories.id, categories.name, categories.color)
+      .groupBy(catIdExpr, catNameExpr, catColorExpr)
       .having(sql`${netCatAmountSql} > 0`)
 
     // Current month spend per category
