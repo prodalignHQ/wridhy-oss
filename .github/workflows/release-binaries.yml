@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       upload_to_release:
-        description: 'Attach binaries to GitHub Release if running on a release tag'
+        description: "Attach binaries to GitHub Release if running on a release tag"
         required: false
         default: true
         type: boolean
@@ -31,8 +31,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
