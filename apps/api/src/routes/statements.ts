@@ -104,6 +104,9 @@ statementsRoute.post('/preview', async (c) => {
   try {
     const parsedTxns = await parser.parse(buffer)
     if (parsedTxns.length === 0) {
+      console.warn(
+        `[Statements] Preview failed: parser "${bankId}" returned 0 transactions for file "${(file as File).name}" (${buffer.byteLength} bytes).`
+      )
       return c.json(
         {
           success: false,
@@ -218,6 +221,9 @@ statementsRoute.post('/upload', async (c) => {
   const parsedCount = parsedTxns.length
 
   if (parsedCount === 0) {
+    console.warn(
+      `[Statements] Upload failed: parser "${bankId}" returned 0 transactions for file "${(file as File).name}" (${buffer.byteLength} bytes).`
+    )
     return c.json(
       { success: false, error: { code: 'PARSE_ERROR', message: 'No transactions found in the uploaded file.' } },
       422

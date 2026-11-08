@@ -1,5 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "DEBUG",
+    "LOG_LEVEL",
+    "PARSER_DEBUG"
+  ],
   "ui": "tui",
   "tasks": {
     "build": {

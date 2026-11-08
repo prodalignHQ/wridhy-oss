@@ -1,5 +1,8 @@
 import * as XLSX from 'xlsx'
 import type { BankParser, ParsedTransaction } from '../base.parser.js'
+import { createParserLogger } from '../logger.js'
+
+const log = createParserLogger('hdfc_savings')
 
 /**
  * HDFC Bank Savings Account Statement Parser
@@ -25,8 +28,10 @@ export const hdfcSavingsParser: BankParser = {
   displayName: 'HDFC Bank Savings Account',
 
   parse(buffer: ArrayBuffer): ParsedTransaction[] {
+    log.debug(`Starting parse on buffer of size ${buffer.byteLength} bytes`)
     try {
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: false })
+      log.debug(`Workbook read successfully. Sheets: ${JSON.stringify(workbook.SheetNames)}`)
 
       for (const sheetName of workbook.SheetNames) {
         const sheet = workbook.Sheets[sheetName]
@@ -38,17 +43,20 @@ export const hdfcSavingsParser: BankParser = {
           raw: true,
         })
 
+        log.debug(`Sheet "${sheetName}" contains ${rows.length} rows`)
         if (rows.length === 0) continue
 
         const transactions = parseSheetRows(rows)
         if (transactions.length > 0) {
+          log.debug(`Successfully extracted ${transactions.length} transactions from sheet "${sheetName}"`)
           return transactions
         }
       }
 
+      log.warn('Could not extract transactions from any sheet in HDFC savings statement')
       return []
     } catch (err) {
-      console.warn('[Parsers] Failed to parse HDFC savings buffer:', err)
+      log.warn('Failed to parse HDFC savings buffer:', err)
       return []
     }
   },

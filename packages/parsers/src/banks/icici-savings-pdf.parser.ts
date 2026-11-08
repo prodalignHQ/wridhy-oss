@@ -1,5 +1,8 @@
-import { PDFParse } from 'pdf-parse';
-import type { BankParser, ParsedTransaction } from '../base.parser.js';
+import { PDFParse } from 'pdf-parse'
+import type { BankParser, ParsedTransaction } from '../base.parser.js'
+import { createParserLogger } from '../logger.js'
+
+const log = createParserLogger('icici_savings_pdf')
 
 /**
  * ICICI Bank Savings Account Statement Parser
@@ -10,64 +13,82 @@ export const iciciSavingsPdfParser: BankParser = {
   displayName: 'ICICI Bank Savings Account (PDF)',
 
   async parse(buffer: ArrayBuffer): Promise<ParsedTransaction[]> {
+    log.debug(`Starting parse on buffer of size ${buffer.byteLength} bytes`)
+
     try {
-      const parser = new PDFParse({ data: buffer });
-      const result = await parser.getText();
-      const lines = result.text.split('\n');
+      const parser = new PDFParse({ data: buffer })
+      const result = await parser.getText()
+      const lines = result.text.split('\n')
+      log.debug(`Extracted PDF text length: ${result.text.length} chars, total lines: ${lines.length}`)
 
-      const transactions: ParsedTransaction[] = [];
-      let isReadingTransactions = false;
-      let currentTransactionLines: string[] = [];
-      let currentBalance: number | null = null;
+      const transactions: ParsedTransaction[] = []
+      let isReadingTransactions = false
+      let headerFound = false
+      let currentTransactionLines: string[] = []
+      let currentBalance: number | null = null
 
-      const dateRegex = /^(\d{2}-\d{2}-\d{4})\s*(.*)$/;
-      const txnDataRegex = /(.*?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$/;
+      const dateRegex = /^(\d{2}-\d{2}-\d{4})\s*(.*)$/
+      const txnDataRegex = /(.*?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$/
 
-      const parseAmount = (str: string) => parseFloat(str.replace(/,/g, ''));
+      const parseAmount = (str: string) => parseFloat(str.replace(/,/g, ''))
 
       const processTransaction = (linesToProcess: string[]) => {
-        if (linesToProcess.length === 0) return;
+        if (linesToProcess.length === 0) return
 
-        const joined = linesToProcess.join(' ').trim();
+        const joined = linesToProcess.join(' ').trim()
 
         // Handle opening balance lines (e.g. 01-02-2026 B/F 3,51,271.42)
         if (joined.includes('B/F')) {
-          const match = joined.match(/([\d,]+\.\d{2})$/);
+          const match = joined.match(/([\d,]+\.\d{2})$/)
           if (match) {
-            currentBalance = parseAmount(match[1]!);
+            currentBalance = parseAmount(match[1]!)
+            log.debug(`Detected opening balance B/F: ${currentBalance}`)
           }
-          return;
+          return
         }
 
-        const dateMatch = joined.match(dateRegex);
-        if (!dateMatch) return;
+        const dateMatch = joined.match(dateRegex)
+        if (!dateMatch) {
+          log.debug(`Transaction line skipped (no date regex match): "${joined}"`)
+          return
+        }
 
-        const valueDateStr = dateMatch[1]!;
-        const remainingText = dateMatch[2]!.trim();
+        const valueDateStr = dateMatch[1]!
+        const remainingText = dateMatch[2]!.trim()
 
-        const dataMatch = remainingText.match(txnDataRegex);
-        if (!dataMatch) return;
+        const dataMatch = remainingText.match(txnDataRegex)
+        if (!dataMatch) {
+          log.debug(`Transaction line skipped (no amount/balance regex match): "${remainingText}"`)
+          return
+        }
 
-        const description = dataMatch[1]!.trim();
-        const amount = parseAmount(dataMatch[2]!);
-        const balance = parseAmount(dataMatch[3]!);
+        const description = dataMatch[1]!.trim()
+        const amount = parseAmount(dataMatch[2]!)
+        const balance = parseAmount(dataMatch[3]!)
 
         // Determine transaction type (debit/credit) using balance reconciliation
-        let type: 'debit' | 'credit' = 'debit';
+        let type: 'debit' | 'credit' = 'debit'
         if (currentBalance !== null) {
-          const isCredit = Math.abs((currentBalance + amount) - balance) < 0.05;
-          const isDebit = Math.abs((currentBalance - amount) - balance) < 0.05;
+          const isCredit = Math.abs(currentBalance + amount - balance) < 0.05
+          const isDebit = Math.abs(currentBalance - amount - balance) < 0.05
 
           if (isCredit) {
-            type = 'credit';
+            type = 'credit'
           } else if (isDebit) {
-            type = 'debit';
+            type = 'debit'
+          } else {
+            log.debug(
+              `Balance reconciliation uncertain: currentBalance=${currentBalance}, amount=${amount}, balance=${balance}. Defaulting to debit.`
+            )
           }
         }
 
-        const [day, month, year] = valueDateStr.split('-').map(Number);
-        const date = new Date(year!, month! - 1, day!);
-        if (isNaN(date.getTime())) return;
+        const [day, month, year] = valueDateStr.split('-').map(Number)
+        const date = new Date(year!, month! - 1, day!)
+        if (isNaN(date.getTime())) {
+          log.debug(`Transaction date "${valueDateStr}" is NaN Date`)
+          return
+        }
 
         transactions.push({
           date,
@@ -75,21 +96,26 @@ export const iciciSavingsPdfParser: BankParser = {
           amount,
           type,
           balance,
-        });
+        })
 
-        currentBalance = balance;
-      };
+        currentBalance = balance
+      }
 
       for (const line of lines) {
-        const trimmed = line.trim();
+        const trimmed = line.trim()
 
         // Detect start of transactions
-        if (trimmed.includes('DATE MODE PARTICULARS DEPOSITS WITHDRAWALS BALANCE') || trimmed.includes('Account Statement')) {
-          isReadingTransactions = true;
-          continue;
+        if (
+          trimmed.includes('DATE MODE PARTICULARS DEPOSITS WITHDRAWALS BALANCE') ||
+          trimmed.includes('Account Statement')
+        ) {
+          isReadingTransactions = true
+          headerFound = true
+          log.debug(`Encountered transaction header trigger on line: "${trimmed}"`)
+          continue
         }
 
-        if (!isReadingTransactions) continue;
+        if (!isReadingTransactions) continue
 
         // Skip header/footer and non-transaction lines
         const isHeaderFooter =
@@ -99,41 +125,52 @@ export const iciciSavingsPdfParser: BankParser = {
           trimmed.startsWith('Page ') ||
           trimmed.includes('Summary of TDS') ||
           trimmed.includes('Account Related Other Information') ||
-          trimmed.length === 0;
+          trimmed.length === 0
 
         if (isHeaderFooter) {
           if (currentTransactionLines.length > 0) {
-            processTransaction(currentTransactionLines);
-            currentTransactionLines = [];
+            processTransaction(currentTransactionLines)
+            currentTransactionLines = []
           }
           // Stop reading if we hit footer sections
-          if (trimmed.startsWith('Total:') || trimmed.includes('Summary of TDS') || trimmed.includes('Account Related Other Information')) {
-            isReadingTransactions = false;
+          if (
+            trimmed.startsWith('Total:') ||
+            trimmed.includes('Summary of TDS') ||
+            trimmed.includes('Account Related Other Information')
+          ) {
+            log.debug(`Encountered footer section: "${trimmed}". Stopping transaction ingestion.`)
+            isReadingTransactions = false
           }
-          continue;
+          continue
         }
 
         // Transactions start with a date "DD-MM-YYYY"
         if (/^\d{2}-\d{2}-\d{4}/.test(trimmed)) {
           if (currentTransactionLines.length > 0) {
-            processTransaction(currentTransactionLines);
+            processTransaction(currentTransactionLines)
           }
-          currentTransactionLines = [trimmed];
+          currentTransactionLines = [trimmed]
         } else if (currentTransactionLines.length > 0) {
           // Append multi-line descriptions
-          currentTransactionLines.push(trimmed);
+          currentTransactionLines.push(trimmed)
         }
       }
 
       // Process last transaction
       if (currentTransactionLines.length > 0) {
-        processTransaction(currentTransactionLines);
+        processTransaction(currentTransactionLines)
       }
 
-      return transactions;
+      if (!headerFound) {
+        log.warn('Header trigger was not found in PDF text. Sample lines (first 20):', lines.slice(0, 20))
+      } else {
+        log.debug(`Finished parsing PDF: extracted ${transactions.length} transactions`)
+      }
+
+      return transactions
     } catch (e) {
-      console.warn('PDF parsing error', e);
-      return [];
+      log.error('PDF parsing error:', e)
+      return []
     }
   },
-};
+}
