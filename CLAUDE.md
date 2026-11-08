@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ### Development
+
 ```bash
 # Install dependencies (from root)
 pnpm install
@@ -17,6 +18,7 @@ lsof -ti :3000,3001 | xargs kill -9
 ```
 
 ### Database
+
 ```bash
 # Start local PostgreSQL
 docker-compose up -d
@@ -26,10 +28,11 @@ docker-compose up -d
 pnpm --filter @momoney/db exec drizzle-kit push
 
 # Run database seed
-pnpm --filter @momoney/db exec tsx src/seed.ts
+pnpm --filter @momoney/db run db:seed
 ```
 
 ### Building & Linting
+
 ```bash
 # Build all packages and apps (hosted/PostgreSQL mode)
 pnpm build
@@ -52,6 +55,7 @@ pnpm --filter web lint
 ```
 
 ### Running the API in isolation
+
 ```bash
 # Dev mode (tsx watch)
 pnpm --filter @momoney/api dev
@@ -81,6 +85,7 @@ All routes live in `src/routes/` and are versioned under `/v1/`. Every route fil
 **Response envelope:** All routes return `{ success: true, data: ... }` on success and `{ success: false, error: { code, message } }` on error. The `apiClient` in the frontend (`apps/web/lib/api.ts`) relies on this shape.
 
 **Statement upload pipeline:** `POST /v1/statements/upload` orchestrates the full ingestion flow:
+
 1. `@momoney/parsers` parses the file buffer into `ParsedTransaction[]`
 2. `@momoney/rules-engine`'s `categorize()` auto-assigns a category to each transaction
 3. A `dedupHash` (sha256 of `accountId|date|amount|description`) prevents duplicate imports via `onConflictDoNothing`
@@ -89,6 +94,7 @@ All routes live in `src/routes/` and are versioned under `/v1/`. Every route fil
 ### Frontend (`apps/web`)
 
 **Route groups:**
+
 - `(auth)` — Login/signup pages, no sidebar
 - `(app)` — All authenticated pages with sidebar + layout guard. The layout performs a server-side session check and redirects to `/login` if unauthenticated.
 
@@ -103,6 +109,7 @@ All routes live in `src/routes/` and are versioned under `/v1/`. Every route fil
 ### Database Schema Key Concepts
 
 Schema files in `packages/db/src/`:
+
 - `schema.ts` — PostgreSQL schema (hosted mode).
 - `schema.sqlite.ts` — SQLite schema (standalone binary mode).
 - `sqlite-init.ts` — SQLite table creation DDL and indexes.
@@ -131,12 +138,14 @@ Key relationships:
 ### Environment Variables
 
 **`apps/api/.env`:**
+
 ```
 DATABASE_URL=postgres://momoney:momoney_dev@localhost:5432/momoney_db
 BETTER_AUTH_SECRET=your_super_secret_string
 ```
 
 **`apps/web` (optional, defaults shown):**
+
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
