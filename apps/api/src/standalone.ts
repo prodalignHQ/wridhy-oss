@@ -1,4 +1,6 @@
+import './standalone-logger.js'
 import './polyfill.js'
+import { logFilePath, handleFatalCrash } from './standalone-logger.js'
 import { createApiApp } from './app.js'
 import { ensureLocalUserAndSeed } from '@momoney/db/local-seed'
 import { isSqlite, rawPgSql } from '@momoney/db'
@@ -86,10 +88,13 @@ function openBrowser(url: string) {
   }
 
   try {
-    const child = spawn(cmd, args, { stdio: 'ignore', detached: true })
+    const child = spawn(cmd, args, { stdio: 'ignore', detached: true, windowsHide: true })
+    child.on('error', (err) => {
+      console.warn(`[Browser Notice] Could not automatically open browser: ${err.message}. Please navigate manually to ${url}`)
+    })
     child.unref()
-  } catch {
-    // Ignore browser open failures (e.g. headless environment)
+  } catch (err: any) {
+    console.warn(`[Browser Notice] Failed to launch browser process: ${err?.message || err}. Please navigate manually to ${url}`)
   }
 }
 
@@ -117,6 +122,8 @@ async function main() {
     console.log(`  📂 Database: PostgreSQL (${cleanDbUrl})`)
   }
 
+  console.log(`  📝 Logs: ${logFilePath}`)
+
   const desiredPort = parseInt(process.env['PORT'] ?? '3000', 10)
   let port = desiredPort
 
@@ -131,7 +138,7 @@ async function main() {
       })
       break
     } catch (err: any) {
-      if (err.code === 'EADDRINUSE') {
+      if (err.code === 'EADDRINUSE' || err.code === 'WSAEADDRINUSE' || String(err?.message).includes('already in use')) {
         port++
       } else {
         throw err
@@ -153,6 +160,5 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Fatal startup error:', err)
-  process.exit(1)
+  handleFatalCrash(err, 'Fatal startup error')
 })
