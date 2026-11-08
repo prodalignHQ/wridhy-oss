@@ -8,6 +8,7 @@
     "./auth": "./src/auth.ts",
     "./email": "./src/email.ts",
     "./local-seed": "./src/local-seed.ts",
+    "./demo-seed": "./src/demo-seed.ts",
     "./postgres-init": "./src/postgres-init.ts"
   },
   "scripts": {
@@ -16,7 +17,8 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx --env-file=../../apps/api/.env src/seed.ts"
+    "db:seed": "tsx --env-file=../../apps/api/.env src/seed.ts",
+    "db:seed-demo": "tsx --env-file=../../apps/api/.env src/demo-seed.ts"
   },
   "dependencies": {
     "better-auth": "^1.5.5",

@@ -98,6 +98,28 @@ Your financial data is private. It should never be mined, monetized, or shared w
 
 ---
 
+## 🚀 Quick Start for Developers & Demo Data
+
+Want to explore the app with rich sample data right away? You can quickly bootstrap a demo database with pre-populated dummy data:
+
+```bash
+# Seed a complete demo dataset into your database
+pnpm --filter @momoney/db run db:seed-demo
+# or from root:
+pnpm run db:seed-demo
+```
+
+This creates a complete household financial workspace:
+- 👤 **Verified Demo Account**: `demo@momoney.io` (password: `password123`)
+- 👥 **2 Household Owners**: Husband (`indigo`, default) and Wife (`rose`)
+- 🏦 **Accounts & Statements**: HDFC Savings, ICICI Credit Card, and SBI Joint Account across 3 months of statements
+- 💳 **70+ Realistic Transactions**: Groceries, dining, rent, utilities, subscriptions, and investments with realistic category tags and multi-owner splits
+- 📈 **Net Worth Tracking**: 10 diversified assets, 3 liabilities, and 12 consecutive months of historical snapshots for both members
+- 💼 **Salary Growth**: 4 career employers with 11 revisions tracking annual hikes, promotions, CTC, and designations for both members
+- 📑 **Income Tax History**: 5 financial years (FY 2020-21 through FY 2024-25) of ITR filings, TDS reconciliation, and income breakdowns
+
+---
+
 ## 📚 Documentation & Guides
 
 Explore our dedicated guides for installation, configuration, and customization:

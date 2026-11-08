@@ -27,8 +27,11 @@ docker-compose up -d
 # Note: interactive — use arrow keys + Enter to confirm, or pipe: yes | <cmd>
 pnpm --filter @momoney/db exec drizzle-kit push
 
-# Run database seed
+# Run basic database seed (categories, rules, merchants)
 pnpm --filter @momoney/db run db:seed
+
+# Run demo database seed (verified user, Husband & Wife, transactions, statements, net worth, salary, taxes)
+pnpm --filter @momoney/db run db:seed-demo
 ```
 
 ### Building & Linting

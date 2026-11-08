@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db } from './index.js'
 import { categories, categorizationRules, merchants } from './schema.js'
 
-async function seedSystemCategories() {
+export async function seedSystemCategories() {
   console.log('🌱 Seeding system categories...')
 
   const defaultCategories: Array<{
@@ -59,7 +59,7 @@ async function getCategoryId(name: string): Promise<string | null> {
   return cat?.id || null
 }
 
-async function seedSystemRules() {
+export async function seedSystemRules() {
   console.log('🌱 Seeding system rules...')
 
   const foodCategoryId = await getCategoryId('Food & Dining')
@@ -143,7 +143,7 @@ async function seedSystemRules() {
   console.log('✅ System rules seeding complete.')
 }
 
-async function seedSystemMerchants() {
+export async function seedSystemMerchants() {
   console.log('🌱 Seeding system merchants...')
 
   const foodCategoryId = await getCategoryId('Food & Dining')
@@ -195,17 +195,25 @@ async function seedSystemMerchants() {
   console.log('✅ System merchants seeding complete.')
 }
 
-async function seed() {
+export async function seed() {
   try {
     await seedSystemCategories()
     await seedSystemRules()
     await seedSystemMerchants()
     console.log('🎉 All seeding complete!')
-    process.exit(0)
   } catch (e) {
     console.error('❌ Seeding error:', e)
-    process.exit(1)
+    throw e
   }
 }
 
-seed()
+import path from 'node:path'
+
+const isMain =
+  process.argv[1] &&
+  (path.basename(process.argv[1]) === 'seed.ts' || path.basename(process.argv[1]) === 'seed.js')
+if (isMain) {
+  seed()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1))
+}

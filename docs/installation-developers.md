@@ -100,11 +100,15 @@ With SQLite, you do **not** need Docker or a running PostgreSQL instance. The sc
    > ```
 
 4. **Seed the Database:**
-   Run the seed script to populate sample accounts, categories, owners, and merchants:
-
-   ```bash
-   pnpm --filter @momoney/db run db:seed
-   ```
+   - **Basic System Seed** (standard categories, rules, and merchants):
+     ```bash
+     pnpm --filter @momoney/db run db:seed
+     ```
+   - **Rich Demo Dataset** (verified user, transactions, statements, Husband & Wife owners, net worth snapshots, salary progression, tax history):
+     ```bash
+     pnpm --filter @momoney/db run db:seed-demo
+     # Log in with demo@momoney.io / password123
+     ```
 
 5. **Start the Dev Servers:**
    ```bash

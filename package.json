@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "db:seed": "pnpm --filter @momoney/db run db:seed",
+    "db:seed-demo": "pnpm --filter @momoney/db run db:seed-demo",
     "build:binary": "NEXT_OUTPUT_EXPORT=true NEXT_PUBLIC_API_URL=\"\" NEXT_PUBLIC_LOCAL_MODE=true pnpm --filter web build && bun scripts/bundle-assets.ts && bun build apps/api/src/standalone.ts --compile --outfile dist/wridhy && cp dist/wridhy dist/momoney 2>/dev/null || true",
     "build:binary:all": "NEXT_OUTPUT_EXPORT=true NEXT_PUBLIC_API_URL=\"\" NEXT_PUBLIC_LOCAL_MODE=true pnpm --filter web build && bun scripts/bundle-assets.ts && bun build apps/api/src/standalone.ts --compile --target=bun-darwin-arm64 --outfile dist/wridhy-darwin-arm64 && bun build apps/api/src/standalone.ts --compile --target=bun-darwin-x64 --outfile dist/wridhy-darwin-x64 && bun build apps/api/src/standalone.ts --compile --target=bun-linux-x64 --outfile dist/wridhy-linux-x64 && bun build apps/api/src/standalone.ts --compile --target=bun-windows-x64 --outfile dist/wridhy-windows-x64.exe && cp dist/wridhy-darwin-arm64 dist/momoney 2>/dev/null || true",
     "lint": "turbo lint",
