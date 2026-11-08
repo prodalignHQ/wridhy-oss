@@ -13,6 +13,7 @@ if (typeof (globalThis as any).ImageData === 'undefined') {
 
 export type { ParsedTransaction, BankParser } from './base.parser.js'
 export { getParser, listParsers } from './parser-registry.js'
+export { setDebug, isDebugEnabled, createParserLogger } from './logger.js'
 export { iciciSavingsParser } from './banks/icici-savings.parser.js'
 export { iciciCreditParser } from './banks/icici-credit.parser.js'
 export { hdfcSavingsParser } from './banks/hdfc-savings.parser.js'
